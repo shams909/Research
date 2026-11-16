@@ -48,6 +48,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 import torchvision
 import torchvision.transforms as transforms
 from torchvision.models import resnet18
+from torch.utils.tensorboard import SummaryWriter
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
@@ -204,6 +205,13 @@ def main():
     )
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
 
+    # TensorBoard writer — only rank 0 logs (master node)
+    writer = None
+    if rank == 0:
+        import datetime
+        run_tag = f"cifar_{world_size}nodes_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        writer  = SummaryWriter(log_dir=os.path.join(config.LOG_DIR, run_tag))
+
     if rank == 0:
         param_count = sum(p.numel() for p in model.parameters()) / 1e6
         print(f"  Parameters : {param_count:.1f}M")
@@ -226,6 +234,13 @@ def main():
             test_acc = evaluate(model, test_loader, criterion)
             print(f"  {epoch:>5}  {train_loss:>8.4f}  {test_acc:>8.2f}  "
                   f"{epoch_time:>9.1f}  {imgs_per_sec:>9.1f}")
+
+            # TensorBoard logging
+            if writer:
+                writer.add_scalar("Loss/train",        train_loss,  epoch)
+                writer.add_scalar("Accuracy/test",     test_acc,    epoch)
+                writer.add_scalar("Throughput/imgs_per_sec", imgs_per_sec, epoch)
+                writer.add_scalar("Time/epoch_seconds", epoch_time, epoch)
 
             results.append({
                 "epoch"       : epoch,
@@ -266,6 +281,8 @@ def main():
         print(f"  Checkpoint saved : {ckpt_f}")
         print("=" * 65)
         print()
+        if writer:
+            writer.close()
 
     dist.destroy_process_group()
 

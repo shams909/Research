@@ -47,6 +47,7 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset, DistributedSampler
+from torch.utils.tensorboard import SummaryWriter
 from transformers import GPT2LMHeadModel, GPT2Tokenizer, GPT2Config
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -158,6 +159,12 @@ def main():
         print(f"  {'Step':>6}  {'Loss':>8}  {'PPL':>10}  {'Tok/sec':>10}  {'Time(s)':>8}")
         print("  " + "-" * 50)
 
+    # TensorBoard
+    writer = None
+    if rank == 0:
+        run_tag = f"gpt2_{world_size}nodes_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        writer  = SummaryWriter(log_dir=os.path.join(config.LOG_DIR, run_tag))
+
     results = []
     model.train()
     step = 0
@@ -183,6 +190,12 @@ def main():
         if rank == 0:
             print(f"  {step+1:>6}  {loss.item():>8.4f}  {ppl:>10.2f}  "
                   f"{tokens_sec:>10.1f}  {step_time:>8.3f}")
+
+            if writer:
+                writer.add_scalar("Loss/train",           loss.item(), step)
+                writer.add_scalar("Perplexity",           ppl,         step)
+                writer.add_scalar("Throughput/tokens_per_sec", tokens_sec, step)
+                writer.add_scalar("Time/step_seconds",   step_time,   step)
 
             results.append({
                 "step"         : step + 1,
@@ -218,6 +231,8 @@ def main():
         print(f"  Results saved    : {csv_f}")
         print("=" * 65)
         print()
+        if writer:
+            writer.close()
 
     dist.destroy_process_group()
 
