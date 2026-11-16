@@ -54,7 +54,7 @@ def get_net_speed(prev_counters, interval):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--interval", type=float, default=2.0,
+    parser.add_argument("--interval", type=float, default= 0.5,
                         help="Sampling interval in seconds (default: 2)")
     parser.add_argument("--duration", type=float, default=None,
                         help="Total monitoring duration in seconds (default: until Ctrl+C)")
