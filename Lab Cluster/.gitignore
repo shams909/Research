@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+
+# Data & Models (too large for git)
+data/
+models/
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.safetensors
+
+# Results & Logs (optional: commit these for reproducibility)
+# results/
+# logs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Env
+.env
+*.env
