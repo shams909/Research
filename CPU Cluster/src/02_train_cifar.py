@@ -75,15 +75,14 @@ def get_dataloaders(rank, world_size, batch_size):
                              (0.2023, 0.1994, 0.2010)),
     ])
 
-    # Download only on rank 0 to avoid conflicts, then sync
-    if rank == 0:
-        torchvision.datasets.CIFAR10(
-            root=config.DATA_DIR, train=True, download=True
-        )
-        torchvision.datasets.CIFAR10(
-            root=config.DATA_DIR, train=False, download=True
-        )
-    dist.barrier()  # Wait for rank 0 to finish downloading
+    # Both nodes ensure dataset is downloaded to their local disk
+    torchvision.datasets.CIFAR10(
+        root=config.DATA_DIR, train=True, download=True
+    )
+    torchvision.datasets.CIFAR10(
+        root=config.DATA_DIR, train=False, download=True
+    )
+    dist.barrier()  # Wait for all nodes to finish downloading
 
     train_set = torchvision.datasets.CIFAR10(
         root=config.DATA_DIR, train=True, transform=transform_train
