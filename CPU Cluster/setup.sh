@@ -26,7 +26,7 @@ echo ""
 echo "[2/7] Installing system packages..."
 sudo apt-get update -qq
 sudo apt-get install -y -qq \
-    python3.11 python3.11-venv python3.11-dev \
+    python3 python3-venv python3-dev python3-pip \
     git curl wget net-tools iperf3 htop
 echo "  Done"
 
@@ -36,7 +36,7 @@ echo "[3/7] Setting up Python virtual environment..."
 if [ -d ".venv" ]; then
     echo "  .venv already exists — skipping"
 else
-    python3.11 -m venv .venv
+    python3 -m venv .venv
     echo "  .venv created at $(pwd)/.venv"
 fi
 source .venv/bin/activate
@@ -47,7 +47,7 @@ echo ""
 echo "[4/7] Installing Python packages (may take a few minutes)..."
 pip install --upgrade pip --quiet
 # CPU-only PyTorch — no CUDA needed
-pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 \
+pip install torch torchvision torchaudio \
     --index-url https://download.pytorch.org/whl/cpu --quiet
 pip install -r requirements.txt --quiet
 echo "  All packages installed"
