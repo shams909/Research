@@ -9,8 +9,14 @@
 #
 # =============================================================
 
+import os
+
+# ── FORCE PHYSICAL NETWORK INTERFACE (Prevents loopback 127.0.0.1 bug) ──────
+os.environ["GLOO_SOCKET_IFNAME"] = "enp2s0"
+os.environ["TP_SOCKET_IFNAME"] = "enp2s0"
+
 # ── CHANGE THIS (same value on all nodes) ────────────────────
-MASTER_ADDR = "192.168.1.101"   # Node 01 (master) IP address
+MASTER_ADDR = "192.168.9.136"   # Node 01 (master) IP address
 
 # ── NETWORK ──────────────────────────────────────────────────
 MASTER_PORT  = "29500"          # Port used for node communication
