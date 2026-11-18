@@ -34,8 +34,6 @@ torchrun \
   --nnodes=$NNODES \
   --nproc-per-node=1 \
   --node-rank=0 \
-  --rdzv-backend=c10d \
-  --rdzv-endpoint="$MASTER_ADDR:$MASTER_PORT" \
-  --rdzv-id=lab-cluster \
-  --rdzv-conf=timeout=1800 \
+  --master-addr="$MASTER_ADDR" \
+  --master-port="$MASTER_PORT" \
   src/$SCRIPT
