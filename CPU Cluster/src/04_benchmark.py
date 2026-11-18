@@ -42,8 +42,8 @@ from torchvision.models import resnet18
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
-BENCH_STEPS = 10   # Steps per benchmark — fast and reliable
-WARMUP_STEPS = 2   # Warmup steps excluded from measurement
+BENCH_STEPS = 30   # Steps per benchmark — rigorous standard measurement
+WARMUP_STEPS = 5   # Warmup steps excluded from measurement
 
 
 # ── ResNet-18 Benchmark ───────────────────────────────────────────────────────

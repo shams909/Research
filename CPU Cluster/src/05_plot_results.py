@@ -21,6 +21,7 @@ import os
 import sys
 import glob
 import argparse
+import datetime
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -35,14 +36,25 @@ import config
 sns.set_theme(style="whitegrid", palette="muted", font_scale=1.2)
 COLORS   = sns.color_palette("muted")
 FIG_DIR  = os.path.join(config.RESULTS_DIR, "figures")
+RUN_TS   = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+RUN_DIR  = os.path.join(FIG_DIR, f"run_{RUN_TS}")
 DPI      = 150
 
 
 def save_fig(fig, name, show=False):
     os.makedirs(FIG_DIR, exist_ok=True)
-    path = os.path.join(FIG_DIR, name)
-    fig.savefig(path, dpi=DPI, bbox_inches="tight")
-    print(f"  Saved → {path}")
+    os.makedirs(RUN_DIR, exist_ok=True)
+
+    # 1. Save timestamped archive copy
+    archive_path = os.path.join(RUN_DIR, name)
+    fig.savefig(archive_path, dpi=DPI, bbox_inches="tight")
+
+    # 2. Save latest copy in main directory
+    latest_path = os.path.join(FIG_DIR, name)
+    fig.savefig(latest_path, dpi=DPI, bbox_inches="tight")
+
+    print(f"  Saved → {latest_path}")
+    print(f"  Archived → {archive_path}")
     if show:
         plt.show()
     plt.close(fig)
