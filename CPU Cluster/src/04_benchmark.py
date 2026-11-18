@@ -42,8 +42,8 @@ from torchvision.models import resnet18
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
-BENCH_STEPS = 30   # Steps per benchmark — increase for more stable numbers
-WARMUP_STEPS = 5   # Warmup steps excluded from measurement
+BENCH_STEPS = 10   # Steps per benchmark — fast and reliable
+WARMUP_STEPS = 2   # Warmup steps excluded from measurement
 
 
 # ── ResNet-18 Benchmark ───────────────────────────────────────────────────────
@@ -59,8 +59,10 @@ def benchmark_resnet(rank, world_size, batch_size=32, accum_steps=1):
 
     model.train()
     times = []
+    total_steps = BENCH_STEPS + WARMUP_STEPS
+    total_imgs  = batch_size * accum_steps * world_size
 
-    for step in range(BENCH_STEPS + WARMUP_STEPS):
+    for step in range(total_steps):
         t0 = time.perf_counter()
         optimizer.zero_grad()
 
@@ -85,8 +87,13 @@ def benchmark_resnet(rank, world_size, batch_size=32, accum_steps=1):
         if step >= WARMUP_STEPS:
             times.append(elapsed)
 
+        # Print live progress on rank 0 to keep SSH connection alive and show progress
+        if rank == 0:
+            step_tput = total_imgs / max(elapsed, 1e-4)
+            tag = "warmup" if step < WARMUP_STEPS else "bench"
+            print(f"        [{tag:>6} {step+1:>2}/{total_steps}] Step time: {elapsed:>6.2f}s | Speed: {step_tput:>5.1f} imgs/s", flush=True)
+
     avg_step_time = sum(times) / len(times)
-    total_imgs    = batch_size * accum_steps * world_size
     imgs_per_sec  = total_imgs / avg_step_time
 
     return {
@@ -117,8 +124,10 @@ def benchmark_gpt2(rank, world_size, batch_size=4, seq_len=512, accum_steps=1):
 
     model.train()
     times = []
+    total_steps  = BENCH_STEPS + WARMUP_STEPS
+    total_tokens = batch_size * seq_len * accum_steps * world_size
 
-    for step in range(BENCH_STEPS + WARMUP_STEPS):
+    for step in range(total_steps):
         t0 = time.perf_counter()
         optimizer.zero_grad()
 
@@ -143,15 +152,20 @@ def benchmark_gpt2(rank, world_size, batch_size=4, seq_len=512, accum_steps=1):
         if step >= WARMUP_STEPS:
             times.append(elapsed)
 
+        # Print live progress on rank 0 to keep SSH connection alive and show progress
+        if rank == 0:
+            step_tput = total_tokens / max(elapsed, 1e-4)
+            tag = "warmup" if step < WARMUP_STEPS else "bench"
+            print(f"        [{tag:>6} {step+1:>2}/{total_steps}] Step time: {elapsed:>6.2f}s | Speed: {step_tput:>5.1f} tok/s", flush=True)
+
     avg_step_time  = sum(times) / len(times)
-    total_tokens   = batch_size * seq_len * accum_steps * world_size
     tokens_per_sec = total_tokens / avg_step_time
 
     return {
         "task"            : "GPT-2 Small (117M)",
         "accum_steps"     : accum_steps,
         "batch_per_node"  : batch_size * accum_steps,
-        "global_batch"    : batch_size * accum_steps * world_size,
+        "global_batch"    : total_tokens,
         "avg_step_time_s" : round(avg_step_time, 4),
         "throughput"      : round(tokens_per_sec, 1),
         "unit"            : "tokens/sec",
