@@ -31,7 +31,18 @@ echo "  MASTER NODE | rank=0 | world_size=$NNODES"
 echo "  Script    : src/$SCRIPT"
 echo "  Address   : $MASTER_ADDR:$MASTER_PORT"
 echo "  Interface : $GLOO_SOCKET_IFNAME"
-echo "  Waiting for $((NNODES-1)) worker(s)..."
+
+# ── AUTO-LAUNCH WORKERS VIA SSH ─────────────────────────────
+WORKER_IPS=$(python3 -c "import config; print(' '.join(getattr(config, 'WORKER_ADDRS', [])))" 2>/dev/null || true)
+RANK=1
+for WIP in $WORKER_IPS; do
+    echo "  [Auto-Launch] Starting Worker (rank $RANK) on $WIP..."
+    ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no cluster@$WIP \
+        "cd ~/Research/CPU\ Cluster 2>/dev/null || cd ~/Research/'CPU Cluster' 2>/dev/null; bash launch_worker.sh $SCRIPT $RANK $NNODES" > /dev/null 2>&1 &
+    RANK=$((RANK + 1))
+done
+
+echo "  All workers dispatched. Starting master process..."
 echo "=============================================="
 echo ""
 

@@ -16,7 +16,8 @@ os.environ["GLOO_SOCKET_IFNAME"] = "enp2s0"
 os.environ["TP_SOCKET_IFNAME"] = "enp2s0"
 
 # ── CHANGE THIS (same value on all nodes) ────────────────────
-MASTER_ADDR = "192.168.9.136"   # Node 01 (master) IP address
+MASTER_ADDR  = "192.168.9.136"   # Node 01 (master) IP address
+WORKER_ADDRS = ["192.168.9.135"]  # List of worker node IPs for auto-launch
 
 # ── NETWORK ──────────────────────────────────────────────────
 MASTER_PORT  = "29500"          # Port used for node communication
