@@ -123,23 +123,35 @@ def get_model():
 
 # ── Training & Evaluation ─────────────────────────────────────────────────────
 
-def train_epoch(model, loader, sampler, optimizer, criterion, rank, world_size, epoch):
+def train_epoch(model, loader, sampler, optimizer, criterion, rank, world_size, epoch, total_epochs):
     model.train()
     sampler.set_epoch(epoch)  # Ensures different shuffling each epoch
 
     total_loss = 0.0
     total_samples = 0
     start = time.time()
+    num_batches = len(loader)
 
-    for inputs, targets in loader:
+    for batch_idx, (inputs, targets) in enumerate(loader):
+        b_start = time.perf_counter()
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = criterion(outputs, targets)
         loss.backward()      # DDP automatically AllReduces gradients here
         optimizer.step()
 
+        b_time = time.perf_counter() - b_start
         total_loss    += loss.item() * inputs.size(0)
         total_samples += inputs.size(0)
+
+        # Print live streaming progress every 25 batches (or first/last batch) on rank 0
+        if rank == 0 and (batch_idx == 0 or (batch_idx + 1) % 25 == 0 or (batch_idx + 1) == num_batches):
+            current_loss = total_loss / total_samples
+            b_tput = (inputs.size(0) * world_size) / max(b_time, 1e-4)
+            pct = 100.0 * (batch_idx + 1) / num_batches
+            print(f"  [Epoch {epoch:>2}/{total_epochs} | Batch {batch_idx+1:>3}/{num_batches} ({pct:>4.1f}%)] "
+                  f"Loss: {loss.item():.4f} (avg: {current_loss:.4f}) | "
+                  f"{b_tput:>5.1f} imgs/s", flush=True)
 
     epoch_time  = time.time() - start
     avg_loss    = total_loss / total_samples
@@ -221,18 +233,24 @@ def main():
     # Training loop
     results = []
     for epoch in range(1, EPOCHS + 1):
+        if rank == 0:
+            print(f"\n>>> Starting Epoch {epoch}/{EPOCHS} ...", flush=True)
+
         train_loss, epoch_time, imgs_per_sec = train_epoch(
             model, train_loader, train_sampler,
-            optimizer, criterion, rank, world_size, epoch
+            optimizer, criterion, rank, world_size, epoch, EPOCHS
         )
         scheduler.step()
 
         # Evaluate on rank 0 only
         test_acc = 0.0
         if rank == 0:
+            print(f"  [Evaluating Epoch {epoch} Test Accuracy...]", flush=True)
             test_acc = evaluate(model, test_loader, criterion)
-            print(f"  {epoch:>5}  {train_loss:>8.4f}  {test_acc:>8.2f}  "
-                  f"{epoch_time:>9.1f}  {imgs_per_sec:>9.1f}")
+            print(f"  ================================================================")
+            print(f"  ✓ Epoch {epoch}/{EPOCHS} Finished: Loss: {train_loss:.4f} | "
+                  f"Test Acc: {test_acc:.2f}% | Time: {epoch_time:.1f}s | Speed: {imgs_per_sec:.1f} imgs/s")
+            print(f"  ================================================================\n", flush=True)
 
             # TensorBoard logging
             if writer:
