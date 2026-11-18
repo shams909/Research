@@ -82,6 +82,53 @@ All benchmarks were executed for **30 measured steady-state steps** preceded by 
 | **GPT-2 Small** | 117.0 Million | **1 Node (Accum=4)** | $K = 4$ | 16 sequences | 22.9412 s | **357.1 tok/sec** | 1.00× | **100.0%** | `results/benchmark_1nodes_20261119_030721.csv` |
 | **GPT-2 Small** | 117.0 Million | **2 Nodes (Accum=4)**| $K = 4$ | 32 sequences | 62.6078 s | **261.7 tok/sec** | 0.73× | **36.6%** *(+3.0× gain)* | `results/benchmark_2nodes_20261119_023433.csv` |
 
+### 4.1 Visual Scaling Curves & Empirical Figures
+
+#### Figure 1: Measured & Projected GPT-2 Throughput vs. Accumulation Steps ($K$)
+```mermaid
+xychart-beta
+    title "GPT-2 Cluster Throughput vs Accumulation Steps K (Tokens / Sec)"
+    x-axis ["K=1 (Naive)", "K=4 (Tested)", "K=16 (Projected)", "K=32 (Projected)", "K=64 (Projected)"]
+    y-axis "Tokens / Second" 0 --> 700
+    bar [87.6, 261.7, 504.9, 601.2, 665.0]
+    line [87.6, 261.7, 504.9, 601.2, 665.0]
+```
+
+#### Figure 2: Speedup Ratio ($S_N$) Trajectory — The $1.0\times$ Single-Node Crossover
+```mermaid
+xychart-beta
+    title "Cluster Speedup S_N vs Single-Node Baseline (Crossover at K >= 10)"
+    x-axis ["K=1 (0.24x)", "K=4 (0.73x)", "K=16 (1.41x)", "K=32 (1.68x)", "K=64 (1.86x)"]
+    y-axis "Speedup Ratio (x)" 0 --> 2.0
+    line [0.24, 0.73, 1.41, 1.68, 1.86]
+```
+
+#### Figure 3: Step Time Anatomy (Compute vs. Network AllReduce Serialization)
+```mermaid
+flowchart TD
+    subgraph S1["K = 1 (Naive DDP) — Total: 46.8s"]
+        C1["Local Compute: 5.0s (10.7%)"]
+        N1["Network AllReduce Sync: 41.8s (89.3%)"]
+        C1 --> N1
+    end
+    subgraph S2["K = 4 (Empirical Optimization) — Total: 62.6s"]
+        C4["Local Compute (4x): 20.8s (33.2%)"]
+        N4["Network AllReduce Sync: 41.8s (66.8%)"]
+        C4 --> N4
+    end
+    subgraph S3["K = 16 (Crossover Target) — Total: 125.0s"]
+        C16["Local Compute (16x): 83.2s (66.6%)"]
+        N16["Network AllReduce Sync: 41.8s (33.4%)"]
+        C16 --> N16
+    end
+```
+
+#### Figure 4: Publication Figures (High-Resolution Matplotlib Plots)
+| Figure A: Throughput Scaling Bar Chart | Figure B: Scaling Efficiency Trajectory |
+| :---: | :---: |
+| ![Throughput Bar Chart](results/figures/02_throughput_bar.png) | ![Scaling Efficiency](results/figures/03_scaling_efficiency.png) |
+| *Direct comparison of 1-node vs 2-node cluster across computer vision and transformer workloads.* | *Empirical scaling efficiency illustrating the recovery from 12.2% to 36.6% via gradient accumulation.* |
+
 ---
 
 ## 5. In-Depth Systems Analysis & Discussion
