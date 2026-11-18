@@ -123,11 +123,67 @@ flowchart TD
     end
 ```
 
-#### Figure 4: Publication Figures (High-Resolution Matplotlib Plots)
-| Figure A: Throughput Scaling Bar Chart | Figure B: Scaling Efficiency Trajectory |
-| :---: | :---: |
-| ![Throughput Bar Chart](results/figures/02_throughput_bar.png) | ![Scaling Efficiency](results/figures/03_scaling_efficiency.png) |
-| *Direct comparison of 1-node vs 2-node cluster across computer vision and transformer workloads.* | *Empirical scaling efficiency illustrating the recovery from 12.2% to 36.6% via gradient accumulation.* |
+### 4.2 Direct Empirical Contrast: Before vs. After Gradient Accumulation
+
+This section directly isolates the empirical performance delta resulting from gradient accumulation ($K=4$), contrasting standalone single-node compute against 2-node distributed cluster execution.
+
+#### Exact Visual Throughput Comparison (ASCII / Unicode High-Contrast Chart)
+
+```text
+========================================================================================================
+WORKLOAD 1: GPT-2 Small (117 Million Parameters) — Throughput in Tokens / Second
+========================================================================================================
+1 Node  (K=1 Baseline) : [████████████████████████████████████████]  359.0 tok/s  (1.00× | 100.0%)
+2 Nodes (K=1 Naive DDP): [█████████                               ]   87.6 tok/s  (0.24× |  12.2%)  ← Communication wall
+1 Node  (K=4 Baseline) : [███████████████████████████████████████ ]  357.1 tok/s  (1.00× | 100.0%)
+2 Nodes (K=4 Accum=4)  : [█████████████████████████████           ]  261.7 tok/s  (0.73× |  36.6%)  ← +3.0× SPEEDUP RECOVERY!
+--------------------------------------------------------------------------------------------------------
+
+========================================================================================================
+WORKLOAD 2: ResNet-18 (11.2 Million Parameters) — Throughput in Images / Second
+========================================================================================================
+1 Node  (K=1 Baseline) : [████████████████████████████████████████]  112.0 img/s  (1.00× | 100.0%)
+2 Nodes (K=1 Naive DDP): [█████                                   ]   15.9 img/s  (0.14× |   7.1%)  ← Communication wall
+1 Node  (K=4 Baseline) : [██████████████████████████████████████  ]  106.6 img/s  (1.00× | 100.0%)
+2 Nodes (K=4 Accum=4)  : [██████████████████                      ]   52.5 img/s  (0.49× |  24.6%)  ← +3.3× SPEEDUP RECOVERY!
+========================================================================================================
+```
+
+#### Figure 4: GPT-2 Small Throughput Contrast (1-Node vs 2-Nodes, Before vs After)
+```mermaid
+xychart-beta
+    title "GPT-2 Small Throughput: 1-Node vs 2-Nodes (Before vs After Optimization)"
+    x-axis ["1 Node (K=1)", "2 Nodes (K=1 Naive)", "1 Node (K=4)", "2 Nodes (K=4 Accum)"]
+    y-axis "Tokens / Second" 0 --> 400
+    bar [359.0, 87.6, 357.1, 261.7]
+```
+
+#### Figure 5: ResNet-18 Throughput Contrast (1-Node vs 2-Nodes, Before vs After)
+```mermaid
+xychart-beta
+    title "ResNet-18 Throughput: 1-Node vs 2-Nodes (Before vs After Optimization)"
+    x-axis ["1 Node (K=1)", "2 Nodes (K=1 Naive)", "1 Node (K=4)", "2 Nodes (K=4 Accum)"]
+    y-axis "Images / Second" 0 --> 130
+    bar [112.0, 15.9, 106.6, 52.5]
+```
+
+#### Figure 6: Cluster Scaling Efficiency Recovery (%)
+```mermaid
+xychart-beta
+    title "2-Node Cluster Scaling Efficiency (%) — Before vs After Optimization"
+    x-axis ["ResNet-18 (K=1 Naive)", "ResNet-18 (K=4 Accum)", "GPT-2 (K=1 Naive)", "GPT-2 (K=4 Accum)"]
+    y-axis "Scaling Efficiency (%)" 0 --> 50
+    bar [7.1, 24.6, 12.2, 36.6]
+```
+
+#### Table 3: Exact Before-and-After Quantitative Audit Matrix
+
+| Workload Architecture | Evaluation Paradigm | 1-Node Baseline | 2-Node Cluster | Speedup ($S_N$) | Efficiency ($E_N$) | Optimization Gain |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **ResNet-18** (11.2M Params) | **Before:** Naive Synchronous DDP ($K=1$) | 112.0 imgs/s | 15.9 imgs/s | **0.14×** | **7.1%** | Baseline |
+| **ResNet-18** (11.2M Params) | **After:** Gradient Accumulation ($K=4$) | 106.6 imgs/s | 52.5 imgs/s | **0.49×** | **24.6%** | **+3.30× Throughput Gain** (+17.5% Abs Efficiency) |
+| **GPT-2 Small** (117M Params) | **Before:** Naive Synchronous DDP ($K=1$) | 359.0 tok/s | 87.6 tok/s | **0.24×** | **12.2%** | Baseline |
+| **GPT-2 Small** (117M Params) | **After:** Gradient Accumulation ($K=4$) | 357.1 tok/s | 261.7 tok/s | **0.73×** | **36.6%** | **+2.99× Throughput Gain** (+24.4% Abs Efficiency) |
 
 ---
 
