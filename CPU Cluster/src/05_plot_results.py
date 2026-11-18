@@ -91,14 +91,23 @@ def plot_loss_curves(show=False):
 # ── Figure 2: Throughput Bar Chart ────────────────────────────────────────────
 
 def plot_throughput(show=False):
-    bench_files = sorted(glob.glob(os.path.join(config.RESULTS_DIR, "benchmark_*.csv")))
-    cifar_files = sorted(glob.glob(os.path.join(config.RESULTS_DIR, "cifar_*.csv")))
-    gpt2_files  = sorted(glob.glob(os.path.join(config.RESULTS_DIR, "gpt2_*.csv")))
+    # Find latest benchmark file for each node count to avoid overlapping bars
+    latest_bench_by_nodes = {}
+    for f in sorted(glob.glob(os.path.join(config.RESULTS_DIR, "benchmark_*nodes_*.csv"))):
+        fname = os.path.basename(f)
+        parts = fname.split("_")
+        if len(parts) >= 2 and "nodes" in parts[1]:
+            n_str = parts[1].replace("nodes", "")
+            try:
+                n = int(n_str)
+                latest_bench_by_nodes[n] = f
+            except ValueError:
+                pass
 
     records = []
 
-    # From benchmark CSVs
-    for f in bench_files:
+    # From latest benchmark CSVs
+    for n, f in sorted(latest_bench_by_nodes.items()):
         df = pd.read_csv(f)
         for _, row in df.iterrows():
             records.append({
@@ -107,24 +116,6 @@ def plot_throughput(show=False):
                 "throughput": float(row["throughput"]),
                 "unit"      : row["unit"],
             })
-
-    # From training CSVs (average throughput)
-    for f in cifar_files:
-        df = pd.read_csv(f)
-        records.append({
-            "task"      : "ResNet-18 / CIFAR-10",
-            "nodes"     : int(df["world_size"].iloc[0]),
-            "throughput": float(df["imgs_per_sec"].mean()),
-            "unit"      : "images/sec",
-        })
-    for f in gpt2_files:
-        df = pd.read_csv(f)
-        records.append({
-            "task"      : "GPT-2 Small",
-            "nodes"     : int(df["world_size"].iloc[0]),
-            "throughput": float(df["tokens_per_sec"].mean()),
-            "unit"      : "tokens/sec",
-        })
 
     if not records:
         print("  [skip] No benchmark data found for throughput chart")
@@ -147,10 +138,13 @@ def plot_throughput(show=False):
             color=COLORS[:len(sub)],
             edgecolor="white", linewidth=1.2
         )
-        ax.bar_label(bars, fmt="%.0f", padding=4)
+        ax.bar_label(bars, fmt="%.1f", padding=4)
         ax.set_title(task)
         ax.set_ylabel(unit)
         ax.set_xlabel("Cluster Configuration")
+        # Give some headroom so label doesn't touch the top
+        max_y = sub["throughput"].max()
+        ax.set_ylim(0, max_y * 1.18)
 
     save_fig(fig, "02_throughput_bar.png", show)
 
@@ -158,26 +152,27 @@ def plot_throughput(show=False):
 # ── Figure 3: Scaling Efficiency ──────────────────────────────────────────────
 
 def plot_scaling_efficiency(show=False):
-    bench_files = sorted(glob.glob(os.path.join(config.RESULTS_DIR, "benchmark_*.csv")))
-    cifar_files = sorted(glob.glob(os.path.join(config.RESULTS_DIR, "cifar_*.csv")))
+    latest_bench_by_nodes = {}
+    for f in sorted(glob.glob(os.path.join(config.RESULTS_DIR, "benchmark_*nodes_*.csv"))):
+        fname = os.path.basename(f)
+        parts = fname.split("_")
+        if len(parts) >= 2 and "nodes" in parts[1]:
+            n_str = parts[1].replace("nodes", "")
+            try:
+                n = int(n_str)
+                latest_bench_by_nodes[n] = f
+            except ValueError:
+                pass
 
-    # Build throughput per task per node count
+    # Build throughput per task per node count using latest data
     data = {}
-
-    for f in bench_files:
+    for n, f in sorted(latest_bench_by_nodes.items()):
         df = pd.read_csv(f)
         for _, row in df.iterrows():
             task  = row["task"]
             nodes = int(row["world_size"])
             tput  = float(row["throughput"])
             data.setdefault(task, {})[nodes] = tput
-
-    for f in cifar_files:
-        df   = pd.read_csv(f)
-        task  = "ResNet-18 / CIFAR-10"
-        nodes = int(df["world_size"].iloc[0])
-        tput  = float(df["imgs_per_sec"].mean())
-        data.setdefault(task, {})[nodes] = tput
 
     if not data:
         print("  [skip] Need data from multiple node counts for efficiency plot")
@@ -193,10 +188,13 @@ def plot_scaling_efficiency(show=False):
             continue
         base  = node_tput[1]
         effs  = [node_tput[n] / (n * base) * 100 for n in nodes]
-        ax.plot(nodes, effs, marker="o", label=task, color=COLORS[i])
+        ax.plot(nodes, effs, marker="o", label=task, color=COLORS[i], linewidth=2.5, markersize=8)
         for n, e in zip(nodes, effs):
+            # Stagger labels to avoid overlapping at 100%
+            offset_y = 9 if (i == 0 or n > 1) else -16
             ax.annotate(f"{e:.0f}%", (n, e), textcoords="offset points",
-                        xytext=(0, 8), ha="center", fontsize=9)
+                        xytext=(0, offset_y), ha="center", fontsize=10, fontweight="bold",
+                        color=COLORS[i])
 
     # Perfect scaling reference line
     max_nodes = max(max(d.keys()) for d in data.values())
@@ -206,7 +204,7 @@ def plot_scaling_efficiency(show=False):
     ax.set_ylabel("Scaling Efficiency (%)")
     ax.set_ylim(0, 115)
     ax.set_xticks(range(1, max_nodes + 1))
-    ax.legend()
+    ax.legend(loc="lower left")
 
     save_fig(fig, "03_scaling_efficiency.png", show)
 
