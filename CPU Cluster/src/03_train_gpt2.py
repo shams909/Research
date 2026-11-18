@@ -169,48 +169,67 @@ def main():
         run_tag = f"gpt2_{world_size}nodes_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
         writer  = SummaryWriter(log_dir=os.path.join(config.LOG_DIR, run_tag))
 
+    accum_steps = getattr(config, "GRADIENT_ACCUM_STEPS", 1)
     results = []
     model.train()
     step = 0
+    accum_loss = 0.0
+    optimizer.zero_grad()
 
-    for input_ids, labels in loader:
+    for batch_idx, (input_ids, labels) in enumerate(loader):
         if step >= NUM_STEPS:
             break
 
-        t_start = time.perf_counter()
+        if (batch_idx % accum_steps) == 0:
+            t_start = time.perf_counter()
 
-        optimizer.zero_grad()
-        outputs = model(input_ids=input_ids, labels=labels)
-        loss    = outputs.loss
-        loss.backward()           # DDP AllReduces gradients here
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        optimizer.step()
+        # Only sync gradients across network on the final accumulation step
+        is_sync_step = ((batch_idx + 1) % accum_steps == 0)
 
-        step_time   = time.perf_counter() - t_start
-        tokens_step = BATCH_SIZE * SEQ_LEN           # per node
-        tokens_sec  = (tokens_step * world_size) / step_time  # global
-        ppl         = math.exp(min(loss.item(), 20))  # cap to avoid overflow
+        if not is_sync_step and world_size > 1:
+            with model.no_sync():
+                outputs = model(input_ids=input_ids, labels=labels)
+                loss    = outputs.loss / accum_steps
+                loss.backward()
+        else:
+            outputs = model(input_ids=input_ids, labels=labels)
+            loss    = outputs.loss / accum_steps
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            optimizer.zero_grad()
 
-        if rank == 0:
-            print(f"  {step+1:>6}  {loss.item():>8.4f}  {ppl:>10.2f}  "
-                  f"{tokens_sec:>10.1f}  {step_time:>8.3f}")
+        accum_loss += loss.item() * accum_steps
 
-            if writer:
-                writer.add_scalar("Loss/train",           loss.item(), step)
-                writer.add_scalar("Perplexity",           ppl,         step)
-                writer.add_scalar("Throughput/tokens_per_sec", tokens_sec, step)
-                writer.add_scalar("Time/step_seconds",   step_time,   step)
+        if is_sync_step:
+            step_time   = time.perf_counter() - t_start
+            tokens_step = BATCH_SIZE * SEQ_LEN * accum_steps     # per node
+            tokens_sec  = (tokens_step * world_size) / step_time # global
+            avg_step_loss = accum_loss / accum_steps
+            ppl         = math.exp(min(avg_step_loss, 20))       # cap to avoid overflow
+            accum_loss  = 0.0
 
-            results.append({
-                "step"         : step + 1,
-                "loss"         : round(loss.item(), 4),
-                "perplexity"   : round(ppl,         2),
-                "tokens_per_sec": round(tokens_sec, 1),
-                "step_time_s"  : round(step_time,   3),
-                "world_size"   : world_size,
-            })
+            if rank == 0:
+                print(f"  {step+1:>6}  {avg_step_loss:>8.4f}  {ppl:>10.2f}  "
+                      f"{tokens_sec:>10.1f}  {step_time:>8.3f}")
 
-        step += 1
+                if writer:
+                    writer.add_scalar("Loss/train",           avg_step_loss, step)
+                    writer.add_scalar("Perplexity",           ppl,           step)
+                    writer.add_scalar("Throughput/tokens_per_sec", tokens_sec, step)
+                    writer.add_scalar("Time/step_seconds",   step_time,     step)
+
+                results.append({
+                    "step"         : step + 1,
+                    "loss"         : round(avg_step_loss, 4),
+                    "perplexity"   : round(ppl,           2),
+                    "tokens_per_sec": round(tokens_sec,   1),
+                    "step_time_s"  : round(step_time,     3),
+                    "world_size"   : world_size,
+                    "accum_steps"  : accum_steps,
+                })
+
+            step += 1
 
     # Save results
     if rank == 0 and results:

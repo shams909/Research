@@ -48,8 +48,8 @@ WARMUP_STEPS = 5   # Warmup steps excluded from measurement
 
 # ── ResNet-18 Benchmark ───────────────────────────────────────────────────────
 
-def benchmark_resnet(rank, world_size, batch_size=32):
-    """Measure image throughput with ResNet-18 (CIFAR-adapted)."""
+def benchmark_resnet(rank, world_size, batch_size=32, accum_steps=1):
+    """Measure image throughput with ResNet-18 with optional gradient accumulation."""
     model      = resnet18(weights=None, num_classes=10)
     model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
     model.maxpool = nn.Identity()
@@ -61,14 +61,23 @@ def benchmark_resnet(rank, world_size, batch_size=32):
     times = []
 
     for step in range(BENCH_STEPS + WARMUP_STEPS):
-        # Synthetic data — same shapes as CIFAR-10
-        x = torch.randn(batch_size, 3, 32, 32)
-        y = torch.randint(0, 10, (batch_size,))
-
         t0 = time.perf_counter()
         optimizer.zero_grad()
-        loss = criterion(model(x), y)
-        loss.backward()
+
+        for micro in range(accum_steps):
+            # Synthetic data — same shapes as CIFAR-10
+            x = torch.randn(batch_size, 3, 32, 32)
+            y = torch.randint(0, 10, (batch_size,))
+
+            # Prevent network communication on intermediate micro-steps
+            if micro < accum_steps - 1 and world_size > 1:
+                with model.no_sync():
+                    loss = criterion(model(x), y) / accum_steps
+                    loss.backward()
+            else:
+                loss = criterion(model(x), y) / accum_steps
+                loss.backward()
+
         optimizer.step()
         dist.barrier()
         elapsed = time.perf_counter() - t0
@@ -77,12 +86,14 @@ def benchmark_resnet(rank, world_size, batch_size=32):
             times.append(elapsed)
 
     avg_step_time = sum(times) / len(times)
-    imgs_per_sec  = (batch_size * world_size) / avg_step_time
+    total_imgs    = batch_size * accum_steps * world_size
+    imgs_per_sec  = total_imgs / avg_step_time
 
     return {
         "task"            : "ResNet-18 / CIFAR-10",
-        "batch_per_node"  : batch_size,
-        "global_batch"    : batch_size * world_size,
+        "accum_steps"     : accum_steps,
+        "batch_per_node"  : batch_size * accum_steps,
+        "global_batch"    : total_imgs,
         "avg_step_time_s" : round(avg_step_time, 4),
         "throughput"      : round(imgs_per_sec, 1),
         "unit"            : "images/sec",
@@ -92,8 +103,8 @@ def benchmark_resnet(rank, world_size, batch_size=32):
 
 # ── GPT-2 Benchmark ───────────────────────────────────────────────────────────
 
-def benchmark_gpt2(rank, world_size, batch_size=4, seq_len=512):
-    """Measure token throughput with GPT-2 Small."""
+def benchmark_gpt2(rank, world_size, batch_size=4, seq_len=512, accum_steps=1):
+    """Measure token throughput with GPT-2 Small with optional gradient accumulation."""
     from transformers import GPT2LMHeadModel, GPT2Config
 
     cfg = GPT2Config(
@@ -108,14 +119,23 @@ def benchmark_gpt2(rank, world_size, batch_size=4, seq_len=512):
     times = []
 
     for step in range(BENCH_STEPS + WARMUP_STEPS):
-        # Synthetic token ids
-        input_ids = torch.randint(0, 50257, (batch_size, seq_len))
-        labels    = input_ids.clone()
-
         t0 = time.perf_counter()
         optimizer.zero_grad()
-        loss = model(input_ids=input_ids, labels=labels).loss
-        loss.backward()
+
+        for micro in range(accum_steps):
+            # Synthetic token ids
+            input_ids = torch.randint(0, 50257, (batch_size, seq_len))
+            labels    = input_ids.clone()
+
+            # Prevent network communication on intermediate micro-steps
+            if micro < accum_steps - 1 and world_size > 1:
+                with model.no_sync():
+                    loss = model(input_ids=input_ids, labels=labels).loss / accum_steps
+                    loss.backward()
+            else:
+                loss = model(input_ids=input_ids, labels=labels).loss / accum_steps
+                loss.backward()
+
         optimizer.step()
         dist.barrier()
         elapsed = time.perf_counter() - t0
@@ -124,12 +144,14 @@ def benchmark_gpt2(rank, world_size, batch_size=4, seq_len=512):
             times.append(elapsed)
 
     avg_step_time  = sum(times) / len(times)
-    tokens_per_sec = (batch_size * seq_len * world_size) / avg_step_time
+    total_tokens   = batch_size * seq_len * accum_steps * world_size
+    tokens_per_sec = total_tokens / avg_step_time
 
     return {
         "task"            : "GPT-2 Small (117M)",
-        "batch_per_node"  : batch_size,
-        "global_batch"    : batch_size * world_size,
+        "accum_steps"     : accum_steps,
+        "batch_per_node"  : batch_size * accum_steps,
+        "global_batch"    : batch_size * accum_steps * world_size,
         "avg_step_time_s" : round(avg_step_time, 4),
         "throughput"      : round(tokens_per_sec, 1),
         "unit"            : "tokens/sec",
@@ -191,12 +213,18 @@ def main():
 
     results = []
 
+    accum_steps = getattr(config, "GRADIENT_ACCUM_STEPS", 1)
+
     # ── ResNet-18 benchmark ───────────────────────────────────────────────────
     if rank == 0:
-        print(f"\n  [1/2] Benchmarking ResNet-18 ({BENCH_STEPS} steps)...")
+        print(f"\n  [1/2] Benchmarking ResNet-18 ({BENCH_STEPS} steps, accum={accum_steps})...")
     dist.barrier()
 
-    r1 = benchmark_resnet(rank, world_size, batch_size=config.DEFAULT_BATCH_SIZE)
+    r1 = benchmark_resnet(
+        rank, world_size,
+        batch_size=config.DEFAULT_BATCH_SIZE,
+        accum_steps=accum_steps
+    )
     results.append(r1)
     dist.barrier()
 
@@ -205,13 +233,14 @@ def main():
 
     # ── GPT-2 benchmark ───────────────────────────────────────────────────────
     if rank == 0:
-        print(f"\n  [2/2] Benchmarking GPT-2 Small ({BENCH_STEPS} steps)...")
+        print(f"\n  [2/2] Benchmarking GPT-2 Small ({BENCH_STEPS} steps, accum={accum_steps})...")
     dist.barrier()
 
     r2 = benchmark_gpt2(
         rank, world_size,
         batch_size=config.GPT2_BATCH_SIZE,
-        seq_len=config.GPT2_SEQ_LEN
+        seq_len=config.GPT2_SEQ_LEN,
+        accum_steps=accum_steps
     )
     results.append(r2)
     dist.barrier()

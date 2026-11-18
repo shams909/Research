@@ -123,7 +123,7 @@ def get_model():
 
 # ── Training & Evaluation ─────────────────────────────────────────────────────
 
-def train_epoch(model, loader, sampler, optimizer, criterion, rank, world_size, epoch, total_epochs):
+def train_epoch(model, loader, sampler, optimizer, criterion, rank, world_size, epoch, total_epochs, accum_steps=1):
     model.train()
     sampler.set_epoch(epoch)  # Ensures different shuffling each epoch
 
@@ -132,16 +132,28 @@ def train_epoch(model, loader, sampler, optimizer, criterion, rank, world_size, 
     start = time.time()
     num_batches = len(loader)
 
+    optimizer.zero_grad()
+
     for batch_idx, (inputs, targets) in enumerate(loader):
         b_start = time.perf_counter()
-        optimizer.zero_grad()
-        outputs = model(inputs)
-        loss = criterion(outputs, targets)
-        loss.backward()      # DDP automatically AllReduces gradients here
-        optimizer.step()
+
+        # Only sync gradients across network on the final accumulation step
+        is_sync_step = ((batch_idx + 1) % accum_steps == 0) or ((batch_idx + 1) == num_batches)
+
+        if not is_sync_step and world_size > 1:
+            with model.no_sync():
+                outputs = model(inputs)
+                loss = criterion(outputs, targets) / accum_steps
+                loss.backward()
+        else:
+            outputs = model(inputs)
+            loss = criterion(outputs, targets) / accum_steps
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
 
         b_time = time.perf_counter() - b_start
-        total_loss    += loss.item() * inputs.size(0)
+        total_loss    += loss.item() * accum_steps * inputs.size(0)
         total_samples += inputs.size(0)
 
         # Print live streaming progress every 25 batches (or first/last batch) on rank 0
@@ -150,7 +162,7 @@ def train_epoch(model, loader, sampler, optimizer, criterion, rank, world_size, 
             b_tput = (inputs.size(0) * world_size) / max(b_time, 1e-4)
             pct = 100.0 * (batch_idx + 1) / num_batches
             print(f"  [Epoch {epoch:>2}/{total_epochs} | Batch {batch_idx+1:>3}/{num_batches} ({pct:>4.1f}%)] "
-                  f"Loss: {loss.item():.4f} (avg: {current_loss:.4f}) | "
+                  f"Loss: {loss.item() * accum_steps:.4f} (avg: {current_loss:.4f}) | "
                   f"{b_tput:>5.1f} imgs/s", flush=True)
 
     epoch_time  = time.time() - start
@@ -238,7 +250,8 @@ def main():
 
         train_loss, epoch_time, imgs_per_sec = train_epoch(
             model, train_loader, train_sampler,
-            optimizer, criterion, rank, world_size, epoch, EPOCHS
+            optimizer, criterion, rank, world_size, epoch, EPOCHS,
+            accum_steps=getattr(config, "GRADIENT_ACCUM_STEPS", 1)
         )
         scheduler.step()
 
