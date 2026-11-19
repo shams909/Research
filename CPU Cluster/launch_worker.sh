@@ -23,6 +23,8 @@ source .venv/bin/activate
 SCRIPT=${1:-"01_smoke_test.py"}
 NODE_RANK=${2:-1}
 NNODES=${3:-2}
+shift 3 2>/dev/null || shift 2 2>/dev/null || shift 1 2>/dev/null || true
+EXTRA_ARGS="$@"
 MASTER_ADDR=$(python3 -c "import config; print(config.MASTER_ADDR)")
 MASTER_PORT=$(python3 -c "import config; print(config.MASTER_PORT)")
 
@@ -34,6 +36,7 @@ echo ""
 echo "=============================================="
 echo "  WORKER NODE | rank=$NODE_RANK | world_size=$NNODES"
 echo "  Script    : src/$SCRIPT"
+echo "  Args      : $EXTRA_ARGS"
 echo "  Master    : $MASTER_ADDR:$MASTER_PORT"
 echo "  Interface : $GLOO_SOCKET_IFNAME"
 echo "  Connecting..."
@@ -46,4 +49,4 @@ torchrun \
   --node-rank=$NODE_RANK \
   --master-addr="$MASTER_ADDR" \
   --master-port="$MASTER_PORT" \
-  src/$SCRIPT
+  src/$SCRIPT $EXTRA_ARGS
