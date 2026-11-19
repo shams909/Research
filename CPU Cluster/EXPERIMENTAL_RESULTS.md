@@ -30,7 +30,8 @@ All benchmarks were conducted on bare-metal physical desktop workstations runnin
 | **Host Memory (RAM)** | ~14.0 GB Available DDR4 RAM per node (Aggregate Memory: ~28.0 GB) |
 | **Physical Interconnect** | Fast Ethernet Switch (10/100 Mbps) connected via standard Cat5e RJ45 cabling |
 | **Network Interface Card** | `enp2s0` (Hardware MAC link negotiated at 100 Mbps Full Duplex) |
-| **Measured Link Throughput** | 93.2 Mbps upload / 89.2 Mbps download sustained during `AllReduce` |
+| **Measured Link Bandwidth** | **94.7 Mbps sender / 94.0 Mbps receiver** (`iperf3`, 0 retransmissions over 10s) |
+| **Measured Round-Trip Latency**| **0.441 ms average** (min: 0.366 ms, max: 0.519 ms, σ: 0.054 ms, 0% packet loss) |
 | **Operating System** | Ubuntu 26.04.1 LTS (Linux Kernel 7.0.0-43-generic x86_64) |
 | **Distributed Orchestration** | PyTorch Distributed Data Parallel (`torchrun`), Gloo collective communications backend |
 | **Local Interconnect Subnet**| Static IPv4 address space (`192.168.9.0/24`), static routes, no DHCP |

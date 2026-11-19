@@ -28,6 +28,8 @@ All empirical data is gathered on physical bare-metal hardware deployed in a uni
 | **System Memory (RAM)** | ~14.0 GB Available DDR4-3200 per node (~28.0 GB aggregate cluster memory) |
 | **Physical Interconnect** | 10/100 Mbps Fast Ethernet Switch via Cat5e cabling |
 | **Network Interface Card** | `enp2s0` (Hardware MAC negotiated at 100 Mbps Full Duplex) |
+| **Measured Link Bandwidth** | **94.7 Mbps sender / 94.0 Mbps receiver** (`iperf3`, 0 retransmissions over 10s) |
+| **Measured Round-Trip Latency**| **0.441 ms average** (min: 0.366 ms, max: 0.519 ms, σ: 0.054 ms, 0% packet loss) |
 | **Operating System** | Ubuntu Desktop 26.04.1 LTS (Linux Kernel 7.0.0-43-generic x86_64) |
 | **Distributed Stack** | PyTorch Distributed Data Parallel (`torchrun`), Gloo collective communication backend |
 | **Workload 1 (Vision)** | ResNet-18 (adapted for CIFAR-10, 11.2M parameters) |
