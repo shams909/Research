@@ -340,110 +340,36 @@ def generate_report(summaries, world_size, hostname, mode):
     return "\n".join(lines)
 
 
-# ── Master Orchestrator ───────────────────────────────────────────────────────
-
-def run_experiment_suite(rank, world_size, mode, k_list, num_trials, bench_steps, warmup_steps, model_filter):
+def save_checkpoint(all_raw_results, all_summaries, world_size, mode, hostname, ts, is_final=False):
     """
-    Executes a structured sweep across models and K values.
-    Saves raw trial logs, summary tables, and timing decomposition.
+    Saves results incrementally to disk after each configuration.
+    Guarantees that even if power flickers or a crash occurs, no data is lost.
     """
-    hostname = socket.gethostname()
-    all_raw_results = []
-    all_summaries   = []
+    if not all_raw_results:
+        return
 
-    models_to_test = []
-    if model_filter in ["all", "resnet"]:
-        models_to_test.append("resnet")
-    if model_filter in ["all", "gpt2"]:
-        models_to_test.append("gpt2")
+    # 1. Directory routing
+    if mode == "micro":
+        target_dir = os.path.join(config.RESULTS_DIR, "02_sweep_fixed_microbatch")
+    elif mode == "global":
+        target_dir = os.path.join(config.RESULTS_DIR, "03_sweep_fixed_global_batch")
+    else:
+        target_dir = config.RESULTS_DIR
 
-    for model_name in models_to_test:
-        for k in k_list:
-            trial_results = []
+    raw_dir = os.path.join(target_dir, "raw_trials")
+    os.makedirs(raw_dir, exist_ok=True)
 
-            # Determine batch sizing based on mode
-            if model_name == "resnet":
-                if mode == "global":
-                    # Lock global batch at 64 images
-                    b_per_node = max(1, 64 // (world_size * k))
-                else:
-                    # Fixed microbatch mode: 32 per node
-                    b_per_node = config.DEFAULT_BATCH_SIZE
+    timing_dir = os.path.join(config.RESULTS_DIR, "04_step_time_breakdown")
+    os.makedirs(timing_dir, exist_ok=True)
 
-                if rank == 0:
-                    print(f"\n>>> [ResNet-18 | {mode.upper()}] Benchmarking K={k} (microbatch={b_per_node}, global={b_per_node * k * world_size})...")
+    # 2. Save Raw Trials CSV
+    raw_csv_path = os.path.join(raw_dir, f"raw_trials_{world_size}nodes_{ts}.csv")
+    with open(raw_csv_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=all_raw_results[0].keys())
+        writer.writeheader()
+        writer.writerows(all_raw_results)
 
-                for trial in range(1, num_trials + 1):
-                    dist.barrier()
-                    r = benchmark_resnet(
-                        rank, world_size,
-                        batch_size=b_per_node,
-                        accum_steps=k,
-                        bench_steps=bench_steps,
-                        warmup_steps=warmup_steps,
-                        trial_id=trial
-                    )
-                    r["mode"] = mode
-                    trial_results.append(r)
-                    all_raw_results.append(r)
-
-            elif model_name == "gpt2":
-                if mode == "global":
-                    # Lock global batch at 32 sequences (16,384 tokens)
-                    b_per_node = max(1, 32 // (world_size * k))
-                else:
-                    # Fixed microbatch mode: 4 per node
-                    b_per_node = config.GPT2_BATCH_SIZE
-
-                if rank == 0:
-                    print(f"\n>>> [GPT-2 Small | {mode.upper()}] Benchmarking K={k} (microbatch={b_per_node}, global={b_per_node * k * world_size * config.GPT2_SEQ_LEN} tokens)...")
-
-                for trial in range(1, num_trials + 1):
-                    dist.barrier()
-                    r = benchmark_gpt2(
-                        rank, world_size,
-                        batch_size=b_per_node,
-                        seq_len=config.GPT2_SEQ_LEN,
-                        accum_steps=k,
-                        bench_steps=bench_steps,
-                        warmup_steps=warmup_steps,
-                        trial_id=trial
-                    )
-                    r["mode"] = mode
-                    trial_results.append(r)
-                    all_raw_results.append(r)
-
-            if rank == 0 and trial_results:
-                summary = aggregate_trials(trial_results)
-                summary["mode"] = mode
-                all_summaries.append(summary)
-                print(f"    --> K={k} Summary: {summary['throughput_mean']} ± {summary['throughput_std']} {summary['unit']} | Step: {summary['step_time_mean_s']:.3f}s | AllReduce: {summary['allreduce_ms_mean']:.1f}ms")
-
-    # Save results on rank 0
-    if rank == 0 and all_raw_results:
-        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # 1. Directory routing
-        if mode == "micro":
-            target_dir = os.path.join(config.RESULTS_DIR, "02_sweep_fixed_microbatch")
-        elif mode == "global":
-            target_dir = os.path.join(config.RESULTS_DIR, "03_sweep_fixed_global_batch")
-        else:
-            target_dir = config.RESULTS_DIR
-
-        raw_dir = os.path.join(target_dir, "raw_trials")
-        os.makedirs(raw_dir, exist_ok=True)
-
-        timing_dir = os.path.join(config.RESULTS_DIR, "04_step_time_breakdown")
-        os.makedirs(timing_dir, exist_ok=True)
-
-        # 2. Save Raw Trials CSV
-        raw_csv_path = os.path.join(raw_dir, f"raw_trials_{world_size}nodes_{ts}.csv")
-        with open(raw_csv_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=all_raw_results[0].keys())
-            writer.writeheader()
-            writer.writerows(all_raw_results)
-
+    if all_summaries:
         # 3. Save Summary CSV (Mean ± Std)
         summary_csv_path = os.path.join(target_dir, f"summary_{mode}_{world_size}nodes_{ts}.csv")
         latest_summary   = os.path.join(target_dir, f"summary_{mode}.csv")
@@ -476,17 +402,108 @@ def run_experiment_suite(rank, world_size, mode, k_list, num_trials, bench_steps
             writer.writerows(all_summaries)
 
         # 6. Text report
-        report_text = generate_report(all_summaries, world_size, hostname, mode)
-        report_path = os.path.join(target_dir, f"report_{mode}_{world_size}nodes_{ts}.txt")
-        with open(report_path, "w") as f:
-            f.write(report_text)
+        if is_final:
+            report_text = generate_report(all_summaries, world_size, hostname, mode)
+            report_path = os.path.join(target_dir, f"report_{mode}_{world_size}nodes_{ts}.txt")
+            with open(report_path, "w") as f:
+                f.write(report_text)
 
-        print()
-        print(report_text)
-        print(f"\n  ✓ Summary CSV : {summary_csv_path}")
-        print(f"  ✓ Raw Trials  : {raw_csv_path}")
-        print(f"  ✓ Timings     : {timing_csv_path}")
-        print(f"  ✓ Text Report : {report_path}\n")
+            print()
+            print(report_text)
+            print(f"\n  ✓ Summary CSV : {summary_csv_path}")
+            print(f"  ✓ Raw Trials  : {raw_csv_path}")
+            print(f"  ✓ Timings     : {timing_csv_path}")
+            print(f"  ✓ Text Report : {report_path}\n", flush=True)
+
+
+# ── Master Orchestrator ───────────────────────────────────────────────────────
+
+def run_experiment_suite(rank, world_size, mode, k_list, num_trials, bench_steps, warmup_steps, model_filter):
+    """
+    Executes a structured sweep across models and K values.
+    Saves raw trial logs, summary tables, and timing decomposition incrementally.
+    """
+    hostname = socket.gethostname()
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    all_raw_results = []
+    all_summaries   = []
+
+    models_to_test = []
+    if model_filter in ["all", "resnet"]:
+        models_to_test.append("resnet")
+    if model_filter in ["all", "gpt2"]:
+        models_to_test.append("gpt2")
+
+    for model_name in models_to_test:
+        for k in k_list:
+            trial_results = []
+
+            # Determine batch sizing based on mode
+            if model_name == "resnet":
+                if mode == "global":
+                    # Lock global batch at 64 images
+                    b_per_node = max(1, 64 // (world_size * k))
+                else:
+                    # Fixed microbatch mode: 32 per node
+                    b_per_node = config.DEFAULT_BATCH_SIZE
+
+                if rank == 0:
+                    print(f"\n>>> [ResNet-18 | {mode.upper()}] Benchmarking K={k} (microbatch={b_per_node}, global={b_per_node * k * world_size})...", flush=True)
+
+                for trial in range(1, num_trials + 1):
+                    if world_size > 1:
+                        dist.barrier()
+                    r = benchmark_resnet(
+                        rank, world_size,
+                        batch_size=b_per_node,
+                        accum_steps=k,
+                        bench_steps=bench_steps,
+                        warmup_steps=warmup_steps,
+                        trial_id=trial
+                    )
+                    r["mode"] = mode
+                    trial_results.append(r)
+                    all_raw_results.append(r)
+
+            elif model_name == "gpt2":
+                if mode == "global":
+                    # Lock global batch at 32 sequences (16,384 tokens)
+                    b_per_node = max(1, 32 // (world_size * k))
+                else:
+                    # Fixed microbatch mode: 4 per node
+                    b_per_node = config.GPT2_BATCH_SIZE
+
+                if rank == 0:
+                    print(f"\n>>> [GPT-2 Small | {mode.upper()}] Benchmarking K={k} (microbatch={b_per_node}, global={b_per_node * k * world_size * config.GPT2_SEQ_LEN} tokens)...", flush=True)
+
+                for trial in range(1, num_trials + 1):
+                    if world_size > 1:
+                        dist.barrier()
+                    r = benchmark_gpt2(
+                        rank, world_size,
+                        batch_size=b_per_node,
+                        seq_len=config.GPT2_SEQ_LEN,
+                        accum_steps=k,
+                        bench_steps=bench_steps,
+                        warmup_steps=warmup_steps,
+                        trial_id=trial
+                    )
+                    r["mode"] = mode
+                    trial_results.append(r)
+                    all_raw_results.append(r)
+
+            if rank == 0 and trial_results:
+                summary = aggregate_trials(trial_results)
+                summary["mode"] = mode
+                all_summaries.append(summary)
+                print(f"    --> K={k} Summary: {summary['throughput_mean']} ± {summary['throughput_std']} {summary['unit']} | Step: {summary['step_time_mean_s']:.3f}s | AllReduce: {summary['allreduce_ms_mean']:.1f}ms", flush=True)
+
+                # Incremental flush to disk after every single K:
+                save_checkpoint(all_raw_results, all_summaries, world_size, mode, hostname, ts, is_final=False)
+
+    # Final summary report & flush on rank 0
+    if rank == 0 and all_raw_results:
+        save_checkpoint(all_raw_results, all_summaries, world_size, mode, hostname, ts, is_final=True)
 
 
 # ── Main Entrypoint ───────────────────────────────────────────────────────────
@@ -510,7 +527,11 @@ def main():
 
     args = parser.parse_args()
 
-    dist.init_process_group(backend=config.BACKEND)
+    timeout_mins = int(os.environ.get("TORCH_DIST_TIMEOUT_MINS", "10"))
+    dist.init_process_group(
+        backend=config.BACKEND,
+        timeout=datetime.timedelta(minutes=timeout_mins)
+    )
     rank       = dist.get_rank()
     world_size = dist.get_world_size()
 

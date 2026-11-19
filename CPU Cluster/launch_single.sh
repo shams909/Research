@@ -17,11 +17,14 @@ cd "$(dirname "$0")"
 source .venv/bin/activate
 
 SCRIPT=${1:-"02_train_cifar.py"}
+shift 1 2>/dev/null || true
+EXTRA_ARGS="$@"
 
 echo ""
 echo "=============================================="
 echo "  SINGLE NODE BASELINE | rank=0 | world_size=1"
 echo "  Script : src/$SCRIPT"
+echo "  Args   : $EXTRA_ARGS"
 echo "  Run this ALONE — no other nodes needed"
 echo "=============================================="
 echo ""
@@ -33,4 +36,4 @@ torchrun \
   --rdzv-backend=c10d \
   --rdzv-endpoint=localhost:29500 \
   --rdzv-id=lab-cluster-single \
-  src/$SCRIPT
+  src/$SCRIPT $EXTRA_ARGS
