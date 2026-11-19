@@ -41,11 +41,14 @@ echo "  Log File   : $LOG_FILE" | tee -a "$LOG_FILE"
 echo "  Hardware   : Master (Node 01) + Worker (Node 02) over 100 Mbps Eth" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
 
-# ── STAGE 0: Pre-Flight Cleanup & Hardware Telemetry Startup ──────────────────
+# ── STAGE 0: Pre-Flight Cleanup, Hardware Introspection & Telemetry ────────────
 echo "" | tee -a "$LOG_FILE"
-echo ">>> [Stage 0/6] Pre-flight cluster health check..." | tee -a "$LOG_FILE"
+echo ">>> [Stage 0/6] Pre-flight cluster health check & hardware introspection..." | tee -a "$LOG_FILE"
 cleanup_cluster
 echo "    ✓ Cluster ports and processes cleared." | tee -a "$LOG_FILE"
+
+# Automatically inspect and record exact bare-metal specs for the paper:
+python3 src/00_hardware_probe.py 2>&1 | tee -a "$LOG_FILE" || true
 
 # Start continuous background CPU & RAM monitor
 echo "  [telemetry] Starting continuous hardware monitor (1s sampling)..." | tee -a "$LOG_FILE"
