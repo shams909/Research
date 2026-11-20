@@ -198,7 +198,11 @@ def plot_figure_2_scaling_efficiency(show=False):
     ax1.set_title("Cluster Speedup Ratio (S₂)", fontsize=12, fontweight="bold")
     ax1.set_xlabel("Accumulation Steps (K)", fontsize=11)
     ax1.set_ylabel("Speedup vs. 1-Node Baseline", fontsize=11)
-    ax1.set_xticks([1, 2, 4, 8, 16])
+    all_k_vals = sorted(df[df["world_size"] == 2]["accum_steps"].dropna().unique())
+    if len(all_k_vals):
+        ax1.set_xticks(all_k_vals)
+    else:
+        ax1.set_xticks([1, 2, 4, 8, 16, 32, 64])
     ax1.legend(loc="lower right")
 
     # Right: Scaling Efficiency E_N (%)
@@ -233,7 +237,10 @@ def plot_figure_2_scaling_efficiency(show=False):
     ax2.set_title("Weak-Scaling Efficiency (E₂ %)", fontsize=12, fontweight="bold")
     ax2.set_xlabel("Accumulation Steps (K)", fontsize=11)
     ax2.set_ylabel("Scaling Efficiency (%)", fontsize=11)
-    ax2.set_xticks([1, 2, 4, 8, 16])
+    if len(all_k_vals):
+        ax2.set_xticks(all_k_vals)
+    else:
+        ax2.set_xticks([1, 2, 4, 8, 16, 32, 64])
     ax2.set_ylim(0, 115)
     ax2.legend(loc="lower right")
 

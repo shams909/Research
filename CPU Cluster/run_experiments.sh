@@ -30,7 +30,7 @@ rm -f results/latest 2>/dev/null || true
 ln -sfn "session_${TS}" results/latest 2>/dev/null || true
 
 LOG_FILE="${SESSION_DIR}/pipeline.log"
-K_LIST=${K_LIST:-"1,2,4,8,16"}
+K_LIST=${K_LIST:-"1,2,4,8,16,32,64"}
 
 cleanup_cluster() {
     echo "  [cleanup] Clearing stale cluster processes and port 29500..." | tee -a "$LOG_FILE"
@@ -128,7 +128,7 @@ echo ">>> [Stage 4/6] Running Fixed-Microbatch K-Sweep (Exp 2)..." | tee -a "$LO
 echo "    K ∈ {$K_LIST} | 3 Trials each | Stopwatch Timing Breakdown" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
 
-if bash launch_master.sh 04_benchmark.py 2 --mode micro --trials 3 --steps 8 --k_list "$K_LIST" 2>&1 | tee -a "$LOG_FILE"; then
+if bash launch_master.sh 04_benchmark.py 2 --mode micro --trials 3 --steps 6 --k_list "$K_LIST" 2>&1 | tee -a "$LOG_FILE"; then
     echo "    ✓ Fixed-Microbatch Sweep completed!" | tee -a "$LOG_FILE"
 else
     echo "    ⚠️ Warning: Stage 4 reported an issue. Saved completed checkpoints. Continuing..." | tee -a "$LOG_FILE"
@@ -142,7 +142,7 @@ echo ">>> [Stage 5/6] Running Fixed-Global-Batch K-Sweep (Exp 3)..." | tee -a "$
 echo "    K ∈ {$K_LIST} | 3 Trials each (Constant Cluster Batch)" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
 
-if bash launch_master.sh 04_benchmark.py 2 --mode global --trials 3 --steps 8 --k_list "$K_LIST" 2>&1 | tee -a "$LOG_FILE"; then
+if bash launch_master.sh 04_benchmark.py 2 --mode global --trials 3 --steps 6 --k_list "$K_LIST" 2>&1 | tee -a "$LOG_FILE"; then
     echo "    ✓ Fixed-Global-Batch Sweep completed!" | tee -a "$LOG_FILE"
 else
     echo "    ⚠️ Warning: Stage 5 reported an issue. Saved completed checkpoints. Continuing..." | tee -a "$LOG_FILE"
