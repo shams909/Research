@@ -127,7 +127,18 @@ def organize():
     # 10. Run Plotter directly for this session
     print(f"\n>>> Generating publication figures for {session_name}...")
     plot_script = os.path.join(PROJECT_ROOT, "src", "05_plot_results.py")
-    subprocess.run([sys.executable, plot_script, "--results_dir", session_dir], check=False)
+
+    # Resolve Python interpreter: prefer project virtualenv (.venv) where pandas & matplotlib live
+    venv_py3 = os.path.join(PROJECT_ROOT, ".venv", "bin", "python3")
+    venv_py  = os.path.join(PROJECT_ROOT, ".venv", "bin", "python")
+    if os.path.exists(venv_py3):
+        py_exec = venv_py3
+    elif os.path.exists(venv_py):
+        py_exec = venv_py
+    else:
+        py_exec = sys.executable
+
+    subprocess.run([py_exec, plot_script, "--results_dir", session_dir], check=False)
 
     print(f"\n=======================================================")
     print(f"  ✓ Session successfully packaged and figures rendered!")
