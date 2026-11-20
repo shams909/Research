@@ -42,6 +42,7 @@ import time
 import math
 import socket
 import datetime
+import argparse
 
 import torch
 import torch.distributed as dist
@@ -116,15 +117,21 @@ def get_model():
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    parser = argparse.ArgumentParser(description="Distributed GPT-2 Training")
+    parser.add_argument("--steps", type=int, default=20, help="Number of optimizer steps to train")
+    parser.add_argument("--batch_size", type=int, default=config.GPT2_BATCH_SIZE, help="Batch size per node")
+    parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
+    args, unknown = parser.parse_known_args()
+
     dist.init_process_group(backend=config.BACKEND)
     rank       = dist.get_rank()
     world_size = dist.get_world_size()
     hostname   = socket.gethostname()
 
-    BATCH_SIZE = config.GPT2_BATCH_SIZE
+    BATCH_SIZE = args.batch_size
     SEQ_LEN    = config.GPT2_SEQ_LEN
-    NUM_STEPS  = 50   # Increase for real training (e.g. 1000+)
-    LR         = 3e-4
+    NUM_STEPS  = args.steps
+    LR         = args.lr
 
     if rank == 0:
         print()

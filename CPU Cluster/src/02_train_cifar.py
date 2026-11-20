@@ -194,14 +194,20 @@ def evaluate(model, loader, criterion):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    parser = argparse.ArgumentParser(description="Distributed CIFAR-10 Training")
+    parser.add_argument("--epochs", type=int, default=config.DEFAULT_EPOCHS, help="Number of training epochs")
+    parser.add_argument("--batch_size", type=int, default=config.DEFAULT_BATCH_SIZE, help="Batch size per node")
+    parser.add_argument("--lr", type=float, default=config.DEFAULT_LR, help="Learning rate")
+    args, unknown = parser.parse_known_args()
+
     dist.init_process_group(backend=config.BACKEND)
     rank       = dist.get_rank()
     world_size = dist.get_world_size()
     hostname   = socket.gethostname()
 
-    BATCH_SIZE = config.DEFAULT_BATCH_SIZE
-    EPOCHS     = config.DEFAULT_EPOCHS
-    LR         = config.DEFAULT_LR
+    BATCH_SIZE = args.batch_size
+    EPOCHS     = args.epochs
+    LR         = args.lr
 
     if rank == 0:
         print()
@@ -279,6 +285,7 @@ def main():
                 "epoch_time_s": round(epoch_time,   2),
                 "imgs_per_sec": round(imgs_per_sec, 1),
                 "world_size"  : world_size,
+                "accum_steps" : getattr(config, "GRADIENT_ACCUM_STEPS", 1),
             })
 
         dist.barrier()

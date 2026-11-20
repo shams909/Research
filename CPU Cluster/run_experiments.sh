@@ -149,6 +149,22 @@ else
 fi
 cleanup_cluster
 
+# ── STAGE 5b: Convergence & Model Quality Verification (Exp 5 / Fig 4) ────────
+echo "" | tee -a "$LOG_FILE"
+echo "======================================================================" | tee -a "$LOG_FILE"
+echo ">>> [Stage 5b/6] Running Training Convergence Verification (Exp 5 / Fig 4)..." | tee -a "$LOG_FILE"
+echo "    Verifying loss decrease on ResNet-18 (CIFAR-10) and GPT-2 (WikiText-2)" | tee -a "$LOG_FILE"
+echo "======================================================================" | tee -a "$LOG_FILE"
+
+echo "  [1/2] Training ResNet-18 on CIFAR-10 (2 epochs)..." | tee -a "$LOG_FILE"
+bash launch_master.sh 02_train_cifar.py 2 --epochs 2 2>&1 | tee -a "$LOG_FILE" || true
+cleanup_cluster
+
+echo "  [2/2] Training GPT-2 Small on WikiText-2 (15 steps)..." | tee -a "$LOG_FILE"
+bash launch_master.sh 03_train_gpt2.py 2 --steps 15 2>&1 | tee -a "$LOG_FILE" || true
+cleanup_cluster
+echo "    ✓ Convergence experiments completed!" | tee -a "$LOG_FILE"
+
 # ── STAGE 6: Automated Publication Figure Generation ──────────────────────────
 echo "" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"

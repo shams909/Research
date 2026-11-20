@@ -257,4 +257,43 @@ All values presented in this report were generated on bare-metal hardware and lo
 2. **`results/benchmark_1nodes_20261119_030721.csv`**: Single-node baseline with gradient accumulation ($K=4$).
 3. **`results/benchmark_2nodes_20261119_023433.csv`**: 2-node cluster with gradient accumulation ($K=4$).
 4. **`results/benchmark_report_2nodes_20261119_023433.txt`**: Consolidated text telemetry summary.
-5. **`results/figures/`**: Vector-quality 150 DPI comparison visualizations (`02_throughput_bar.png` and `03_scaling_efficiency.png`).
+5. **`results/figures/`**: Vector-quality comparison visualizations.
+
+---
+
+## 9. Phase 2 Empirical Benchmark Campaign & Systems Hardening (November 20, 2026)
+
+### 9.1 The 5 Experimental Pillars
+To provide peer-review defense for an IEEE / systems conference venue, the experimental methodology is anchored in five formal experiments:
+
+1. **Experiment 1: Physical Interconnect Characterization (Figure 5)**
+   * *Purpose:* Measures physical collective AllReduce bandwidth and latency across tensor payloads ranging from 0.1 MB to 500 MB over the 100 Mbps switch.
+   * *Empirical Result:* Proved wire bandwidth ceiling strictly bounds payload at **10.8 – 10.9 MB/s** (~87.2 Mbps payload, ~95% line rate). 500 MB transfer requires **45.86 seconds per operation**.
+2. **Experiment 2: Fixed-Microbatch $K$-Sweep (Figures 1 & 2)**
+   * *Purpose:* Evaluates throughput and scaling efficiency as $K \in \{1, 2, 4, 8, 16\}$ while keeping local per-node microbatch constant ($B=32$ for ResNet, $B=4$ for GPT-2).
+   * *Empirical Result:* At $K=1$, ResNet-18 collapses to **15.9 img/s** ($0.14\times$ speedup, 3,931 ms sync wait). Increasing $K \ge 2$ amortizes network synchronization to $<10$ ms. GPT-2 Small synchronization wait plummets from **43,990.8 ms (44.0s)** at $K=1$ down to **7.2 ms** at $K=16$.
+3. **Experiment 3: Fixed-Global-Batch $K$-Sweep (Figure 1)**
+   * *Purpose:* Keeps cluster global batch constant while varying $K$, shrinking microbatch as $K$ increases ($B_{\text{local}} = B_{\text{global}} / (N \times K)$).
+   * *Empirical Result:* ResNet-18 completed across all $K \in \{1, 2, 4, 8, 16\}$.
+4. **Experiment 4: Stopwatch Hardware Decomposition (Figure 3)**
+   * *Purpose:* High-resolution instrumentation separating total step time into $t_{\text{forward}}$, $t_{\text{backward}}$, and $t_{\text{allreduce}}$.
+   * *Empirical Result:* Conclusively proves that 94.6% of step duration at $K=1$ is idle network blocking, which is successfully eliminated by algorithmic accumulation.
+5. **Experiment 5: Model Quality & Loss Convergence Verification (Figure 4)**
+   * *Purpose:* Validates numerical convergence stability across accumulation factors ($K$) during continuous training.
+
+### 9.2 Incident Analysis: Stage 5 GPT-2 Memory Exhaustion (OOM)
+During the Stage 5 global-batch sweep, GPT-2 Small abruptly terminated at $K=1$:
+* **Root Cause:** The unconstrained global batch formula `max(1, 32 // (world_size * k))` evaluated to `b_per_node = 16 sequences` for $world\_size=2, K=1$. In autoregressive transformers, 16 sequences ($16 \times 1024 = 16,384$ tokens) on CPU requires keeping autograd graphs for 12 attention layers in RAM, requiring $>16$ GB.
+* **Hardware Boundary:** While the cluster aggregates 32 GB RAM, PyTorch Distributed Data Parallel (DDP) does **not** pool memory. RAM is strictly partitioned per motherboard (14.88 GB per PC). When Node 01 memory allocation breached physical RAM, the Linux kernel OOM killer dispatched `SIGKILL`.
+* **Systems Fix:** Constrained the per-node allocation to `b_per_node = max(1, min(config.GPT2_BATCH_SIZE, 8 // (world_size * k)))`. For $K=1$, batch size is locked at 4 sequences (~2.5 GB peak RAM), leaving over 12 GB headroom.
+
+### 9.3 Timestamped Session Architecture
+All experimental executions now write into self-contained session folders under `results/session_YYYYMMDD_HHMMSS/`:
+* `pipeline.log`: Full unbuffered terminal execution output.
+* `00_hardware_profile/`: Bare-metal hardware specifications JSON and Markdown.
+* `net_test_*.csv`: Physical network characterization data.
+* `02_sweep_fixed_microbatch/`: Single-node baselines and multi-node $K$-sweep tables.
+* `03_sweep_fixed_global_batch/`: Fixed-cluster-batch sweep tables.
+* `04_step_time_breakdown/`: Microsecond forward/backward/allreduce decomposition.
+* `figures/`: High-resolution publication figures (Figures 1–5).
+* Symlink `results/latest` points to the most recent completed session.
