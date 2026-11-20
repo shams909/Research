@@ -36,12 +36,13 @@ echo "  Address   : $MASTER_ADDR:$MASTER_PORT"
 echo "  Interface : $GLOO_SOCKET_IFNAME"
 
 # ── AUTO-LAUNCH WORKERS VIA SSH ─────────────────────────────
+mkdir -p results/worker_logs
 WORKER_IPS=$(python3 -c "import config; print(' '.join(getattr(config, 'WORKER_ADDRS', [])))" 2>/dev/null || true)
 RANK=1
 for WIP in $WORKER_IPS; do
-    echo "  [Auto-Launch] Starting Worker (rank $RANK) on $WIP..."
+    echo "  [Auto-Launch] Starting Worker (rank $RANK) on $WIP (logging to results/worker_logs/worker_$WIP.log)..."
     ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no cluster@$WIP \
-        "cd ~/Research/CPU\ Cluster 2>/dev/null || cd ~/Research/'CPU Cluster' 2>/dev/null; bash launch_worker.sh $SCRIPT $RANK $NNODES $EXTRA_ARGS" > /dev/null 2>&1 &
+        "cd ~/Research/CPU\ Cluster 2>/dev/null || cd ~/Research/'CPU Cluster' 2>/dev/null; bash launch_worker.sh $SCRIPT $RANK $NNODES $EXTRA_ARGS" > "results/worker_logs/worker_${WIP}.log" 2>&1 &
     RANK=$((RANK + 1))
 done
 
