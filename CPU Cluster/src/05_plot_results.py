@@ -34,11 +34,20 @@ import config
 
 # ── Style & Configuration ─────────────────────────────────────────────────────
 sns.set_theme(style="whitegrid", palette="muted", font_scale=1.15)
-COLORS   = sns.color_palette("muted")
-FIG_DIR  = os.path.join(config.RESULTS_DIR, "figures")
-RUN_TS   = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-RUN_DIR  = os.path.join(FIG_DIR, f"run_{RUN_TS}")
-DPI      = 200
+COLORS      = sns.color_palette("muted")
+RESULTS_DIR = config.RESULTS_DIR
+FIG_DIR     = os.path.join(RESULTS_DIR, "figures")
+RUN_TS      = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+RUN_DIR     = os.path.join(FIG_DIR, f"run_{RUN_TS}")
+DPI         = 200
+
+
+def configure_paths(results_dir=None):
+    global RESULTS_DIR, FIG_DIR, RUN_DIR
+    if results_dir:
+        RESULTS_DIR = results_dir
+    FIG_DIR = os.path.join(RESULTS_DIR, "figures")
+    RUN_DIR = os.path.join(FIG_DIR, f"run_{RUN_TS}")
 
 
 def save_fig(fig, name, show=False):
@@ -49,9 +58,15 @@ def save_fig(fig, name, show=False):
     archive_path = os.path.join(RUN_DIR, name)
     fig.savefig(archive_path, dpi=DPI, bbox_inches="tight")
 
-    # 2. Save latest copy in main figures directory
+    # 2. Save latest copy in current session figures directory
     latest_path = os.path.join(FIG_DIR, name)
     fig.savefig(latest_path, dpi=DPI, bbox_inches="tight")
+
+    # 3. Also mirror to top-level results/figures for easy global browsing
+    top_fig_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", "figures")
+    if os.path.abspath(FIG_DIR) != os.path.abspath(top_fig_dir):
+        os.makedirs(top_fig_dir, exist_ok=True)
+        fig.savefig(os.path.join(top_fig_dir, name), dpi=DPI, bbox_inches="tight")
 
     print(f"  ✓ Saved   → {latest_path}")
     print(f"    Archive → {archive_path}")
@@ -67,9 +82,9 @@ def plot_figure_1_throughput_vs_k(show=False):
     Figure 1: Saturation curve of training throughput vs K with error bars.
     Reads from sweep CSVs or master CSVs.
     """
-    files = glob.glob(os.path.join(config.RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv"))
+    files = glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv"))
     if not files:
-        files = glob.glob(os.path.join(config.RESULTS_DIR, "benchmark_*nodes_*.csv"))
+        files = glob.glob(os.path.join(RESULTS_DIR, "benchmark_*nodes_*.csv"))
 
     if not files:
         print("  [skip Fig 1] No benchmark or sweep CSVs found")
@@ -127,8 +142,8 @@ def plot_figure_2_scaling_efficiency(show=False):
     Highlights the 1.0x single-node crossover point.
     """
     # Load 1-node baseline and 2-node cluster results
-    bench_files = sorted(glob.glob(os.path.join(config.RESULTS_DIR, "benchmark_*nodes_*.csv")))
-    sweep_files = sorted(glob.glob(os.path.join(config.RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
+    bench_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_*nodes_*.csv")))
+    sweep_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
     all_files = bench_files + sweep_files
 
     if not all_files:
@@ -232,9 +247,9 @@ def plot_figure_3_timing_breakdown(show=False):
     Figure 3: Stacked Bar Chart decomposing total step time into:
     Forward Compute, Backward Compute, and AllReduce Network Wait (ms).
     """
-    timing_files = glob.glob(os.path.join(config.RESULTS_DIR, "04_step_time_breakdown", "timing_decomposition_*.csv"))
+    timing_files = glob.glob(os.path.join(RESULTS_DIR, "04_step_time_breakdown", "timing_decomposition_*.csv"))
     if not timing_files:
-        timing_files = glob.glob(os.path.join(config.RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv"))
+        timing_files = glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv"))
 
     if not timing_files:
         print("  [skip Fig 3] No timing decomposition CSV found")
@@ -294,8 +309,8 @@ def plot_figure_4_convergence(show=False):
     """
     Figure 4: Loss curves over steps/epochs verifying numerical convergence across K.
     """
-    cifar_files = sorted(glob.glob(os.path.join(config.RESULTS_DIR, "cifar_*.csv")))
-    gpt2_files  = sorted(glob.glob(os.path.join(config.RESULTS_DIR, "gpt2_*.csv")))
+    cifar_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "cifar_*.csv")))
+    gpt2_files  = sorted(glob.glob(os.path.join(RESULTS_DIR, "gpt2_*.csv")))
 
     if not cifar_files and not gpt2_files:
         print("  [skip Fig 4] No convergence CSVs found")
@@ -340,7 +355,7 @@ def plot_figure_5_bandwidth_sensitivity(show=False):
     """
     Figure 5: Physical AllReduce bandwidth (MB/s) and latency (ms) vs Tensor Size.
     """
-    net_files = sorted(glob.glob(os.path.join(config.RESULTS_DIR, "net_test_*.csv")))
+    net_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "net_test_*.csv")))
     if not net_files:
         print("  [skip Fig 5] No net_test CSVs found")
         return
@@ -377,13 +392,17 @@ def plot_figure_5_bandwidth_sensitivity(show=False):
 
 def main():
     parser = argparse.ArgumentParser(description="Plot publication figures for CPU cluster research paper")
+    parser.add_argument("--results_dir", type=str, default=None,
+                        help="Path to results directory or timestamped session directory (defaults to config.RESULTS_DIR)")
     parser.add_argument("--show", action="store_true", help="Display figures interactively on screen")
     args = parser.parse_args()
+
+    configure_paths(args.results_dir)
 
     print()
     print("=" * 70)
     print("  CPU CLUSTER LAB — PUBLICATION FIGURE GENERATOR")
-    print(f"  Source Directory : {config.RESULTS_DIR}/")
+    print(f"  Source Directory : {RESULTS_DIR}/")
     print(f"  Target Directory : {FIG_DIR}/")
     print(f"  Archive Snapshot : {RUN_DIR}/")
     print("=" * 70)

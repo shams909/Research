@@ -467,8 +467,13 @@ def run_experiment_suite(rank, world_size, mode, k_list, num_trials, bench_steps
 
             elif model_name == "gpt2":
                 if mode == "global":
-                    # Lock global batch at 32 sequences (16,384 tokens)
-                    b_per_node = max(1, 32 // (world_size * k))
+                    # Lock global batch at 8 sequences (4,096 tokens total across cluster).
+                    # Max batch per node is capped at config.GPT2_BATCH_SIZE (4 sequences)
+                    # to strictly guarantee no OOM against the 14.88 GB per-node RAM ceiling:
+                    #   world_size=2, K=1 -> b_per_node = 4 (~2.5 GB peak RAM)
+                    #   world_size=2, K=2 -> b_per_node = 2 (~1.5 GB peak RAM)
+                    #   world_size=2, K>=4 -> b_per_node = 1 (~1.0 GB peak RAM)
+                    b_per_node = max(1, min(config.GPT2_BATCH_SIZE, 8 // (world_size * k)))
                 else:
                     # Fixed microbatch mode: 4 per node
                     b_per_node = config.GPT2_BATCH_SIZE

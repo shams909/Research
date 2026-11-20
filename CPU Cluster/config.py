@@ -26,10 +26,10 @@ TIMEOUT_MIN  = 30               # Minutes to wait before cluster times out
 RDZV_ID      = "lab-cluster"    # Unique run identifier (change per experiment)
 
 # ── PROJECT PATHS ─────────────────────────────────────────────
-RESULTS_DIR  = "results"        # Benchmark/metric CSVs saved here
-LOG_DIR      = "logs"           # Training logs saved here
-DATA_DIR     = "data"           # Datasets downloaded here automatically
-MODEL_DIR    = "models"         # Model checkpoints saved here
+RESULTS_DIR  = os.environ.get("RESULTS_DIR", "results")  # Benchmark/metric CSVs saved here
+LOG_DIR      = os.environ.get("LOG_DIR", "logs")         # Training logs saved here
+DATA_DIR     = "data"                                    # Datasets downloaded here automatically
+MODEL_DIR    = "models"                                  # Model checkpoints saved here
 
 # ── HARDWARE PROFILE (your specific setup) ───────────────────
 # Node 01 — Acer Aspire | Intel i5-10th Gen | 20 GB RAM
