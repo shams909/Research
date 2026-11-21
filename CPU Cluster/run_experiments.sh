@@ -18,6 +18,15 @@ source .venv/bin/activate
 # Force immediate unbuffered console streaming
 export PYTHONUNBUFFERED=1
 export TORCH_DIST_TIMEOUT_MINS=10
+PIPELINE_START=$(date +%s)
+
+format_duration() {
+    local T=$1
+    local H=$((T / 3600))
+    local M=$(((T % 3600) / 60))
+    local S=$((T % 60))
+    printf "%02dh %02dm %02ds (%ds)" $H $M $S $T
+}
 
 # ── Dynamic Session Directory Architecture ────────────────────────────────────
 TS=$(date +%Y%m%d_%H%M%S)
@@ -34,13 +43,26 @@ LOG_FILE="${SESSION_DIR}/pipeline.log"
 K_LIST=${K_LIST:-"1,2,4,8,16,32,64"}
 
 cleanup_cluster() {
-    echo "  [cleanup] Clearing stale cluster processes and port 29500..." | tee -a "$LOG_FILE"
-    killall -9 python3 torchrun 2>/dev/null || true
+    echo "  [cleanup] Clearing stale cluster training processes and port 29500..." | tee -a "$LOG_FILE"
+    pkill -9 -f "torchrun" 2>/dev/null || true
+    pkill -9 -f "00_net_test.py" 2>/dev/null || true
+    pkill -9 -f "01_smoke_test.py" 2>/dev/null || true
+    pkill -9 -f "02_train_cifar.py" 2>/dev/null || true
+    pkill -9 -f "03_train_gpt2.py" 2>/dev/null || true
+    pkill -9 -f "04_benchmark.py" 2>/dev/null || true
     fuser -k 29500/tcp 2>/dev/null || true
     WORKER_IP=$(python3 -c "import config; print(getattr(config, 'WORKER_ADDRS', ['192.168.9.135'])[0])" 2>/dev/null || echo "192.168.9.135")
     ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no cluster@$WORKER_IP \
-        "killall -9 python3 torchrun 2>/dev/null; fuser -k 29500/tcp 2>/dev/null || true" 2>/dev/null || true
-    sleep 3
+        "pkill -9 -f 'torchrun' 2>/dev/null; pkill -9 -f '0[0-5]_' 2>/dev/null; fuser -k 29500/tcp 2>/dev/null || true" 2>/dev/null || true
+    sleep 2
+    ensure_telemetry
+}
+
+ensure_telemetry() {
+    if [ -z "$MONITOR_PID" ] || ! kill -0 "$MONITOR_PID" 2>/dev/null; then
+        python3 src/06_system_monitor.py --interval 1.0 > /dev/null 2>&1 &
+        MONITOR_PID=$!
+    fi
 }
 
 echo "" | tee -a "$LOG_FILE"
@@ -86,12 +108,15 @@ echo "" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
 echo ">>> [Stage 1/6] Running Quick Sanity Verification (1 Trial, 4 Steps)..." | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
+STAGE1_START=$(date +%s)
 
 if bash launch_master.sh 04_benchmark.py 2 --mode micro --trials 1 --steps 4 2>&1 | tee -a "$LOG_FILE"; then
     echo "    ✓ Sanity check passed!" | tee -a "$LOG_FILE"
 else
     echo "    ⚠️ Warning: Sanity check reported a non-zero exit code. Resetting cluster..." | tee -a "$LOG_FILE"
 fi
+STAGE1_END=$(date +%s)
+echo "    ⏱ Stage 1 Duration: $(format_duration $((STAGE1_END - STAGE1_START)))" | tee -a "$LOG_FILE"
 cleanup_cluster
 
 # ── STAGE 2: Physical Interconnect Characterization (Figure 5 Data) ───────────
@@ -100,12 +125,15 @@ echo "======================================================================" | 
 echo ">>> [Stage 2/6] Running Physical Network AllReduce Benchmark (Exp 4 / Fig 5)..." | tee -a "$LOG_FILE"
 echo "    Tensors: 0.1 MB to 500 MB over 100 Mbps switch" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
+STAGE2_START=$(date +%s)
 
 if bash launch_master.sh 00_net_test.py 2 2>&1 | tee -a "$LOG_FILE"; then
     echo "    ✓ Network AllReduce characterization completed!" | tee -a "$LOG_FILE"
 else
     echo "    ⚠️ Warning: Network benchmark encountered an issue. Continuing..." | tee -a "$LOG_FILE"
 fi
+STAGE2_END=$(date +%s)
+echo "    ⏱ Stage 2 Duration: $(format_duration $((STAGE2_END - STAGE2_START)))" | tee -a "$LOG_FILE"
 cleanup_cluster
 
 # ── STAGE 3: Single-Node Baseline (Exp 1 / Fig 2 Reference) ───────────────────
@@ -114,12 +142,15 @@ echo "======================================================================" | 
 echo ">>> [Stage 3/6] Running Single-Node Baseline (Exp 1 / Fig 2 Reference)..." | tee -a "$LOG_FILE"
 echo "    Measuring 1-node throughput to compute Speedup (S_N) & Efficiency (E_N)" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
+STAGE3_START=$(date +%s)
 
 if bash launch_single.sh 04_benchmark.py --mode micro --k_list 1,4 --trials 2 --steps 4 2>&1 | tee -a "$LOG_FILE"; then
     echo "    ✓ Single-node baseline completed!" | tee -a "$LOG_FILE"
 else
     echo "    ⚠️ Warning: Single-node baseline encountered an issue. Using calibrated baseline..." | tee -a "$LOG_FILE"
 fi
+STAGE3_END=$(date +%s)
+echo "    ⏱ Stage 3 Duration: $(format_duration $((STAGE3_END - STAGE3_START)))" | tee -a "$LOG_FILE"
 cleanup_cluster
 
 # ── STAGE 4: Fixed-Microbatch K-Sweep (Exp 2 / Fig 1, 2, 3) ───────────────────
@@ -128,12 +159,15 @@ echo "======================================================================" | 
 echo ">>> [Stage 4/6] Running Fixed-Microbatch K-Sweep (Exp 2)..." | tee -a "$LOG_FILE"
 echo "    K ∈ {$K_LIST} | 3 Trials each | Stopwatch Timing Breakdown" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
+STAGE4_START=$(date +%s)
 
 if bash launch_master.sh 04_benchmark.py 2 --mode micro --trials 3 --steps 6 --k_list "$K_LIST" 2>&1 | tee -a "$LOG_FILE"; then
     echo "    ✓ Fixed-Microbatch Sweep completed!" | tee -a "$LOG_FILE"
 else
     echo "    ⚠️ Warning: Stage 4 reported an issue. Saved completed checkpoints. Continuing..." | tee -a "$LOG_FILE"
 fi
+STAGE4_END=$(date +%s)
+echo "    ⏱ Stage 4 Duration: $(format_duration $((STAGE4_END - STAGE4_START)))" | tee -a "$LOG_FILE"
 cleanup_cluster
 
 # ── STAGE 5: Fixed-Global-Batch K-Sweep (Exp 3 / Fig 1) ───────────────────────
@@ -142,12 +176,15 @@ echo "======================================================================" | 
 echo ">>> [Stage 5/6] Running Fixed-Global-Batch K-Sweep (Exp 3)..." | tee -a "$LOG_FILE"
 echo "    K ∈ {$K_LIST} | 3 Trials each (Constant Cluster Batch)" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
+STAGE5_START=$(date +%s)
 
 if bash launch_master.sh 04_benchmark.py 2 --mode global --trials 3 --steps 6 --k_list "$K_LIST" 2>&1 | tee -a "$LOG_FILE"; then
     echo "    ✓ Fixed-Global-Batch Sweep completed!" | tee -a "$LOG_FILE"
 else
     echo "    ⚠️ Warning: Stage 5 reported an issue. Saved completed checkpoints. Continuing..." | tee -a "$LOG_FILE"
 fi
+STAGE5_END=$(date +%s)
+echo "    ⏱ Stage 5 Duration: $(format_duration $((STAGE5_END - STAGE5_START)))" | tee -a "$LOG_FILE"
 cleanup_cluster
 
 # ── STAGE 5b: Convergence & Model Quality Verification (Exp 5 / Fig 4) ────────
@@ -156,6 +193,7 @@ echo "======================================================================" | 
 echo ">>> [Stage 5b/6] Running Training Convergence Verification (Exp 5 / Fig 4)..." | tee -a "$LOG_FILE"
 echo "    Verifying loss decrease on ResNet-18 (CIFAR-10) and GPT-2 (WikiText-2)" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
+STAGE5B_START=$(date +%s)
 
 echo "  [1/2] Training ResNet-18 on CIFAR-10 (2 epochs)..." | tee -a "$LOG_FILE"
 bash launch_master.sh 02_train_cifar.py 2 --epochs 2 2>&1 | tee -a "$LOG_FILE" || true
@@ -164,23 +202,32 @@ cleanup_cluster
 echo "  [2/2] Training GPT-2 Small on WikiText-2 (15 steps)..." | tee -a "$LOG_FILE"
 bash launch_master.sh 03_train_gpt2.py 2 --steps 15 2>&1 | tee -a "$LOG_FILE" || true
 cleanup_cluster
+STAGE5B_END=$(date +%s)
 echo "    ✓ Convergence experiments completed!" | tee -a "$LOG_FILE"
+echo "    ⏱ Stage 5b Duration: $(format_duration $((STAGE5B_END - STAGE5B_START)))" | tee -a "$LOG_FILE"
 
 # ── STAGE 6: Automated Publication Figure Generation ──────────────────────────
 echo "" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
 echo ">>> [Stage 6/6] Generating All 5 Official Publication Figures..." | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
+STAGE6_START=$(date +%s)
 
 python3 src/05_plot_results.py --results_dir "$SESSION_DIR" 2>&1 | tee -a "$LOG_FILE" || true
+STAGE6_END=$(date +%s)
 echo "    ✓ Figures generated!" | tee -a "$LOG_FILE"
+echo "    ⏱ Stage 6 Duration: $(format_duration $((STAGE6_END - STAGE6_START)))" | tee -a "$LOG_FILE"
 
 # ── SUMMARY & FINISH ──────────────────────────────────────────────────────────
 stop_telemetry
+PIPELINE_END=$(date +%s)
+TOTAL_SECS=$((PIPELINE_END - PIPELINE_START))
+
 echo "" | tee -a "$LOG_FILE"
 echo "======================================================================" | tee -a "$LOG_FILE"
 echo "  🎉 PIPELINE EXECUTION FINISHED SUCCESSFULLY!" | tee -a "$LOG_FILE"
 echo "  End Time       : $(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$LOG_FILE"
+echo "  Total Duration : $(format_duration $TOTAL_SECS)" | tee -a "$LOG_FILE"
 echo "  Session Folder : $SESSION_DIR" | tee -a "$LOG_FILE"
 echo "  Figures        : $SESSION_DIR/figures/ (mirrored to results/figures/)" | tee -a "$LOG_FILE"
 echo "  Log File       : $LOG_FILE" | tee -a "$LOG_FILE"
