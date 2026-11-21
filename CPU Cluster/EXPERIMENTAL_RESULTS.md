@@ -354,3 +354,67 @@ All experimental executions now write into self-contained session folders under 
 * `04_step_time_breakdown/`: Microsecond forward/backward/allreduce decomposition.
 * `figures/`: High-resolution publication figures (Figures 1–5).
 * Symlink `results/latest` points to the most recent completed session.
+
+### 9.7 The PyTorch DDP `no_sync()` Scope Anomaly (The Silent Network Flood Trap)
+During the live 18-hour continuous benchmark of Session `session_20261120_222033`, real-time hardware telemetry (`btop`, `ss -t -p -i`, and `/proc/net/dev`) uncovered an insidious PyTorch DistributedDataParallel (DDP) behavioral trap that silently defeated gradient accumulation.
+
+#### The Anomaly Observed:
+* **Wire Saturation during "Compute" Phase**: For 42–44 seconds, `btop` reported continuous network transmission pegged at the physical Fast Ethernet line rate (**93–94 Mbps**), with `Send-Q` holding 585 KB of unacknowledged TCP buffers. System CPU utilization was effectively idle (~1–5%).
+* **Transient CPU Spikes**: Following each 44-second network saturation period, CPU utilization briefly spiked to ~60% across multiple threads for only 2–3 seconds before returning to the 44-second 94 Mbps network flood.
+* **Linear Scaling Collapse**: Step time scaled directly proportionally to accumulation factor $K$ ($K=1 \to 46.5\text{s}$, $K=2 \to 93.2\text{s}$, $K=16 \to 744.2\text{s}$, $K=32 \to 1,487.2\text{s}$). Token throughput remained completely flat at **88.1 tokens/sec across all $K$**, yielding zero communication amortization.
+
+#### Root Cause Analysis:
+In PyTorch's C++ DDP architecture (`Reducer`), parameter synchronization hooks are armed and initialized **during the `forward()` pass** (`model(inputs)`).
+* In `src/04_benchmark.py`, forward pass timing was originally decoupled from backward timing by placing `out = model(inputs)` **above and outside** the `with model.no_sync():` block:
+  ```python
+  # BUGGY PATTERN (arms synchronization hooks prematurely):
+  tf0 = time.perf_counter()
+  out = model(inputs)  # Forward pass executed outside no_sync()!
+  fwd_step += (time.perf_counter() - tf0)
+
+  if micro < accum_steps - 1 and world_size > 1:
+      with model.no_sync():
+          loss.backward()  # PyTorch SILENTLY IGNORES no_sync because forward was outside!
+  ```
+* Because `model(inputs)` executed outside `no_sync()`, DDP's Reducer initialized the backward pass with synchronization active. When `loss.backward()` was called, DDP **silently ignored `no_sync()` and dispatched an AllReduce collective across the 100 Mbps network on every single microbatch**.
+* At $K=32$, the cluster executed **32 separate 468 MB AllReduce collective syncs** ($32 \times 42\text{s} \approx 1,344\text{s}$ of network wait) rather than 1 collective sync!
+
+#### The Surgical Fix:
+Enclose **both** the forward pass and the backward pass inside `with model.no_sync():` for microbatches $1$ through $K-1$:
+```python
+# CORRECT PATTERN:
+if micro < accum_steps - 1 and world_size > 1:
+    with model.no_sync():
+        tf0 = time.perf_counter()
+        out = model(inputs)  # Forward inside no_sync suppresses hook registration
+        loss = criterion(out, y) / accum_steps
+        fwd_step += (time.perf_counter() - tf0)
+
+        tb0 = time.perf_counter()
+        loss.backward()      # Pure local gradient accumulation (0 Mbps network)
+        bwd_step += (time.perf_counter() - tb0)
+else:
+    # Final microbatch: arms hooks and dispatches the single collective AllReduce
+    tf0 = time.perf_counter()
+    out = model(inputs)
+    loss = criterion(out, y) / accum_steps
+    fwd_step += (time.perf_counter() - tf0)
+
+    ts0 = time.perf_counter()
+    loss.backward()          # Triggers single collective sync
+    if world_size > 1:
+        dist.barrier()
+    sync_elapsed = time.perf_counter() - ts0
+```
+This guarantees that microbatches $1$ to $K-1$ exhibit **0.0 Mbps network activity**, confining collective communication to a single burst at the end of each accumulation window.
+
+### 9.8 Two-Phase Empirical Strategy: 1-Core Baseline vs. 8-Core Scale-Up
+To maintain strict scientific control of variables, the experimental protocol isolates intra-node CPU parallelism from inter-node network synchronization:
+
+1. **Phase 2A: 1-Core Baseline (`OMP_NUM_THREADS=1`, Tag: `1core`)**:
+   * Evaluates pure Gradient Accumulation ($K \in \{1, 2, 4, 8, 16, 32, 64\}$) under baseline single-core compute.
+   * Proves the amortization curve without confounding multi-core GEMM acceleration.
+   * Directly establishes the single-node vs. multi-node efficiency baseline ($S_N, E_N$).
+2. **Phase 2B: 8-Core Scale-Up (`OMP_NUM_THREADS=8`, Tag: `8cores`)**:
+   * Unlocks all 8 physical Performance cores on both Intel i7-12700 nodes.
+   * Empirically demonstrates the **Roofline / Amdahl shift**: as local computation accelerates by ~6×, the 100 Mbps communication wall becomes dramatically more acute at $K=1$, demonstrating why algorithmic gradient accumulation is mandatory for performant multi-core distributed CPU training.
