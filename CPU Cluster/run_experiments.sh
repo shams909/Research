@@ -21,13 +21,14 @@ export TORCH_DIST_TIMEOUT_MINS=10
 
 # ── Dynamic Session Directory Architecture ────────────────────────────────────
 TS=$(date +%Y%m%d_%H%M%S)
-SESSION_DIR="results/session_${TS}"
+SESSION_NAME="session_${TS}${SESSION_TAG:+_$SESSION_TAG}"
+SESSION_DIR="results/${SESSION_NAME}"
 mkdir -p "$SESSION_DIR" "$SESSION_DIR/figures" "$SESSION_DIR/worker_logs"
 export RESULTS_DIR="$SESSION_DIR"
 
 # Maintain symlink to latest session for easy single-click access
 rm -f results/latest 2>/dev/null || true
-ln -sfn "session_${TS}" results/latest 2>/dev/null || true
+ln -sfn "${SESSION_NAME}" results/latest 2>/dev/null || true
 
 LOG_FILE="${SESSION_DIR}/pipeline.log"
 K_LIST=${K_LIST:-"1,2,4,8,16,32,64"}

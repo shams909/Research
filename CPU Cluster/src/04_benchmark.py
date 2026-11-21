@@ -95,26 +95,34 @@ def benchmark_resnet(rank, world_size, batch_size=32, accum_steps=1, bench_steps
             x = torch.randn(batch_size, 3, 32, 32)
             y = torch.randint(0, 10, (batch_size,))
 
-            # 1. Forward timing
-            tf0 = time.perf_counter()
-            out = model(x)
-            loss = criterion(out, y) / accum_steps
-            fwd_step += (time.perf_counter() - tf0)
-
-            # 2. Backward & Communication timing
             if micro < accum_steps - 1 and world_size > 1:
-                tb0 = time.perf_counter()
                 with model.no_sync():
+                    # 1. Forward timing (inside no_sync to prevent hook arming)
+                    tf0 = time.perf_counter()
+                    out = model(x)
+                    loss = criterion(out, y) / accum_steps
+                    fwd_step += (time.perf_counter() - tf0)
+
+                    # 2. Local backward timing (pure compute, zero network AllReduce)
+                    tb0 = time.perf_counter()
                     loss.backward()
-                bwd_step += (time.perf_counter() - tb0)
+                    bwd_step += (time.perf_counter() - tb0)
             else:
+                # Final microbatch: triggers collective AllReduce communication
+                # 1. Forward timing
+                tf0 = time.perf_counter()
+                out = model(x)
+                loss = criterion(out, y) / accum_steps
+                fwd_step += (time.perf_counter() - tf0)
+
+                # 2. Backward & Communication timing
                 ts0 = time.perf_counter()
                 loss.backward()
                 if world_size > 1:
                     dist.barrier()
                 sync_elapsed = time.perf_counter() - ts0
 
-                # Separate local backward pass from AllReduce barrier wait
+                # Separate local backward pass compute from AllReduce barrier wait
                 if accum_steps > 1 and bwd_step > 0:
                     avg_local_bwd = bwd_step / (accum_steps - 1)
                     bwd_step += avg_local_bwd
@@ -204,26 +212,34 @@ def benchmark_gpt2(rank, world_size, batch_size=4, seq_len=512, accum_steps=1, b
             input_ids = torch.randint(0, 50257, (batch_size, seq_len))
             labels    = input_ids.clone()
 
-            # 1. Forward timing
-            tf0 = time.perf_counter()
-            out = model(input_ids=input_ids, labels=labels)
-            loss = out.loss / accum_steps
-            fwd_step += (time.perf_counter() - tf0)
-
-            # 2. Backward & Communication timing
             if micro < accum_steps - 1 and world_size > 1:
-                tb0 = time.perf_counter()
                 with model.no_sync():
+                    # 1. Forward timing (inside no_sync to prevent hook arming)
+                    tf0 = time.perf_counter()
+                    out = model(input_ids=input_ids, labels=labels)
+                    loss = out.loss / accum_steps
+                    fwd_step += (time.perf_counter() - tf0)
+
+                    # 2. Local backward timing (pure compute, zero network AllReduce)
+                    tb0 = time.perf_counter()
                     loss.backward()
-                bwd_step += (time.perf_counter() - tb0)
+                    bwd_step += (time.perf_counter() - tb0)
             else:
+                # Final microbatch: triggers collective AllReduce communication
+                # 1. Forward timing
+                tf0 = time.perf_counter()
+                out = model(input_ids=input_ids, labels=labels)
+                loss = out.loss / accum_steps
+                fwd_step += (time.perf_counter() - tf0)
+
+                # 2. Backward & Communication timing
                 ts0 = time.perf_counter()
                 loss.backward()
                 if world_size > 1:
                     dist.barrier()
                 sync_elapsed = time.perf_counter() - ts0
 
-                # Separate local backward pass from AllReduce barrier wait
+                # Separate local backward pass compute from AllReduce barrier wait
                 if accum_steps > 1 and bwd_step > 0:
                     avg_local_bwd = bwd_step / (accum_steps - 1)
                     bwd_step += avg_local_bwd

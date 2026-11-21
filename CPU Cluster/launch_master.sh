@@ -43,7 +43,7 @@ RANK=1
 for WIP in $WORKER_IPS; do
     echo "  [Auto-Launch] Starting Worker (rank $RANK) on $WIP (logging to ${WORKER_LOG_DIR}/worker_$WIP.log)..."
     ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no cluster@$WIP \
-        "export RESULTS_DIR=\"${RESULTS_DIR:-results}\"; cd ~/Research/CPU\ Cluster 2>/dev/null || cd ~/Research/'CPU Cluster' 2>/dev/null; bash launch_worker.sh $SCRIPT $RANK $NNODES $EXTRA_ARGS" > "${WORKER_LOG_DIR}/worker_${WIP}.log" 2>&1 &
+        "export RESULTS_DIR=\"${RESULTS_DIR:-results}\"; ${OMP_NUM_THREADS:+export OMP_NUM_THREADS=$OMP_NUM_THREADS; export MKL_NUM_THREADS=$OMP_NUM_THREADS;} cd ~/Research/CPU\ Cluster 2>/dev/null || cd ~/Research/'CPU Cluster' 2>/dev/null; bash launch_worker.sh $SCRIPT $RANK $NNODES $EXTRA_ARGS" > "${WORKER_LOG_DIR}/worker_${WIP}.log" 2>&1 &
     RANK=$((RANK + 1))
 done
 
