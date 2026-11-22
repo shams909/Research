@@ -80,11 +80,14 @@ def save_fig(fig, name, show=False):
 def plot_figure_1_throughput_vs_k(show=False):
     """
     Figure 1: Saturation curve of training throughput vs K with error bars.
-    Reads from sweep CSVs or master CSVs.
+    Reads strictly from fixed-microbatch sweep CSVs.
+    Uses equidistant categorical x-axis spacing so K=1, 2, 4 are not crammed against the margin.
     """
-    files = glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv"))
+    files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
     if not files:
-        files = glob.glob(os.path.join(RESULTS_DIR, "benchmark_*nodes_*.csv"))
+        files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "*.csv")))
+    if not files:
+        files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_2nodes_*.csv")))
 
     if not files:
         print("  [skip Fig 1] No benchmark or sweep CSVs found")
@@ -92,6 +95,10 @@ def plot_figure_1_throughput_vs_k(show=False):
 
     dfs = [pd.read_csv(f) for f in files]
     df_all = pd.concat(dfs, ignore_index=True)
+
+    # Filter mode == micro if column present to prevent any fixed-global-batch mixing
+    if "mode" in df_all.columns:
+        df_all = df_all[df_all["mode"] == "micro"]
 
     tasks = df_all["task"].unique() if "task" in df_all.columns else []
     if not len(tasks):
@@ -111,24 +118,27 @@ def plot_figure_1_throughput_vs_k(show=False):
 
         sub = sub.drop_duplicates(subset=["accum_steps"], keep="last")
 
-        ks = sub["accum_steps"]
+        ks = list(sub["accum_steps"])
+        x_indices = np.arange(len(ks))
         unit = sub["unit"].iloc[0]
 
-        tput = sub["throughput_mean"] if "throughput_mean" in sub.columns else sub["throughput"]
-        yerr = sub["throughput_std"] if "throughput_std" in sub.columns else None
+        tput = sub["throughput_mean"].values if "throughput_mean" in sub.columns else sub["throughput"].values
+        yerr = sub["throughput_std"].values if "throughput_std" in sub.columns else None
 
-        ax.errorbar(ks, tput, yerr=yerr, marker="o", markersize=8, linewidth=2.2,
-                    capsize=5, capthick=1.5, color=COLORS[0], label=f"2-Node Cluster")
+        ax.errorbar(x_indices, tput, yerr=yerr, marker="o", markersize=8, linewidth=2.2,
+                    capsize=5, capthick=1.5, color=COLORS[0], label="2-Node Cluster")
 
-        for x_val, y_val in zip(ks, tput):
-            ax.annotate(f"{y_val:.1f}", (x_val, y_val), textcoords="offset points",
-                        xytext=(0, 10), ha="center", fontweight="bold", fontsize=10)
+        for xi, y_val in zip(x_indices, tput):
+            ax.annotate(f"{y_val:.1f}", (xi, y_val), textcoords="offset points",
+                        xytext=(0, 9), ha="center", fontweight="bold", fontsize=10)
 
         ax.set_title(task, fontsize=12, fontweight="bold")
         ax.set_xlabel("Accumulation Steps (K)", fontsize=11)
         ax.set_ylabel(f"Throughput ({unit})", fontsize=11)
-        ax.set_xticks(list(ks))
-        ax.set_ylim(0, max(tput) * 1.25)
+        ax.set_xticks(x_indices)
+        ax.set_xticklabels([str(k) for k in ks])
+        ax.set_xlim(-0.4, len(ks) - 0.6)
+        ax.set_ylim(0, max(tput) * 1.20)
         ax.legend(loc="lower right")
 
     save_fig(fig, "Figure_1_throughput_vs_accumulation.png", show)
@@ -140,69 +150,89 @@ def plot_figure_2_scaling_efficiency(show=False):
     """
     Figure 2: Speedup Ratio (S_N) and Scaling Efficiency (E_N) vs K.
     Highlights the 1.0x single-node crossover point.
+    Strictly isolates 2-node fixed-microbatch data to prevent contamination
+    from fixed-global-batch data (which caused the artificial dip at K=32).
+    Uses equidistant categorical x-axis spacing for clean, publication-ready presentation.
     """
-    # Load 1-node baseline and 2-node cluster results
-    bench_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_*nodes_*.csv")))
-    sweep_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
-    all_files = bench_files + sweep_files
+    # 1. Load 1-node baseline files
+    single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "01_single_node_baseline", "summary_*.csv")))
+    if not single_files:
+        single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_1nodes_*.csv")))
 
-    if not all_files:
+    # 2. Load 2-node cluster results (strictly from fixed-microbatch sweep)
+    sweep_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
+    if not sweep_files:
+        sweep_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "*.csv")))
+    if not sweep_files:
+        sweep_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_2nodes_*.csv")))
+
+    if not sweep_files:
         print("  [skip Fig 2] No data for scaling comparison")
         return
 
-    df = pd.concat([pd.read_csv(f) for f in all_files], ignore_index=True)
-    if "world_size" not in df.columns or "accum_steps" not in df.columns:
+    df_single = pd.concat([pd.read_csv(f) for f in single_files], ignore_index=True) if single_files else pd.DataFrame()
+    df_cluster = pd.concat([pd.read_csv(f) for f in sweep_files], ignore_index=True)
+
+    if "mode" in df_cluster.columns:
+        df_cluster = df_cluster[df_cluster["mode"] == "micro"]
+
+    tasks = df_cluster["task"].unique() if "task" in df_cluster.columns else []
+    if not len(tasks):
         return
 
-    tasks = df["task"].unique()
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
     fig.suptitle("Figure 2: Distributed Speedup & Scaling Efficiency vs. Single-Node Baseline",
                  fontsize=14, fontweight="bold", y=1.02)
 
     fallback_single_tput = {
-        "ResNet-18": 147.2,
-        "ResNet-18 / CIFAR-10": 147.2,
-        "GPT-2 Small": 356.8,
-        "GPT-2 Small (117M)": 356.8,
+        "ResNet-18": 113.2,
+        "ResNet-18 / CIFAR-10": 113.2,
+        "GPT-2 Small": 359.5,
+        "GPT-2 Small (117M)": 359.5,
     }
+
+    # Determine universal K values across all tasks
+    all_k_vals = sorted(df_cluster["accum_steps"].dropna().unique())
+    if not len(all_k_vals):
+        all_k_vals = [1, 2, 4, 8, 16, 32, 64]
+    k_to_idx = {k: i for i, k in enumerate(all_k_vals)}
+    x_ticks = np.arange(len(all_k_vals))
 
     # Left: Speedup Ratio S_N
     ax1 = axes[0]
     ax1.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="1-Node Baseline (1.0×)")
 
     for i, task in enumerate(tasks):
-        sub1 = df[(df["task"] == task) & (df["world_size"] == 1)]
-        sub2 = df[(df["task"] == task) & (df["world_size"] == 2)].sort_values("accum_steps")
+        base_tput = fallback_single_tput.get(task, 150.0)
+        if not df_single.empty and "task" in df_single.columns:
+            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
+            if not sub1.empty:
+                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
 
+        sub2 = df_cluster[df_cluster["task"] == task].sort_values("accum_steps")
         if sub2.empty:
             continue
 
-        if not sub1.empty:
-            base_tput = sub1["throughput"].iloc[-1]
-        else:
-            base_tput = fallback_single_tput.get(task, 150.0)
-
         sub2 = sub2.drop_duplicates(subset=["accum_steps"], keep="last")
 
-        ks = sub2["accum_steps"]
-        tput2 = sub2["throughput_mean"] if "throughput_mean" in sub2.columns else sub2["throughput"]
+        ks = list(sub2["accum_steps"])
+        x_pos = [k_to_idx[k] for k in ks if k in k_to_idx]
+        tput2 = sub2["throughput_mean"].values if "throughput_mean" in sub2.columns else sub2["throughput"].values
         speedup = tput2 / base_tput
 
-        ax1.plot(ks, speedup, marker="s", markersize=8, linewidth=2.2,
+        ax1.plot(x_pos, speedup, marker="s", markersize=8, linewidth=2.2,
                  color=COLORS[i % len(COLORS)], label=f"{task} (2 Nodes)")
 
-        for x_val, y_val in zip(ks, speedup):
-            ax1.annotate(f"{y_val:.2f}×", (x_val, y_val), textcoords="offset points",
+        for xp, y_val in zip(x_pos, speedup):
+            ax1.annotate(f"{y_val:.2f}×", (xp, y_val), textcoords="offset points",
                          xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
 
     ax1.set_title("Cluster Speedup Ratio (S₂)", fontsize=12, fontweight="bold")
     ax1.set_xlabel("Accumulation Steps (K)", fontsize=11)
     ax1.set_ylabel("Speedup vs. 1-Node Baseline", fontsize=11)
-    all_k_vals = sorted(df[df["world_size"] == 2]["accum_steps"].dropna().unique())
-    if len(all_k_vals):
-        ax1.set_xticks(all_k_vals)
-    else:
-        ax1.set_xticks([1, 2, 4, 8, 16, 32, 64])
+    ax1.set_xticks(x_ticks)
+    ax1.set_xticklabels([str(k) for k in all_k_vals])
+    ax1.set_xlim(-0.4, len(all_k_vals) - 0.6)
     ax1.legend(loc="lower right")
 
     # Right: Scaling Efficiency E_N (%)
@@ -210,37 +240,36 @@ def plot_figure_2_scaling_efficiency(show=False):
     ax2.axhline(100.0, color="gray", linestyle=":", linewidth=1.5, label="Ideal Linear Scaling (100%)")
 
     for i, task in enumerate(tasks):
-        sub1 = df[(df["task"] == task) & (df["world_size"] == 1)]
-        sub2 = df[(df["task"] == task) & (df["world_size"] == 2)].sort_values("accum_steps")
+        base_tput = fallback_single_tput.get(task, 150.0)
+        if not df_single.empty and "task" in df_single.columns:
+            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
+            if not sub1.empty:
+                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
 
+        sub2 = df_cluster[df_cluster["task"] == task].sort_values("accum_steps")
         if sub2.empty:
             continue
 
-        if not sub1.empty:
-            base_tput = sub1["throughput"].iloc[-1]
-        else:
-            base_tput = fallback_single_tput.get(task, 150.0)
-
         sub2 = sub2.drop_duplicates(subset=["accum_steps"], keep="last")
 
-        ks = sub2["accum_steps"]
-        tput2 = sub2["throughput_mean"] if "throughput_mean" in sub2.columns else sub2["throughput"]
+        ks = list(sub2["accum_steps"])
+        x_pos = [k_to_idx[k] for k in ks if k in k_to_idx]
+        tput2 = sub2["throughput_mean"].values if "throughput_mean" in sub2.columns else sub2["throughput"].values
         efficiency = (tput2 / (2.0 * base_tput)) * 100.0
 
-        ax2.plot(ks, efficiency, marker="o", markersize=8, linewidth=2.2,
+        ax2.plot(x_pos, efficiency, marker="o", markersize=8, linewidth=2.2,
                  color=COLORS[i % len(COLORS)], label=f"{task} (2 Nodes)")
 
-        for x_val, y_val in zip(ks, efficiency):
-            ax2.annotate(f"{y_val:.1f}%", (x_val, y_val), textcoords="offset points",
+        for xp, y_val in zip(x_pos, efficiency):
+            ax2.annotate(f"{y_val:.1f}%", (xp, y_val), textcoords="offset points",
                          xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
 
     ax2.set_title("Weak-Scaling Efficiency (E₂ %)", fontsize=12, fontweight="bold")
     ax2.set_xlabel("Accumulation Steps (K)", fontsize=11)
     ax2.set_ylabel("Scaling Efficiency (%)", fontsize=11)
-    if len(all_k_vals):
-        ax2.set_xticks(all_k_vals)
-    else:
-        ax2.set_xticks([1, 2, 4, 8, 16, 32, 64])
+    ax2.set_xticks(x_ticks)
+    ax2.set_xticklabels([str(k) for k in all_k_vals])
+    ax2.set_xlim(-0.4, len(all_k_vals) - 0.6)
     ax2.set_ylim(0, 115)
     ax2.legend(loc="lower right")
 
@@ -334,10 +363,19 @@ def plot_figure_4_convergence(show=False):
         k_val = df["accum_steps"].iloc[0] if "accum_steps" in df.columns else "?"
         nodes = df["world_size"].iloc[0] if "world_size" in df.columns else "?"
         label = f"{nodes} Nodes (K={k_val})"
-        ax1.plot(df["epoch"], df["train_loss"], marker="o", label=label, color=COLORS[i % len(COLORS)])
+        ax1.plot(df["epoch"], df["train_loss"], marker="o", markersize=8, linewidth=2.2,
+                 label=label, color=COLORS[i % len(COLORS)])
+        if "test_acc_pct" in df.columns:
+            for ep, loss_val, acc in zip(df["epoch"], df["train_loss"], df["test_acc_pct"]):
+                ax1.annotate(f"Loss: {loss_val:.2f} ({acc:.1f}% Acc)", (ep, loss_val),
+                             textcoords="offset points", xytext=(0, 10 if ep == 1 else -18),
+                             ha="center", fontsize=9, fontweight="bold")
     ax1.set_title("ResNet-18 / CIFAR-10 Loss", fontsize=12, fontweight="bold")
     ax1.set_xlabel("Epoch", fontsize=11)
     ax1.set_ylabel("Training Cross-Entropy Loss", fontsize=11)
+    ax1.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+    ax1.set_xlim(0.8, 2.2)
+    ax1.set_ylim(1.20, 1.80)
     ax1.legend()
 
     # GPT-2
