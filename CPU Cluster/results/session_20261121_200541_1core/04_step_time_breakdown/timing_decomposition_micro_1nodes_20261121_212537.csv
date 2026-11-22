@@ -1,0 +1,5 @@
+model,task,accum_steps,batch_per_node,effective_node_b,global_batch,trial_id,avg_step_time_s,throughput,unit,world_size,forward_ms,backward_ms,allreduce_ms,optimizer_ms,mode,trials_count,throughput_mean,throughput_std,step_time_mean_s,step_time_std_s,forward_ms_mean,backward_ms_mean,allreduce_ms_mean,optimizer_ms_mean
+ResNet-18,ResNet-18 / CIFAR-10,1,32,32,32,1,0.2775,115.3,images/sec,1,84.88,0.0,182.56,4.19,micro,2,114.75,0.78,0.2789,0.0019,85.16,0.0,184.28,4.2
+ResNet-18,ResNet-18 / CIFAR-10,4,32,128,128,1,1.131,113.2,images/sec,1,348.89,0.0,195.38,4.36,micro,2,113.15,0.07,1.1316,0.0008,349.57,0.0,194.64,4.33
+GPT-2 Small,GPT-2 Small (117M),1,4,4,2048,1,5.8085,352.6,tokens/sec,1,2612.62,0.0,2917.09,272.12,micro,2,354.2,2.26,5.7823,0.0371,2585.62,0.0,2919.61,270.61
+GPT-2 Small,GPT-2 Small (117M),4,4,16,8192,1,22.8108,359.1,tokens/sec,1,10511.69,0.0,3057.05,272.86,micro,2,358.2,1.27,22.8693,0.0827,10550.3,0.0,3051.22,272.53

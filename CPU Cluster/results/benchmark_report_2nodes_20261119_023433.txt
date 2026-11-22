@@ -1,0 +1,26 @@
+=================================================================
+  CPU CLUSTER LAB — BENCHMARK REPORT
+  Generated : 2026-11-19 02:34:33
+  Nodes     : 2
+  Master    : 192.168.9.136
+  Node      : node01
+=================================================================
+
+  Task          : ResNet-18 / CIFAR-10
+  Batch/node    : 128
+  Global batch  : 256
+  Throughput    : 52.5 images/sec
+  Step time     : 4.8741 s
+
+  Task          : GPT-2 Small (117M)
+  Batch/node    : 16
+  Global batch  : 32
+  Throughput    : 261.7 tokens/sec
+  Step time     : 62.6078 s
+
+  Notes:
+  - Measurements use synthetic data (same shapes as real datasets)
+  - Communication overhead IS included (AllReduce in backward pass)
+  - Benchmark steps: 30 (after 5 warmup)
+  - For scaling efficiency: compare with single-node run
+=================================================================

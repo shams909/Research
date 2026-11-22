@@ -1,0 +1,25 @@
+======================================================================
+  CPU CLUSTER LAB — EMPIRICAL SCALING BENCHMARK REPORT
+  Generated : 2026-11-20 06:14:50
+  Cluster   : 1 Nodes  |  Master: 192.168.9.136
+  Mode      : MICRO  |  Reporter: node01
+======================================================================
+
+  Model / Task           K    Global Batch   Step Time (s)    Throughput (μ ± σ)  
+  ------------------------------------------------------------------
+  ResNet-18              1    32             0.283 s          113.05 ± 0.07 images/sec
+  ResNet-18              4    128            1.132 s          113.1 ± 0.99 images/sec
+  GPT-2 Small            1    2048           5.678 s          360.75 ± 5.16 tokens/sec
+  GPT-2 Small            4    8192           22.624 s         362.1 ± 2.83 tokens/sec
+
+  Timing Breakdown (ms):
+  Model            K    Forward (ms)   Backward (ms)  AllReduce (ms)   Optimizer (ms)
+  ------------------------------------------------------------------
+  ResNet-18        1    86.7           0.0            186.9            4.3           
+  ResNet-18        4    346.8          0.0            196.2            4.3           
+  GPT-2 Small      1    2527.8         0.0            2873.8           271.3         
+  GPT-2 Small      4    10405.2        0.0            3022.8           270.5         
+======================================================================
+  All measurements collected on bare-metal hardware.
+  AllReduce represents blocking collective network synchronization.
+======================================================================

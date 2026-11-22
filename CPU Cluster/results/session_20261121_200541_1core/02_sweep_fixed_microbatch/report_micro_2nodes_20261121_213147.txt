@@ -1,0 +1,45 @@
+======================================================================
+  CPU CLUSTER LAB — EMPIRICAL SCALING BENCHMARK REPORT
+  Generated : 2026-11-22 04:57:32
+  Cluster   : 2 Nodes  |  Master: 192.168.9.136
+  Mode      : MICRO  |  Reporter: node01
+======================================================================
+
+  Model / Task           K    Global Batch   Step Time (s)    Throughput (μ ± σ)  
+  ------------------------------------------------------------------
+  ResNet-18              1    64             4.116 s          15.57 ± 0.29 images/sec
+  ResNet-18              2    128            4.409 s          29.03 ± 0.12 images/sec
+  ResNet-18              4    256            4.886 s          52.4 ± 0.87 images/sec
+  ResNet-18              8    512            5.936 s          86.23 ± 0.06 images/sec
+  ResNet-18              16   1024           8.162 s          125.5 ± 1.05 images/sec
+  ResNet-18              32   2048           12.983 s         157.73 ± 0.78 images/sec
+  ResNet-18              64   4096           22.626 s         181.07 ± 0.9 images/sec
+  GPT-2 Small            1    4096           47.376 s         86.47 ± 1.27 tokens/sec
+  GPT-2 Small            2    8192           52.034 s         157.43 ± 0.49 tokens/sec
+  GPT-2 Small            4    16384          62.789 s         260.93 ± 0.38 tokens/sec
+  GPT-2 Small            8    32768          85.160 s         384.8 ± 0.17 tokens/sec
+  GPT-2 Small            16   65536          130.896 s        500.7 ± 1.76 tokens/sec
+  GPT-2 Small            32   131072         222.934 s        587.93 ± 1.17 tokens/sec
+  GPT-2 Small            64   262144         407.379 s        643.47 ± 0.5 tokens/sec
+
+  Timing Breakdown (ms):
+  Model            K    Forward (ms)   Backward (ms)  AllReduce (ms)   Optimizer (ms)
+  ------------------------------------------------------------------
+  ResNet-18        1    88.1           0.0            4018.8           4.2           
+  ResNet-18        2    174.7          362.5          3863.6           4.2           
+  ResNet-18        4    344.4          722.0          3809.7           4.1           
+  ResNet-18        8    692.8          1469.1         3762.5           4.2           
+  ResNet-18        16   1381.8         2927.9         3836.9           4.2           
+  ResNet-18        32   2939.1         6209.9         3809.4           4.2           
+  ResNet-18        64   5980.4         12651.4        3954.9           4.2           
+  GPT-2 Small      1    2489.2         0.0            44611.6          271.9         
+  GPT-2 Small      2    4976.3         5243.2         41536.6          273.1         
+  GPT-2 Small      4    10070.7        10993.4        41450.2          272.6         
+  GPT-2 Small      8    20520.9        23043.6        41317.2          275.1         
+  GPT-2 Small      16   41864.8        47358.6        41390.1          277.7         
+  GPT-2 Small      32   85031.2        96398.9        41217.2          278.2         
+  GPT-2 Small      64   171377.6       194683.6       41030.6          277.7         
+======================================================================
+  All measurements collected on bare-metal hardware.
+  AllReduce represents blocking collective network synchronization.
+======================================================================

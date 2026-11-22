@@ -1,0 +1,506 @@
+
+======================================================================
+  🚀 CPU CLUSTER LAB — FAULT-TOLERANT EXPERIMENT PIPELINE
+  Start Time : 2026-11-20 05:23:42
+  Log File   : results/pipeline_20261120_052341.log
+  Hardware   : Master (Node 01) + Worker (Node 02) over 100 Mbps Eth
+======================================================================
+
+>>> [Stage 0/6] Pre-flight cluster health check & hardware introspection...
+  [cleanup] Clearing stale cluster processes and port 29500...
+    ✓ Cluster ports and processes cleared.
+
+====================================================================
+  HARDWARE & SYSTEM PROFILER — CPU CLUSTER LAB
+  Detecting bare-metal specifications for research paper...
+====================================================================
+  Probing Worker 1 (192.168.9.135) via SSH... [Connected ✓]
+
+  Node               Role           CPU Model                      Cores (P/L)  RAM (GB)   Disk (GB) 
+  --------------------------------------------------------------------------------------------------
+  node01             Master (Rank 0) 12th Gen Intel(R) Core(TM) i   12 / 20      14.88      456.3     
+  node02             Worker 1 (Rank 1) 12th Gen Intel(R) Core(TM) i   12 / 20      14.88      456.3     
+====================================================================
+
+  ✓ Hardware JSON saved : results/00_hardware_profile/hardware_specs.json
+  ✓ Markdown table saved : results/00_hardware_profile/hardware_specs.md
+
+  [telemetry] Starting continuous hardware monitor (1s sampling)...
+    ✓ Hardware monitor active (PID: 255768)
+
+======================================================================
+>>> [Stage 1/6] Running Quick Sanity Verification (1 Trial, 4 Steps)...
+======================================================================
+
+==============================================
+  MASTER NODE | rank=0 | world_size=2
+  Script    : src/04_benchmark.py
+  Args      : --mode micro --trials 1 --steps 4
+  Address   : 192.168.9.136:29500
+  Interface : enp2s0
+  [Auto-Launch] Starting Worker (rank 1) on 192.168.9.135...
+  All workers dispatched. Starting master process...
+==============================================
+
+
+======================================================================
+  CPU CLUSTER LAB — BENCHMARK & COMMUNICATION PROFILER
+  Cluster Size : 2 Nodes  |  Backend: gloo
+  Run Mode     : MICRO  |  Trials/Config: 1
+======================================================================
+
+>>> [ResNet-18 | MICRO] Benchmarking K=1 (microbatch=32, global=64)...
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/04_benchmark.py", line 575, in <module>
+[rank0]:     main()
+[rank0]:     ~~~~^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/04_benchmark.py", line 561, in main
+[rank0]:     run_experiment_suite(
+[rank0]:     ~~~~~~~~~~~~~~~~~~~~^
+[rank0]:         rank, world_size,
+[rank0]:         ^^^^^^^^^^^^^^^^^
+[rank0]:     ...<5 lines>...
+[rank0]:         model_filter=args.model
+[rank0]:         ^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:     )
+[rank0]:     ^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/04_benchmark.py", line 455, in run_experiment_suite
+[rank0]:     dist.barrier()
+[rank0]:     ~~~~~~~~~~~~^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/c10d_logger.py", line 83, in wrapper
+[rank0]:     return func(*args, **kwargs)
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/distributed_c10d.py", line 6614, in barrier
+[rank0]:     work.wait()
+[rank0]:     ~~~~~~~~~^^
+[rank0]: RuntimeError: [/__w/pytorch/pytorch/third_party/gloo/gloo/transport/tcp/unbound_buffer.cc:78] Timed out waiting 600000ms for recv operation to complete
+E1120 05:33:48.494000 255788 torch/distributed/elastic/multiprocessing/api.py:1002] failed (exitcode: 1) local_rank: 0 (pid: 255809) of binary: /home/cluster/Research/CPU Cluster/.venv/bin/python3
+Traceback (most recent call last):
+  File "/home/cluster/Research/CPU Cluster/.venv/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 384, in wrapper
+    result = f(*args, **kwargs)
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/run.py", line 1138, in main
+    run(args)
+    ~~~^^^^^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/run.py", line 1129, in run
+    elastic_launch(
+    ~~~~~~~~~~~~~~~
+        config=config,
+        ~~~~~~~~~~~~~~
+        entrypoint=cmd,
+        ~~~~~~~~~~~~~~~
+    )(*cmd_args)
+    ~^^^^^^^^^^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/launcher/api.py", line 197, in __call__
+    return launch_agent(
+        self._config,
+    ...<2 lines>...
+        health_check_server=self._health_check_server,
+    )
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/launcher/api.py", line 386, in launch_agent
+    raise ChildFailedError(
+    ...<2 lines>...
+    )
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+src/04_benchmark.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-11-20_05:33:48
+  host      : node01
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 255809) 
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+    ✓ Sanity check passed!
+  [cleanup] Clearing stale cluster processes and port 29500...
+
+======================================================================
+>>> [Stage 2/6] Running Physical Network AllReduce Benchmark (Exp 4 / Fig 5)...
+    Tensors: 0.1 MB to 500 MB over 100 Mbps switch
+======================================================================
+
+==============================================
+  MASTER NODE | rank=0 | world_size=2
+  Script    : src/00_net_test.py
+  Args      : 
+  Address   : 192.168.9.136:29500
+  Interface : enp2s0
+  [Auto-Launch] Starting Worker (rank 1) on 192.168.9.135...
+  All workers dispatched. Starting master process...
+==============================================
+
+
+=================================================================
+  NETWORK BENCHMARK — CPU Cluster Lab
+  Nodes     : 2
+  Backend   : gloo
+  Master    : 192.168.9.136:29500
+  This node : node01
+=================================================================
+   Tensor Size     Bandwidth     Latency  Efficiency
+          (MB)        (MB/s)     (ms/op)      vs GbE
+  --------------------------------------------------
+           0.1          10.1        9.90        1.1%
+           1.0          10.8       92.33        1.2%
+          10.0          10.9      917.59        1.2%
+          50.0          10.8     4624.64        1.2%
+         100.0          10.9     9174.92        1.2%
+         250.0          10.9    22927.28        1.2%
+         500.0          10.9    45870.71        1.2%
+  --------------------------------------------------
+
+  Average bandwidth : 10.8 MB/s
+  Theoretical GbE   : 940.0 MB/s
+  Overall efficiency: 1.1%
+
+  Results saved → results/net_test_2nodes_20261120_060844.csv
+
+=================================================================
+  NETWORK TEST COMPLETE
+=================================================================
+
+    ✓ Network AllReduce characterization completed!
+  [cleanup] Clearing stale cluster processes and port 29500...
+
+======================================================================
+>>> [Stage 3/6] Running Single-Node Baseline (Exp 1 / Fig 2 Reference)...
+    Measuring 1-node throughput to compute Speedup (S_N) & Efficiency (E_N)
+======================================================================
+
+==============================================
+  SINGLE NODE BASELINE | rank=0 | world_size=1
+  Script : src/04_benchmark.py
+  Args   : --mode micro --k_list 1,4 --trials 2 --steps 4
+  Run this ALONE — no other nodes needed
+==============================================
+
+
+======================================================================
+  CPU CLUSTER LAB — BENCHMARK & COMMUNICATION PROFILER
+  Cluster Size : 1 Nodes  |  Backend: gloo
+  Run Mode     : MICRO  |  Trials/Config: 2
+======================================================================
+
+>>> [ResNet-18 | MICRO] Benchmarking K=1 (microbatch=32, global=32)...
+        [  warmup  1/6] Step:   0.31s | Fwd:  97.8ms | Bwd:   0.0ms | Sync:  209.9ms | Speed: 102.1 img/s
+        [  warmup  2/6] Step:   0.28s | Fwd:  88.3ms | Bwd:   0.0ms | Sync:  185.5ms | Speed: 114.7 img/s
+        [bench #1  3/6] Step:   0.28s | Fwd:  86.4ms | Bwd:   0.0ms | Sync:  187.3ms | Speed: 112.8 img/s
+        [bench #1  4/6] Step:   0.28s | Fwd:  86.5ms | Bwd:   0.0ms | Sync:  185.2ms | Speed: 113.6 img/s
+        [bench #1  5/6] Step:   0.28s | Fwd:  87.6ms | Bwd:   0.0ms | Sync:  186.6ms | Speed: 112.7 img/s
+        [bench #1  6/6] Step:   0.28s | Fwd:  86.8ms | Bwd:   0.0ms | Sync:  186.0ms | Speed: 113.5 img/s
+        [  warmup  1/6] Step:   0.28s | Fwd:  83.6ms | Bwd:   0.0ms | Sync:  187.3ms | Speed: 116.1 img/s
+        [  warmup  2/6] Step:   0.28s | Fwd:  85.0ms | Bwd:   0.0ms | Sync:  185.0ms | Speed: 116.2 img/s
+        [bench #2  3/6] Step:   0.28s | Fwd:  86.3ms | Bwd:   0.0ms | Sync:  187.6ms | Speed: 113.5 img/s
+        [bench #2  4/6] Step:   0.28s | Fwd:  86.4ms | Bwd:   0.0ms | Sync:  187.9ms | Speed: 112.8 img/s
+        [bench #2  5/6] Step:   0.28s | Fwd:  87.4ms | Bwd:   0.0ms | Sync:  187.6ms | Speed: 112.5 img/s
+        [bench #2  6/6] Step:   0.28s | Fwd:  86.3ms | Bwd:   0.0ms | Sync:  186.9ms | Speed: 113.2 img/s
+    --> K=1 Summary: 113.05 ± 0.07 images/sec | Step: 0.283s | AllReduce: 186.9ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=4 (microbatch=32, global=128)...
+        [  warmup  1/6] Step:   1.16s | Fwd: 349.6ms | Bwd:   0.0ms | Sync:  205.4ms | Speed: 110.6 img/s
+        [  warmup  2/6] Step:   1.16s | Fwd: 347.2ms | Bwd:   0.0ms | Sync:  201.7ms | Speed: 110.6 img/s
+        [bench #1  3/6] Step:   1.15s | Fwd: 346.7ms | Bwd:   0.0ms | Sync:  202.4ms | Speed: 111.4 img/s
+        [bench #1  4/6] Step:   1.12s | Fwd: 344.6ms | Bwd:   0.0ms | Sync:  193.4ms | Speed: 114.5 img/s
+        [bench #1  5/6] Step:   1.13s | Fwd: 347.8ms | Bwd:   0.0ms | Sync:  196.6ms | Speed: 112.9 img/s
+        [bench #1  6/6] Step:   1.15s | Fwd: 347.0ms | Bwd:   0.0ms | Sync:  203.1ms | Speed: 111.0 img/s
+        [  warmup  1/6] Step:   1.14s | Fwd: 351.4ms | Bwd:   0.0ms | Sync:  195.2ms | Speed: 112.3 img/s
+        [  warmup  2/6] Step:   1.12s | Fwd: 348.6ms | Bwd:   0.0ms | Sync:  192.4ms | Speed: 113.9 img/s
+        [bench #2  3/6] Step:   1.12s | Fwd: 346.4ms | Bwd:   0.0ms | Sync:  193.9ms | Speed: 114.1 img/s
+        [bench #2  4/6] Step:   1.12s | Fwd: 347.5ms | Bwd:   0.0ms | Sync:  192.1ms | Speed: 114.0 img/s
+        [bench #2  5/6] Step:   1.13s | Fwd: 347.5ms | Bwd:   0.0ms | Sync:  192.9ms | Speed: 113.5 img/s
+        [bench #2  6/6] Step:   1.13s | Fwd: 346.6ms | Bwd:   0.0ms | Sync:  195.6ms | Speed: 113.5 img/s
+    --> K=4 Summary: 113.1 ± 0.99 images/sec | Step: 1.132s | AllReduce: 196.2ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=1 (microbatch=4, global=2048 tokens)...
+[transformers] `loss_type=None` was set in the config but it is unrecognized. Using the default loss: `ForCausalLMLoss`.
+        [  warmup  1/6] Step:   5.77s | Fwd: 2665.4ms | Bwd:   0.0ms | Sync: 2777.2ms | Speed: 354.8 tok/s
+        [  warmup  2/6] Step:   5.74s | Fwd: 2692.0ms | Bwd:   0.0ms | Sync: 2777.1ms | Speed: 356.8 tok/s
+        [bench #1  3/6] Step:   5.52s | Fwd: 2515.0ms | Bwd:   0.0ms | Sync: 2724.3ms | Speed: 371.0 tok/s
+        [bench #1  4/6] Step:   5.50s | Fwd: 2509.7ms | Bwd:   0.0ms | Sync: 2728.1ms | Speed: 372.2 tok/s
+        [bench #1  5/6] Step:   5.71s | Fwd: 2479.8ms | Bwd:   0.0ms | Sync: 2963.1ms | Speed: 358.5 tok/s
+        [bench #1  6/6] Step:   5.75s | Fwd: 2542.9ms | Bwd:   0.0ms | Sync: 2915.9ms | Speed: 356.3 tok/s
+        [  warmup  1/6] Step:   5.72s | Fwd: 2490.4ms | Bwd:   0.0ms | Sync: 2908.3ms | Speed: 358.1 tok/s
+        [  warmup  2/6] Step:   5.97s | Fwd: 2719.1ms | Bwd:   0.0ms | Sync: 2968.3ms | Speed: 343.3 tok/s
+        [bench #2  3/6] Step:   5.73s | Fwd: 2546.6ms | Bwd:   0.0ms | Sync: 2899.5ms | Speed: 357.7 tok/s
+        [bench #2  4/6] Step:   5.78s | Fwd: 2574.4ms | Bwd:   0.0ms | Sync: 2930.9ms | Speed: 354.1 tok/s
+        [bench #2  5/6] Step:   5.69s | Fwd: 2519.1ms | Bwd:   0.0ms | Sync: 2898.2ms | Speed: 360.2 tok/s
+        [bench #2  6/6] Step:   5.75s | Fwd: 2534.8ms | Bwd:   0.0ms | Sync: 2930.1ms | Speed: 356.4 tok/s
+    --> K=1 Summary: 360.75 ± 5.16 tokens/sec | Step: 5.678s | AllReduce: 2873.8ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=4 (microbatch=4, global=8192 tokens)...
+        [  warmup  1/6] Step:  22.34s | Fwd: 10269.9ms | Bwd:   0.0ms | Sync: 3010.5ms | Speed: 366.7 tok/s
+        [  warmup  2/6] Step:  22.11s | Fwd: 10117.4ms | Bwd:   0.0ms | Sync: 2947.3ms | Speed: 370.5 tok/s
+        [bench #1  3/6] Step:  22.41s | Fwd: 10281.6ms | Bwd:   0.0ms | Sync: 2957.0ms | Speed: 365.5 tok/s
+        [bench #1  4/6] Step:  22.51s | Fwd: 10428.5ms | Bwd:   0.0ms | Sync: 3067.6ms | Speed: 363.9 tok/s
+        [bench #1  5/6] Step:  22.56s | Fwd: 10337.2ms | Bwd:   0.0ms | Sync: 3015.6ms | Speed: 363.1 tok/s
+        [bench #1  6/6] Step:  22.51s | Fwd: 10378.6ms | Bwd:   0.0ms | Sync: 3054.0ms | Speed: 363.9 tok/s
+        [  warmup  1/6] Step:  22.31s | Fwd: 10188.4ms | Bwd:   0.0ms | Sync: 2943.8ms | Speed: 367.3 tok/s
+        [  warmup  2/6] Step:  22.58s | Fwd: 10519.9ms | Bwd:   0.0ms | Sync: 3033.6ms | Speed: 362.8 tok/s
+        [bench #2  3/6] Step:  22.75s | Fwd: 10504.2ms | Bwd:   0.0ms | Sync: 2978.0ms | Speed: 360.1 tok/s
+        [bench #2  4/6] Step:  22.87s | Fwd: 10514.3ms | Bwd:   0.0ms | Sync: 3031.6ms | Speed: 358.2 tok/s
+        [bench #2  5/6] Step:  22.56s | Fwd: 10295.7ms | Bwd:   0.0ms | Sync: 3017.2ms | Speed: 363.1 tok/s
+        [bench #2  6/6] Step:  22.81s | Fwd: 10501.7ms | Bwd:   0.0ms | Sync: 3061.8ms | Speed: 359.1 tok/s
+    --> K=4 Summary: 362.1 ± 2.83 tokens/sec | Step: 22.624s | AllReduce: 3022.8ms
+
+======================================================================
+  CPU CLUSTER LAB — EMPIRICAL SCALING BENCHMARK REPORT
+  Generated : 2026-11-20 06:14:50
+  Cluster   : 1 Nodes  |  Master: 192.168.9.136
+  Mode      : MICRO  |  Reporter: node01
+======================================================================
+
+  Model / Task           K    Global Batch   Step Time (s)    Throughput (μ ± σ)  
+  ------------------------------------------------------------------
+  ResNet-18              1    32             0.283 s          113.05 ± 0.07 images/sec
+  ResNet-18              4    128            1.132 s          113.1 ± 0.99 images/sec
+  GPT-2 Small            1    2048           5.678 s          360.75 ± 5.16 tokens/sec
+  GPT-2 Small            4    8192           22.624 s         362.1 ± 2.83 tokens/sec
+
+  Timing Breakdown (ms):
+  Model            K    Forward (ms)   Backward (ms)  AllReduce (ms)   Optimizer (ms)
+  ------------------------------------------------------------------
+  ResNet-18        1    86.7           0.0            186.9            4.3           
+  ResNet-18        4    346.8          0.0            196.2            4.3           
+  GPT-2 Small      1    2527.8         0.0            2873.8           271.3         
+  GPT-2 Small      4    10405.2        0.0            3022.8           270.5         
+======================================================================
+  All measurements collected on bare-metal hardware.
+  AllReduce represents blocking collective network synchronization.
+======================================================================
+
+  ✓ Summary CSV : results/02_sweep_fixed_microbatch/summary_micro_1nodes_20261120_060849.csv
+  ✓ Raw Trials  : results/02_sweep_fixed_microbatch/raw_trials/raw_trials_1nodes_20261120_060849.csv
+  ✓ Timings     : results/04_step_time_breakdown/timing_decomposition_micro_1nodes_20261120_060849.csv
+  ✓ Text Report : results/02_sweep_fixed_microbatch/report_micro_1nodes_20261120_060849.txt
+
+    ✓ Single-node baseline completed!
+  [cleanup] Clearing stale cluster processes and port 29500...
+
+======================================================================
+>>> [Stage 4/6] Running Fixed-Microbatch K-Sweep (Exp 2)...
+    K ∈ {1, 2, 4, 8, 16} | 3 Trials each | Stopwatch Timing Breakdown
+======================================================================
+
+==============================================
+  MASTER NODE | rank=0 | world_size=2
+  Script    : src/04_benchmark.py
+  Args      : --mode micro --trials 3 --steps 8
+  Address   : 192.168.9.136:29500
+  Interface : enp2s0
+  [Auto-Launch] Starting Worker (rank 1) on 192.168.9.135...
+  All workers dispatched. Starting master process...
+==============================================
+
+
+======================================================================
+  CPU CLUSTER LAB — BENCHMARK & COMMUNICATION PROFILER
+  Cluster Size : 2 Nodes  |  Backend: gloo
+  Run Mode     : MICRO  |  Trials/Config: 3
+======================================================================
+
+>>> [ResNet-18 | MICRO] Benchmarking K=1 (microbatch=32, global=64)...
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/04_benchmark.py", line 575, in <module>
+[rank0]:     main()
+[rank0]:     ~~~~^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/04_benchmark.py", line 561, in main
+[rank0]:     run_experiment_suite(
+[rank0]:     ~~~~~~~~~~~~~~~~~~~~^
+[rank0]:         rank, world_size,
+[rank0]:         ^^^^^^^^^^^^^^^^^
+[rank0]:     ...<5 lines>...
+[rank0]:         model_filter=args.model
+[rank0]:         ^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:     )
+[rank0]:     ^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/04_benchmark.py", line 455, in run_experiment_suite
+[rank0]:     dist.barrier()
+[rank0]:     ~~~~~~~~~~~~^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/c10d_logger.py", line 83, in wrapper
+[rank0]:     return func(*args, **kwargs)
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/distributed_c10d.py", line 6614, in barrier
+[rank0]:     work.wait()
+[rank0]:     ~~~~~~~~~^^
+[rank0]: RuntimeError: [/__w/pytorch/pytorch/third_party/gloo/gloo/transport/tcp/unbound_buffer.cc:78] Timed out waiting 600000ms for recv operation to complete
+E1120 06:24:56.960000 283648 torch/distributed/elastic/multiprocessing/api.py:1002] failed (exitcode: 1) local_rank: 0 (pid: 283671) of binary: /home/cluster/Research/CPU Cluster/.venv/bin/python3
+Traceback (most recent call last):
+  File "/home/cluster/Research/CPU Cluster/.venv/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 384, in wrapper
+    result = f(*args, **kwargs)
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/run.py", line 1138, in main
+    run(args)
+    ~~~^^^^^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/run.py", line 1129, in run
+    elastic_launch(
+    ~~~~~~~~~~~~~~~
+        config=config,
+        ~~~~~~~~~~~~~~
+        entrypoint=cmd,
+        ~~~~~~~~~~~~~~~
+    )(*cmd_args)
+    ~^^^^^^^^^^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/launcher/api.py", line 197, in __call__
+    return launch_agent(
+        self._config,
+    ...<2 lines>...
+        health_check_server=self._health_check_server,
+    )
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/launcher/api.py", line 386, in launch_agent
+    raise ChildFailedError(
+    ...<2 lines>...
+    )
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+src/04_benchmark.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-11-20_06:24:56
+  host      : node01
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 283671) 
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+    ✓ Fixed-Microbatch Sweep completed!
+  [cleanup] Clearing stale cluster processes and port 29500...
+
+======================================================================
+>>> [Stage 5/6] Running Fixed-Global-Batch K-Sweep (Exp 3)...
+    K ∈ {1, 2, 4, 8, 16} | 3 Trials each (Constant Cluster Batch)
+======================================================================
+
+==============================================
+  MASTER NODE | rank=0 | world_size=2
+  Script    : src/04_benchmark.py
+  Args      : --mode global --trials 3 --steps 8
+  Address   : 192.168.9.136:29500
+  Interface : enp2s0
+  [Auto-Launch] Starting Worker (rank 1) on 192.168.9.135...
+  All workers dispatched. Starting master process...
+==============================================
+
+[W1120 06:25:21.047567230 socket.cpp:207] [c10d] The hostname of the client socket cannot be retrieved. err=-3
+
+======================================================================
+  CPU CLUSTER LAB — BENCHMARK & COMMUNICATION PROFILER
+  Cluster Size : 2 Nodes  |  Backend: gloo
+  Run Mode     : GLOBAL  |  Trials/Config: 3
+======================================================================
+
+>>> [ResNet-18 | GLOBAL] Benchmarking K=1 (microbatch=32, global=64)...
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/04_benchmark.py", line 575, in <module>
+[rank0]:     main()
+[rank0]:     ~~~~^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/04_benchmark.py", line 561, in main
+[rank0]:     run_experiment_suite(
+[rank0]:     ~~~~~~~~~~~~~~~~~~~~^
+[rank0]:         rank, world_size,
+[rank0]:         ^^^^^^^^^^^^^^^^^
+[rank0]:     ...<5 lines>...
+[rank0]:         model_filter=args.model
+[rank0]:         ^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:     )
+[rank0]:     ^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/04_benchmark.py", line 455, in run_experiment_suite
+[rank0]:     dist.barrier()
+[rank0]:     ~~~~~~~~~~~~^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/c10d_logger.py", line 83, in wrapper
+[rank0]:     return func(*args, **kwargs)
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/distributed_c10d.py", line 6614, in barrier
+[rank0]:     work.wait()
+[rank0]:     ~~~~~~~~~^^
+[rank0]: RuntimeError: [/__w/pytorch/pytorch/third_party/gloo/gloo/transport/tcp/unbound_buffer.cc:78] Timed out waiting 600000ms for recv operation to complete
+E1120 06:35:26.218000 298889 torch/distributed/elastic/multiprocessing/api.py:1002] failed (exitcode: 1) local_rank: 0 (pid: 299337) of binary: /home/cluster/Research/CPU Cluster/.venv/bin/python3
+Traceback (most recent call last):
+  File "/home/cluster/Research/CPU Cluster/.venv/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 384, in wrapper
+    result = f(*args, **kwargs)
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/run.py", line 1138, in main
+    run(args)
+    ~~~^^^^^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/run.py", line 1129, in run
+    elastic_launch(
+    ~~~~~~~~~~~~~~~
+        config=config,
+        ~~~~~~~~~~~~~~
+        entrypoint=cmd,
+        ~~~~~~~~~~~~~~~
+    )(*cmd_args)
+    ~^^^^^^^^^^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/launcher/api.py", line 197, in __call__
+    return launch_agent(
+        self._config,
+    ...<2 lines>...
+        health_check_server=self._health_check_server,
+    )
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/launcher/api.py", line 386, in launch_agent
+    raise ChildFailedError(
+    ...<2 lines>...
+    )
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+src/04_benchmark.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-11-20_06:35:26
+  host      : node01
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 299337) 
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+    ✓ Fixed-Global-Batch Sweep completed!
+  [cleanup] Clearing stale cluster processes and port 29500...
+
+======================================================================
+>>> [Stage 6/6] Generating All 5 Official Publication Figures...
+======================================================================
+
+======================================================================
+  CPU CLUSTER LAB — PUBLICATION FIGURE GENERATOR
+  Source Directory : results/
+  Target Directory : results/figures/
+  Archive Snapshot : results/figures/run_20261120_063530/
+======================================================================
+
+  ✓ Saved   → results/figures/Figure_1_throughput_vs_accumulation.png
+    Archive → results/figures/run_20261120_063530/Figure_1_throughput_vs_accumulation.png
+  ✓ Saved   → results/figures/Figure_2_single_vs_distributed_scaling.png
+    Archive → results/figures/run_20261120_063530/Figure_2_single_vs_distributed_scaling.png
+  ✓ Saved   → results/figures/Figure_3_compute_vs_communication_breakdown.png
+    Archive → results/figures/run_20261120_063530/Figure_3_compute_vs_communication_breakdown.png
+  [skip Fig 4] No convergence CSVs found
+  ✓ Saved   → results/figures/Figure_5_bandwidth_sensitivity.png
+    Archive → results/figures/run_20261120_063530/Figure_5_bandwidth_sensitivity.png
+
+======================================================================
+  ✓ All 5 publication figures generated successfully!
+    Inspect results in: results/figures/
+======================================================================
+
+    ✓ Figures generated!
+
+======================================================================
+  🎉 PIPELINE EXECUTION FINISHED SUCCESSFULLY!
+  End Time   : 2026-11-20 06:35:31
+======================================================================

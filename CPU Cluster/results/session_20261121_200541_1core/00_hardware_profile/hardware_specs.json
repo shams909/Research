@@ -1,0 +1,39 @@
+{
+  "master": {
+    "hostname": "node01",
+    "os": "Linux 7.0.0-43-generic",
+    "architecture": "x86_64",
+    "python_ver": "3.14.4",
+    "pytorch_version": "2.15.0+cpu",
+    "cuda_available": false,
+    "cpu_model": "12th Gen Intel(R) Core(TM) i7-12700",
+    "logical_cpus": 20,
+    "physical_cpus": 12,
+    "cpu_max_mhz": "4900.0000",
+    "cpu_min_mhz": "800.0000",
+    "l2_cache": "12 MiB (9 instances)",
+    "l3_cache": "25 MiB (1 instance)",
+    "cpu_current_mhz": 2167.0,
+    "cpu_max_freq_mhz": 4580.0,
+    "ram_total_gb": 14.88,
+    "ram_available_gb": 12.92,
+    "disk_total_gb": 456.3,
+    "disk_free_gb": 416.8,
+    "role": "Master (Rank 0)",
+    "ip": "192.168.9.136"
+  },
+  "workers": [
+    {
+      "hostname": "node02",
+      "os": "Linux 7.0.0-43-generic",
+      "architecture": "x86_64",
+      "cpu_model": "12th Gen Intel(R) Core(TM) i7-12700",
+      "logical_cpus": 20,
+      "physical_cpus": 12,
+      "ram_total_gb": 14.88,
+      "disk_total_gb": 456.3,
+      "role": "Worker 1 (Rank 1)",
+      "ip": "192.168.9.135"
+    }
+  ]
+}

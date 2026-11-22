@@ -1,0 +1,1571 @@
+
+======================================================================
+  🚀 CPU CLUSTER LAB — FAULT-TOLERANT EXPERIMENT PIPELINE
+  Start Time     : 2026-11-21 20:05:41
+  Session Folder : results/session_20261121_200541_1core
+  Log File       : results/session_20261121_200541_1core/pipeline.log
+  K-List Sweep   : 1,2,4,8,16,32,64
+  Hardware       : Master (Node 01) + Worker (Node 02) over 100 Mbps Eth
+======================================================================
+
+>>> [Stage 0/6] Pre-flight cluster health check & hardware introspection...
+  [cleanup] Clearing stale cluster training processes and port 29500...
+    ✓ Cluster ports and processes cleared.
+  [sync] Syncing code on Worker Node (192.168.9.135)...
+Already up to date.
+
+====================================================================
+  HARDWARE & SYSTEM PROFILER — CPU CLUSTER LAB
+  Detecting bare-metal specifications for research paper...
+====================================================================
+  Probing Worker 1 (192.168.9.135) via SSH... [Connected ✓]
+
+  Node               Role           CPU Model                      Cores (P/L)  RAM (GB)   Disk (GB) 
+  --------------------------------------------------------------------------------------------------
+  node01             Master (Rank 0) 12th Gen Intel(R) Core(TM) i   12 / 20      14.88      456.3     
+  node02             Worker 1 (Rank 1) 12th Gen Intel(R) Core(TM) i   12 / 20      14.88      456.3     
+====================================================================
+
+  ✓ Hardware JSON saved : results/session_20261121_200541_1core/00_hardware_profile/hardware_specs.json
+  ✓ Markdown table saved : results/session_20261121_200541_1core/00_hardware_profile/hardware_specs.md
+
+  [telemetry] Starting continuous hardware monitor (1s sampling)...
+    ✓ Hardware monitor active (PID: 2621121)
+
+======================================================================
+>>> [Stage 1/6] Running Quick Sanity Verification (1 Trial, 4 Steps)...
+======================================================================
+
+==============================================
+  MASTER NODE | rank=0 | world_size=2
+  Script    : src/04_benchmark.py
+  Args      : --mode micro --trials 1 --steps 4
+  Address   : 192.168.9.136:29500
+  Interface : enp2s0
+  [Auto-Launch] Starting Worker (rank 1) on 192.168.9.135 (logging to results/session_20261121_200541_1core/worker_logs/worker_192.168.9.135.log)...
+  All workers dispatched. Starting master process...
+==============================================
+
+
+======================================================================
+  CPU CLUSTER LAB — BENCHMARK & COMMUNICATION PROFILER
+  Cluster Size : 2 Nodes  |  Backend: gloo
+  Run Mode     : MICRO  |  Trials/Config: 1
+======================================================================
+
+>>> [ResNet-18 | MICRO] Benchmarking K=1 (microbatch=32, global=64)...
+        [  warmup  1/6] Step:   4.44s | Fwd: 166.5ms | Bwd:   0.0ms | Sync: 4265.9ms | Speed:  14.4 img/s
+        [  warmup  2/6] Step:   4.08s | Fwd:  89.0ms | Bwd:   0.0ms | Sync: 3987.5ms | Speed:  15.7 img/s
+        [bench #1  3/6] Step:   4.09s | Fwd:  91.6ms | Bwd:   0.0ms | Sync: 3997.3ms | Speed:  15.6 img/s
+        [bench #1  4/6] Step:   4.07s | Fwd:  86.2ms | Bwd:   0.0ms | Sync: 3978.7ms | Speed:  15.7 img/s
+        [bench #1  5/6] Step:   4.07s | Fwd:  88.5ms | Bwd:   0.0ms | Sync: 3974.1ms | Speed:  15.7 img/s
+        [bench #1  6/6] Step:   4.10s | Fwd:  87.7ms | Bwd:   0.0ms | Sync: 4002.8ms | Speed:  15.6 img/s
+    --> K=1 Summary: 15.7 ± 0.0 images/sec | Step: 4.086s | AllReduce: 3988.2ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=2 (microbatch=32, global=128)...
+        [  warmup  1/6] Step:   4.74s | Fwd: 370.4ms | Bwd: 335.2ms | Sync: 4033.9ms | Speed:  27.0 img/s
+        [  warmup  2/6] Step:   4.35s | Fwd: 175.6ms | Bwd: 360.3ms | Sync: 3804.4ms | Speed:  29.4 img/s
+        [bench #1  3/6] Step:   4.36s | Fwd: 172.1ms | Bwd: 359.1ms | Sync: 3820.9ms | Speed:  29.4 img/s
+        [bench #1  4/6] Step:   4.34s | Fwd: 173.8ms | Bwd: 374.9ms | Sync: 3784.3ms | Speed:  29.5 img/s
+        [bench #1  5/6] Step:   4.35s | Fwd: 172.5ms | Bwd: 359.7ms | Sync: 3815.5ms | Speed:  29.4 img/s
+        [bench #1  6/6] Step:   4.34s | Fwd: 171.6ms | Bwd: 357.9ms | Sync: 3804.2ms | Speed:  29.5 img/s
+    --> K=2 Summary: 29.4 ± 0.0 images/sec | Step: 4.349s | AllReduce: 3806.2ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=4 (microbatch=32, global=256)...
+        [  warmup  1/6] Step:   5.29s | Fwd: 549.9ms | Bwd: 728.2ms | Sync: 4009.9ms | Speed:  48.4 img/s
+        [  warmup  2/6] Step:   4.85s | Fwd: 345.0ms | Bwd: 752.8ms | Sync: 3742.2ms | Speed:  52.8 img/s
+        [bench #1  3/6] Step:   4.82s | Fwd: 341.6ms | Bwd: 721.4ms | Sync: 3750.2ms | Speed:  53.1 img/s
+        [bench #1  4/6] Step:   4.82s | Fwd: 342.6ms | Bwd: 725.1ms | Sync: 3747.8ms | Speed:  53.1 img/s
+        [bench #1  5/6] Step:   4.85s | Fwd: 345.9ms | Bwd: 753.9ms | Sync: 3739.6ms | Speed:  52.8 img/s
+        [bench #1  6/6] Step:   4.83s | Fwd: 345.1ms | Bwd: 729.7ms | Sync: 3746.7ms | Speed:  53.0 img/s
+    --> K=4 Summary: 53.0 ± 0.0 images/sec | Step: 4.831s | AllReduce: 3746.1ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=8 (microbatch=32, global=512)...
+        [  warmup  1/6] Step:   6.34s | Fwd: 987.2ms | Bwd: 1422.3ms | Sync: 3925.6ms | Speed:  80.7 img/s
+        [  warmup  2/6] Step:   5.91s | Fwd: 686.1ms | Bwd: 1469.4ms | Sync: 3744.9ms | Speed:  86.6 img/s
+        [bench #1  3/6] Step:   5.94s | Fwd: 689.5ms | Bwd: 1478.7ms | Sync: 3757.1ms | Speed:  86.2 img/s
+        [bench #1  4/6] Step:   5.93s | Fwd: 690.8ms | Bwd: 1470.2ms | Sync: 3759.0ms | Speed:  86.3 img/s
+        [bench #1  5/6] Step:   5.94s | Fwd: 697.7ms | Bwd: 1483.9ms | Sync: 3746.2ms | Speed:  86.2 img/s
+        [bench #1  6/6] Step:   5.93s | Fwd: 695.1ms | Bwd: 1478.2ms | Sync: 3743.8ms | Speed:  86.4 img/s
+    --> K=8 Summary: 86.3 ± 0.0 images/sec | Step: 5.934s | AllReduce: 3751.5ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=16 (microbatch=32, global=1024)...
+        [  warmup  1/6] Step:   8.60s | Fwd: 1686.8ms | Bwd: 2947.3ms | Sync: 3953.0ms | Speed: 119.0 img/s
+        [  warmup  2/6] Step:   8.24s | Fwd: 1386.5ms | Bwd: 2973.6ms | Sync: 3868.4ms | Speed: 124.2 img/s
+        [bench #1  3/6] Step:   8.42s | Fwd: 1407.1ms | Bwd: 3133.6ms | Sync: 3864.8ms | Speed: 121.6 img/s
+        [bench #1  4/6] Step:   8.25s | Fwd: 1390.8ms | Bwd: 2963.3ms | Sync: 3877.7ms | Speed: 124.2 img/s
+        [bench #1  5/6] Step:   8.32s | Fwd: 1395.7ms | Bwd: 3033.3ms | Sync: 3874.2ms | Speed: 123.1 img/s
+        [bench #1  6/6] Step:   8.27s | Fwd: 1394.5ms | Bwd: 2983.4ms | Sync: 3875.8ms | Speed: 123.8 img/s
+    --> K=16 Summary: 123.2 ± 0.0 images/sec | Step: 8.315s | AllReduce: 3873.1ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=1 (microbatch=4, global=4096 tokens)...
+[transformers] `loss_type=None` was set in the config but it is unrecognized. Using the default loss: `ForCausalLMLoss`.
+        [  warmup  1/6] Step:  50.21s | Fwd: 2645.6ms | Bwd:   0.0ms | Sync: 47233.7ms | Speed:  81.6 tok/s
+        [  warmup  2/6] Step:  48.94s | Fwd: 2645.9ms | Bwd:   0.0ms | Sync: 46014.9ms | Speed:  83.7 tok/s
+        [bench #1  3/6] Step:  48.92s | Fwd: 2601.3ms | Bwd:   0.0ms | Sync: 46023.7ms | Speed:  83.7 tok/s
+        [bench #1  4/6] Step:  47.36s | Fwd: 2592.5ms | Bwd:   0.0ms | Sync: 44492.4ms | Speed:  86.5 tok/s
+        [bench #1  5/6] Step:  47.67s | Fwd: 2468.8ms | Bwd:   0.0ms | Sync: 44923.3ms | Speed:  85.9 tok/s
+        [bench #1  6/6] Step:  47.21s | Fwd: 2575.5ms | Bwd:   0.0ms | Sync: 44350.9ms | Speed:  86.8 tok/s
+    --> K=1 Summary: 85.7 ± 0.0 tokens/sec | Step: 47.789s | AllReduce: 44947.6ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=2 (microbatch=4, global=8192 tokens)...
+        [  warmup  1/6] Step:  56.30s | Fwd: 4982.4ms | Bwd: 5201.3ms | Sync: 45776.3ms | Speed: 145.5 tok/s
+        [  warmup  2/6] Step:  52.43s | Fwd: 4969.4ms | Bwd: 5286.5ms | Sync: 41896.6ms | Speed: 156.2 tok/s
+        [bench #1  3/6] Step:  51.85s | Fwd: 4956.6ms | Bwd: 5283.5ms | Sync: 41336.4ms | Speed: 158.0 tok/s
+        [bench #1  4/6] Step:  51.93s | Fwd: 4897.4ms | Bwd: 5272.9ms | Sync: 41498.8ms | Speed: 157.7 tok/s
+        [bench #1  5/6] Step:  51.85s | Fwd: 4955.7ms | Bwd: 5286.8ms | Sync: 41336.2ms | Speed: 158.0 tok/s
+        [bench #1  6/6] Step:  51.95s | Fwd: 5052.3ms | Bwd: 5291.1ms | Sync: 41334.9ms | Speed: 157.7 tok/s
+    --> K=2 Summary: 157.9 ± 0.0 tokens/sec | Step: 51.896s | AllReduce: 41376.6ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=4 (microbatch=4, global=16384 tokens)...
+        [  warmup  1/6] Step:  64.63s | Fwd: 9924.2ms | Bwd: 10598.2ms | Sync: 43775.5ms | Speed: 253.5 tok/s
+        [  warmup  2/6] Step:  62.57s | Fwd: 9987.0ms | Bwd: 11033.6ms | Sync: 41275.8ms | Speed: 261.9 tok/s
+        [bench #1  3/6] Step:  62.32s | Fwd: 10058.0ms | Bwd: 10621.9ms | Sync: 41361.6ms | Speed: 262.9 tok/s
+        [bench #1  4/6] Step:  62.77s | Fwd: 10058.8ms | Bwd: 11144.8ms | Sync: 41288.6ms | Speed: 261.0 tok/s
+        [bench #1  5/6] Step:  62.65s | Fwd: 10182.1ms | Bwd: 10900.4ms | Sync: 41296.6ms | Speed: 261.5 tok/s
+        [bench #1  6/6] Step:  62.62s | Fwd: 10097.2ms | Bwd: 10959.9ms | Sync: 41283.4ms | Speed: 261.6 tok/s
+    --> K=4 Summary: 261.8 ± 0.0 tokens/sec | Step: 62.592s | AllReduce: 41307.6ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=8 (microbatch=4, global=32768 tokens)...
+        [  warmup  1/6] Step:  86.27s | Fwd: 20132.2ms | Bwd: 21997.8ms | Sync: 43803.5ms | Speed: 379.8 tok/s
+        [  warmup  2/6] Step:  84.56s | Fwd: 20374.9ms | Bwd: 22718.9ms | Sync: 41203.6ms | Speed: 387.5 tok/s
+        [bench #1  3/6] Step:  84.87s | Fwd: 20624.7ms | Bwd: 22788.6ms | Sync: 41181.7ms | Speed: 386.1 tok/s
+        [bench #1  4/6] Step:  84.95s | Fwd: 20568.8ms | Bwd: 22920.3ms | Sync: 41176.0ms | Speed: 385.7 tok/s
+        [bench #1  5/6] Step:  84.82s | Fwd: 20462.5ms | Bwd: 22920.4ms | Sync: 41160.9ms | Speed: 386.3 tok/s
+        [bench #1  6/6] Step:  84.40s | Fwd: 20239.5ms | Bwd: 22672.7ms | Sync: 41204.7ms | Speed: 388.2 tok/s
+    --> K=8 Summary: 386.6 ± 0.0 tokens/sec | Step: 84.757s | AllReduce: 41180.8ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=16 (microbatch=4, global=65536 tokens)...
+        [  warmup  1/6] Step: 130.52s | Fwd: 41084.4ms | Bwd: 45614.2ms | Sync: 43501.0ms | Speed: 502.1 tok/s
+        [  warmup  2/6] Step: 129.16s | Fwd: 41350.0ms | Bwd: 46391.2ms | Sync: 41142.6ms | Speed: 507.4 tok/s
+        [bench #1  3/6] Step: 129.32s | Fwd: 41153.6ms | Bwd: 46769.7ms | Sync: 41103.7ms | Speed: 506.8 tok/s
+        [bench #1  4/6] Step: 129.55s | Fwd: 41478.1ms | Bwd: 46706.9ms | Sync: 41074.5ms | Speed: 505.9 tok/s
+        [bench #1  5/6] Step: 131.51s | Fwd: 41730.4ms | Bwd: 46921.0ms | Sync: 42579.6ms | Speed: 498.3 tok/s
+        [bench #1  6/6] Step: 131.73s | Fwd: 42339.9ms | Bwd: 47451.0ms | Sync: 41654.9ms | Speed: 497.5 tok/s
+    --> K=16 Summary: 502.1 ± 0.0 tokens/sec | Step: 130.527s | AllReduce: 41603.2ms
+
+======================================================================
+  CPU CLUSTER LAB — EMPIRICAL SCALING BENCHMARK REPORT
+  Generated : 2026-11-21 20:50:25
+  Cluster   : 2 Nodes  |  Master: 192.168.9.136
+  Mode      : MICRO  |  Reporter: node01
+======================================================================
+
+  Model / Task           K    Global Batch   Step Time (s)    Throughput (μ ± σ)  
+  ------------------------------------------------------------------
+  ResNet-18              1    64             4.086 s          15.7 ± 0.0 images/sec
+  ResNet-18              2    128            4.349 s          29.4 ± 0.0 images/sec
+  ResNet-18              4    256            4.831 s          53.0 ± 0.0 images/sec
+  ResNet-18              8    512            5.934 s          86.3 ± 0.0 images/sec
+  ResNet-18              16   1024           8.315 s          123.2 ± 0.0 images/sec
+  GPT-2 Small            1    4096           47.789 s         85.7 ± 0.0 tokens/sec
+  GPT-2 Small            2    8192           51.896 s         157.9 ± 0.0 tokens/sec
+  GPT-2 Small            4    16384          62.592 s         261.8 ± 0.0 tokens/sec
+  GPT-2 Small            8    32768          84.757 s         386.6 ± 0.0 tokens/sec
+  GPT-2 Small            16   65536          130.527 s        502.1 ± 0.0 tokens/sec
+
+  Timing Breakdown (ms):
+  Model            K    Forward (ms)   Backward (ms)  AllReduce (ms)   Optimizer (ms)
+  ------------------------------------------------------------------
+  ResNet-18        1    88.5           0.0            3988.2           4.1           
+  ResNet-18        2    172.5          362.9          3806.2           4.3           
+  ResNet-18        4    343.8          732.5          3746.1           4.3           
+  ResNet-18        8    693.3          1477.8         3751.5           4.2           
+  ResNet-18        16   1397.0         3028.4         3873.1           4.2           
+  GPT-2 Small      1    2559.5         0.0            44947.6          276.6         
+  GPT-2 Small      2    4965.5         5283.6         41376.6          266.4         
+  GPT-2 Small      4    10099.0        10906.8        41307.6          275.1         
+  GPT-2 Small      8    20473.9        22825.5        41180.8          271.6         
+  GPT-2 Small      16   41675.5        46962.2        41603.2          278.6         
+======================================================================
+  All measurements collected on bare-metal hardware.
+  AllReduce represents blocking collective network synchronization.
+======================================================================
+
+  ✓ Summary CSV : results/session_20261121_200541_1core/02_sweep_fixed_microbatch/summary_micro_2nodes_20261121_200547.csv
+  ✓ Raw Trials  : results/session_20261121_200541_1core/02_sweep_fixed_microbatch/raw_trials/raw_trials_2nodes_20261121_200547.csv
+  ✓ Timings     : results/session_20261121_200541_1core/04_step_time_breakdown/timing_decomposition_micro_2nodes_20261121_200547.csv
+  ✓ Text Report : results/session_20261121_200541_1core/02_sweep_fixed_microbatch/report_micro_2nodes_20261121_200547.txt
+
+    ✓ Sanity check passed!
+    ⏱ Stage 1 Duration: 00h 44m 41s (2681s)
+  [cleanup] Clearing stale cluster training processes and port 29500...
+
+======================================================================
+>>> [Stage 2/6] Running Physical Network AllReduce Benchmark (Exp 4 / Fig 5)...
+    Tensors: 0.1 MB to 500 MB over 100 Mbps switch
+======================================================================
+
+==============================================
+  MASTER NODE | rank=0 | world_size=2
+  Script    : src/00_net_test.py
+  Args      : 
+  Address   : 192.168.9.136:29500
+  Interface : enp2s0
+  [Auto-Launch] Starting Worker (rank 1) on 192.168.9.135 (logging to results/session_20261121_200541_1core/worker_logs/worker_192.168.9.135.log)...
+  All workers dispatched. Starting master process...
+==============================================
+
+
+=================================================================
+  NETWORK BENCHMARK — CPU Cluster Lab
+  Nodes     : 2
+  Backend   : gloo
+  Master    : 192.168.9.136:29500
+  This node : node01
+=================================================================
+   Tensor Size     Bandwidth     Latency  Efficiency
+          (MB)        (MB/s)     (ms/op)      vs GbE
+  --------------------------------------------------
+           0.1           9.7       10.30        1.0%
+           1.0          10.7       93.22        1.1%
+          10.0          10.9      917.60        1.2%
+          50.0          10.9     4586.52        1.2%
+         100.0          10.9     9203.73        1.2%
+         250.0          10.7    23264.65        1.1%
+         500.0          10.9    45960.77        1.2%
+  --------------------------------------------------
+
+  Average bandwidth : 10.7 MB/s
+  Theoretical GbE   : 940.0 MB/s
+  Overall efficiency: 1.1%
+
+  Results saved → results/session_20261121_200541_1core/net_test_2nodes_20261121_212533.csv
+
+=================================================================
+  NETWORK TEST COMPLETE
+=================================================================
+
+    ✓ Network AllReduce characterization completed!
+    ⏱ Stage 2 Duration: 00h 35m 05s (2105s)
+  [cleanup] Clearing stale cluster training processes and port 29500...
+
+======================================================================
+>>> [Stage 3/6] Running Single-Node Baseline (Exp 1 / Fig 2 Reference)...
+    Measuring 1-node throughput to compute Speedup (S_N) & Efficiency (E_N)
+======================================================================
+
+==============================================
+  SINGLE NODE BASELINE | rank=0 | world_size=1
+  Script : src/04_benchmark.py
+  Args   : --mode micro --k_list 1,4 --trials 2 --steps 4
+  Run this ALONE — no other nodes needed
+==============================================
+
+
+======================================================================
+  CPU CLUSTER LAB — BENCHMARK & COMMUNICATION PROFILER
+  Cluster Size : 1 Nodes  |  Backend: gloo
+  Run Mode     : MICRO  |  Trials/Config: 2
+======================================================================
+
+>>> [ResNet-18 | MICRO] Benchmarking K=1 (microbatch=32, global=32)...
+        [  warmup  1/6] Step:   0.30s | Fwd:  91.0ms | Bwd:   0.0ms | Sync:  200.3ms | Speed: 108.1 img/s
+        [  warmup  2/6] Step:   0.28s | Fwd:  86.1ms | Bwd:   0.0ms | Sync:  183.9ms | Speed: 116.1 img/s
+        [bench #1  3/6] Step:   0.28s | Fwd:  85.4ms | Bwd:   0.0ms | Sync:  184.4ms | Speed: 114.1 img/s
+        [bench #1  4/6] Step:   0.28s | Fwd:  84.4ms | Bwd:   0.0ms | Sync:  183.2ms | Speed: 115.2 img/s
+        [bench #1  5/6] Step:   0.27s | Fwd:  84.4ms | Bwd:   0.0ms | Sync:  179.1ms | Speed: 117.0 img/s
+        [bench #1  6/6] Step:   0.28s | Fwd:  85.2ms | Bwd:   0.0ms | Sync:  183.6ms | Speed: 115.0 img/s
+        [  warmup  1/6] Step:   0.28s | Fwd:  85.1ms | Bwd:   0.0ms | Sync:  188.5ms | Speed: 115.0 img/s
+        [  warmup  2/6] Step:   0.28s | Fwd:  87.1ms | Bwd:   0.0ms | Sync:  186.2ms | Speed: 113.9 img/s
+        [bench #2  3/6] Step:   0.28s | Fwd:  84.7ms | Bwd:   0.0ms | Sync:  184.2ms | Speed: 115.2 img/s
+        [bench #2  4/6] Step:   0.28s | Fwd:  84.1ms | Bwd:   0.0ms | Sync:  187.4ms | Speed: 114.5 img/s
+        [bench #2  5/6] Step:   0.28s | Fwd:  85.1ms | Bwd:   0.0ms | Sync:  186.7ms | Speed: 113.9 img/s
+        [bench #2  6/6] Step:   0.28s | Fwd:  87.8ms | Bwd:   0.0ms | Sync:  185.6ms | Speed: 113.2 img/s
+    --> K=1 Summary: 114.75 ± 0.78 images/sec | Step: 0.279s | AllReduce: 184.3ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=4 (microbatch=32, global=128)...
+        [  warmup  1/6] Step:   1.12s | Fwd: 345.9ms | Bwd:   0.0ms | Sync:  197.6ms | Speed: 114.2 img/s
+        [  warmup  2/6] Step:   1.13s | Fwd: 349.0ms | Bwd:   0.0ms | Sync:  193.6ms | Speed: 113.7 img/s
+        [bench #1  3/6] Step:   1.14s | Fwd: 348.6ms | Bwd:   0.0ms | Sync:  196.0ms | Speed: 112.8 img/s
+        [bench #1  4/6] Step:   1.12s | Fwd: 346.9ms | Bwd:   0.0ms | Sync:  192.8ms | Speed: 114.1 img/s
+        [bench #1  5/6] Step:   1.13s | Fwd: 350.3ms | Bwd:   0.0ms | Sync:  193.6ms | Speed: 113.6 img/s
+        [bench #1  6/6] Step:   1.14s | Fwd: 349.8ms | Bwd:   0.0ms | Sync:  199.1ms | Speed: 112.3 img/s
+        [  warmup  1/6] Step:   1.14s | Fwd: 353.2ms | Bwd:   0.0ms | Sync:  198.3ms | Speed: 112.1 img/s
+        [  warmup  2/6] Step:   1.14s | Fwd: 349.9ms | Bwd:   0.0ms | Sync:  196.2ms | Speed: 112.2 img/s
+        [bench #2  3/6] Step:   1.13s | Fwd: 348.1ms | Bwd:   0.0ms | Sync:  193.3ms | Speed: 113.5 img/s
+        [bench #2  4/6] Step:   1.14s | Fwd: 348.6ms | Bwd:   0.0ms | Sync:  194.2ms | Speed: 112.7 img/s
+        [bench #2  5/6] Step:   1.13s | Fwd: 350.0ms | Bwd:   0.0ms | Sync:  194.6ms | Speed: 113.0 img/s
+        [bench #2  6/6] Step:   1.13s | Fwd: 354.3ms | Bwd:   0.0ms | Sync:  193.5ms | Speed: 113.1 img/s
+    --> K=4 Summary: 113.15 ± 0.07 images/sec | Step: 1.132s | AllReduce: 194.6ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=1 (microbatch=4, global=2048 tokens)...
+[transformers] `loss_type=None` was set in the config but it is unrecognized. Using the default loss: `ForCausalLMLoss`.
+        [  warmup  1/6] Step:   5.77s | Fwd: 2643.4ms | Bwd:   0.0ms | Sync: 2806.7ms | Speed: 354.6 tok/s
+        [  warmup  2/6] Step:   5.72s | Fwd: 2649.3ms | Bwd:   0.0ms | Sync: 2797.7ms | Speed: 357.8 tok/s
+        [bench #1  3/6] Step:   5.80s | Fwd: 2620.7ms | Bwd:   0.0ms | Sync: 2900.6ms | Speed: 352.9 tok/s
+        [bench #1  4/6] Step:   5.95s | Fwd: 2720.6ms | Bwd:   0.0ms | Sync: 2947.2ms | Speed: 344.2 tok/s
+        [bench #1  5/6] Step:   5.74s | Fwd: 2557.4ms | Bwd:   0.0ms | Sync: 2904.4ms | Speed: 356.6 tok/s
+        [bench #1  6/6] Step:   5.74s | Fwd: 2551.7ms | Bwd:   0.0ms | Sync: 2916.2ms | Speed: 356.9 tok/s
+        [  warmup  1/6] Step:   5.90s | Fwd: 2660.4ms | Bwd:   0.0ms | Sync: 2901.4ms | Speed: 347.1 tok/s
+        [  warmup  2/6] Step:   5.81s | Fwd: 2607.8ms | Bwd:   0.0ms | Sync: 2936.5ms | Speed: 352.8 tok/s
+        [bench #2  3/6] Step:   5.76s | Fwd: 2546.6ms | Bwd:   0.0ms | Sync: 2926.9ms | Speed: 355.6 tok/s
+        [bench #2  4/6] Step:   5.78s | Fwd: 2580.8ms | Bwd:   0.0ms | Sync: 2920.7ms | Speed: 354.6 tok/s
+        [bench #2  5/6] Step:   5.76s | Fwd: 2560.1ms | Bwd:   0.0ms | Sync: 2928.1ms | Speed: 355.7 tok/s
+        [bench #2  6/6] Step:   5.73s | Fwd: 2547.1ms | Bwd:   0.0ms | Sync: 2912.9ms | Speed: 357.3 tok/s
+    --> K=1 Summary: 354.2 ± 2.26 tokens/sec | Step: 5.782s | AllReduce: 2919.6ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=4 (microbatch=4, global=8192 tokens)...
+        [  warmup  1/6] Step:  22.17s | Fwd: 10151.2ms | Bwd:   0.0ms | Sync: 2934.1ms | Speed: 369.4 tok/s
+        [  warmup  2/6] Step:  22.64s | Fwd: 10429.3ms | Bwd:   0.0ms | Sync: 2994.7ms | Speed: 361.9 tok/s
+        [bench #1  3/6] Step:  22.59s | Fwd: 10391.6ms | Bwd:   0.0ms | Sync: 2962.3ms | Speed: 362.7 tok/s
+        [bench #1  4/6] Step:  22.89s | Fwd: 10405.8ms | Bwd:   0.0ms | Sync: 3133.8ms | Speed: 357.8 tok/s
+        [bench #1  5/6] Step:  23.12s | Fwd: 10776.3ms | Bwd:   0.0ms | Sync: 3094.3ms | Speed: 354.3 tok/s
+        [bench #1  6/6] Step:  22.64s | Fwd: 10473.1ms | Bwd:   0.0ms | Sync: 3037.8ms | Speed: 361.9 tok/s
+        [  warmup  1/6] Step:  22.69s | Fwd: 10472.8ms | Bwd:   0.0ms | Sync: 3014.0ms | Speed: 361.0 tok/s
+        [  warmup  2/6] Step:  22.87s | Fwd: 10497.9ms | Bwd:   0.0ms | Sync: 3059.6ms | Speed: 358.3 tok/s
+        [bench #2  3/6] Step:  22.53s | Fwd: 10325.4ms | Bwd:   0.0ms | Sync: 2985.9ms | Speed: 363.6 tok/s
+        [bench #2  4/6] Step:  23.03s | Fwd: 10705.6ms | Bwd:   0.0ms | Sync: 2966.6ms | Speed: 355.7 tok/s
+        [bench #2  5/6] Step:  23.05s | Fwd: 10680.7ms | Bwd:   0.0ms | Sync: 3103.3ms | Speed: 355.4 tok/s
+        [bench #2  6/6] Step:  23.10s | Fwd: 10643.9ms | Bwd:   0.0ms | Sync: 3125.8ms | Speed: 354.7 tok/s
+    --> K=4 Summary: 358.2 ± 1.27 tokens/sec | Step: 22.869s | AllReduce: 3051.2ms
+
+======================================================================
+  CPU CLUSTER LAB — EMPIRICAL SCALING BENCHMARK REPORT
+  Generated : 2026-11-21 21:31:42
+  Cluster   : 1 Nodes  |  Master: 192.168.9.136
+  Mode      : MICRO  |  Reporter: node01
+======================================================================
+
+  Model / Task           K    Global Batch   Step Time (s)    Throughput (μ ± σ)  
+  ------------------------------------------------------------------
+  ResNet-18              1    32             0.279 s          114.75 ± 0.78 images/sec
+  ResNet-18              4    128            1.132 s          113.15 ± 0.07 images/sec
+  GPT-2 Small            1    2048           5.782 s          354.2 ± 2.26 tokens/sec
+  GPT-2 Small            4    8192           22.869 s         358.2 ± 1.27 tokens/sec
+
+  Timing Breakdown (ms):
+  Model            K    Forward (ms)   Backward (ms)  AllReduce (ms)   Optimizer (ms)
+  ------------------------------------------------------------------
+  ResNet-18        1    85.2           0.0            184.3            4.2           
+  ResNet-18        4    349.6          0.0            194.6            4.3           
+  GPT-2 Small      1    2585.6         0.0            2919.6           270.6         
+  GPT-2 Small      4    10550.3        0.0            3051.2           272.5         
+======================================================================
+  All measurements collected on bare-metal hardware.
+  AllReduce represents blocking collective network synchronization.
+======================================================================
+
+  ✓ Summary CSV : results/session_20261121_200541_1core/02_sweep_fixed_microbatch/summary_micro_1nodes_20261121_212537.csv
+  ✓ Raw Trials  : results/session_20261121_200541_1core/02_sweep_fixed_microbatch/raw_trials/raw_trials_1nodes_20261121_212537.csv
+  ✓ Timings     : results/session_20261121_200541_1core/04_step_time_breakdown/timing_decomposition_micro_1nodes_20261121_212537.csv
+  ✓ Text Report : results/session_20261121_200541_1core/02_sweep_fixed_microbatch/report_micro_1nodes_20261121_212537.txt
+
+    ✓ Single-node baseline completed!
+    ⏱ Stage 3 Duration: 00h 06m 08s (368s)
+  [cleanup] Clearing stale cluster training processes and port 29500...
+
+======================================================================
+>>> [Stage 4/6] Running Fixed-Microbatch K-Sweep (Exp 2)...
+    K ∈ {1,2,4,8,16,32,64} | 3 Trials each | Stopwatch Timing Breakdown
+======================================================================
+
+==============================================
+  MASTER NODE | rank=0 | world_size=2
+  Script    : src/04_benchmark.py
+  Args      : --mode micro --trials 3 --steps 6 --k_list 1,2,4,8,16,32,64
+  Address   : 192.168.9.136:29500
+  Interface : enp2s0
+  [Auto-Launch] Starting Worker (rank 1) on 192.168.9.135 (logging to results/session_20261121_200541_1core/worker_logs/worker_192.168.9.135.log)...
+  All workers dispatched. Starting master process...
+==============================================
+
+
+======================================================================
+  CPU CLUSTER LAB — BENCHMARK & COMMUNICATION PROFILER
+  Cluster Size : 2 Nodes  |  Backend: gloo
+  Run Mode     : MICRO  |  Trials/Config: 3
+======================================================================
+
+>>> [ResNet-18 | MICRO] Benchmarking K=1 (microbatch=32, global=64)...
+        [  warmup  1/8] Step:   4.40s | Fwd: 175.5ms | Bwd:   0.0ms | Sync: 4215.0ms | Speed:  14.6 img/s
+        [  warmup  2/8] Step:   4.03s | Fwd:  92.3ms | Bwd:   0.0ms | Sync: 3926.3ms | Speed:  15.9 img/s
+        [bench #1  3/8] Step:   4.03s | Fwd:  87.0ms | Bwd:   0.0ms | Sync: 3932.8ms | Speed:  15.9 img/s
+        [bench #1  4/8] Step:   4.02s | Fwd:  86.0ms | Bwd:   0.0ms | Sync: 3930.9ms | Speed:  15.9 img/s
+        [bench #1  5/8] Step:   4.03s | Fwd:  89.3ms | Bwd:   0.0ms | Sync: 3930.0ms | Speed:  15.9 img/s
+        [bench #1  6/8] Step:   4.03s | Fwd:  89.3ms | Bwd:   0.0ms | Sync: 3930.3ms | Speed:  15.9 img/s
+        [bench #1  7/8] Step:   4.03s | Fwd:  89.9ms | Bwd:   0.0ms | Sync: 3929.7ms | Speed:  15.9 img/s
+        [bench #1  8/8] Step:   4.05s | Fwd:  88.3ms | Bwd:   0.0ms | Sync: 3949.9ms | Speed:  15.8 img/s
+        [  warmup  1/8] Step:   4.65s | Fwd: 378.6ms | Bwd:   0.0ms | Sync: 4267.4ms | Speed:  13.8 img/s
+        [  warmup  2/8] Step:   4.16s | Fwd:  98.0ms | Bwd:   0.0ms | Sync: 4059.1ms | Speed:  15.4 img/s
+        [bench #2  3/8] Step:   4.16s | Fwd:  87.2ms | Bwd:   0.0ms | Sync: 4060.7ms | Speed:  15.4 img/s
+        [bench #2  4/8] Step:   4.16s | Fwd:  88.2ms | Bwd:   0.0ms | Sync: 4061.1ms | Speed:  15.4 img/s
+        [bench #2  5/8] Step:   4.16s | Fwd:  86.1ms | Bwd:   0.0ms | Sync: 4066.5ms | Speed:  15.4 img/s
+        [bench #2  6/8] Step:   4.16s | Fwd:  89.8ms | Bwd:   0.0ms | Sync: 4060.4ms | Speed:  15.4 img/s
+        [bench #2  7/8] Step:   4.16s | Fwd:  88.7ms | Bwd:   0.0ms | Sync: 4061.9ms | Speed:  15.4 img/s
+        [bench #2  8/8] Step:   4.16s | Fwd:  89.0ms | Bwd:   0.0ms | Sync: 4061.5ms | Speed:  15.4 img/s
+        [  warmup  1/8] Step:   4.68s | Fwd: 409.8ms | Bwd:   0.0ms | Sync: 4265.2ms | Speed:  13.7 img/s
+        [  warmup  2/8] Step:   4.16s | Fwd:  92.8ms | Bwd:   0.0ms | Sync: 4060.4ms | Speed:  15.4 img/s
+        [bench #3  3/8] Step:   4.16s | Fwd:  87.7ms | Bwd:   0.0ms | Sync: 4064.1ms | Speed:  15.4 img/s
+        [bench #3  4/8] Step:   4.16s | Fwd:  90.1ms | Bwd:   0.0ms | Sync: 4060.4ms | Speed:  15.4 img/s
+        [bench #3  5/8] Step:   4.16s | Fwd:  89.1ms | Bwd:   0.0ms | Sync: 4057.5ms | Speed:  15.4 img/s
+        [bench #3  6/8] Step:   4.15s | Fwd:  87.8ms | Bwd:   0.0ms | Sync: 4058.8ms | Speed:  15.4 img/s
+        [bench #3  7/8] Step:   4.16s | Fwd:  87.4ms | Bwd:   0.0ms | Sync: 4060.0ms | Speed:  15.4 img/s
+        [bench #3  8/8] Step:   4.15s | Fwd:  84.8ms | Bwd:   0.0ms | Sync: 4061.1ms | Speed:  15.4 img/s
+    --> K=1 Summary: 15.57 ± 0.29 images/sec | Step: 4.116s | AllReduce: 4018.8ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=2 (microbatch=32, global=128)...
+        [  warmup  1/8] Step:   4.95s | Fwd: 496.4ms | Bwd: 367.5ms | Sync: 4080.3ms | Speed:  25.9 img/s
+        [  warmup  2/8] Step:   4.43s | Fwd: 181.9ms | Bwd: 362.7ms | Sync: 3876.7ms | Speed:  28.9 img/s
+        [bench #1  3/8] Step:   4.42s | Fwd: 175.4ms | Bwd: 364.9ms | Sync: 3879.0ms | Speed:  28.9 img/s
+        [bench #1  4/8] Step:   4.43s | Fwd: 173.3ms | Bwd: 363.3ms | Sync: 3884.1ms | Speed:  28.9 img/s
+        [bench #1  5/8] Step:   4.42s | Fwd: 170.5ms | Bwd: 353.3ms | Sync: 3894.2ms | Speed:  28.9 img/s
+        [bench #1  6/8] Step:   4.43s | Fwd: 178.6ms | Bwd: 368.2ms | Sync: 3874.6ms | Speed:  28.9 img/s
+        [bench #1  7/8] Step:   4.42s | Fwd: 175.8ms | Bwd: 362.5ms | Sync: 3880.4ms | Speed:  28.9 img/s
+        [bench #1  8/8] Step:   4.43s | Fwd: 176.5ms | Bwd: 362.0ms | Sync: 3883.7ms | Speed:  28.9 img/s
+        [  warmup  1/8] Step:   4.95s | Fwd: 495.4ms | Bwd: 368.3ms | Sync: 4080.1ms | Speed:  25.9 img/s
+        [  warmup  2/8] Step:   4.44s | Fwd: 179.9ms | Bwd: 363.9ms | Sync: 3882.4ms | Speed:  28.8 img/s
+        [bench #2  3/8] Step:   4.44s | Fwd: 177.7ms | Bwd: 365.6ms | Sync: 3877.4ms | Speed:  28.9 img/s
+        [bench #2  4/8] Step:   4.40s | Fwd: 177.0ms | Bwd: 363.7ms | Sync: 3846.9ms | Speed:  29.1 img/s
+        [bench #2  5/8] Step:   4.39s | Fwd: 168.8ms | Bwd: 365.0ms | Sync: 3851.8ms | Speed:  29.1 img/s
+        [bench #2  6/8] Step:   4.39s | Fwd: 169.1ms | Bwd: 357.2ms | Sync: 3857.9ms | Speed:  29.1 img/s
+        [bench #2  7/8] Step:   4.41s | Fwd: 169.9ms | Bwd: 357.0ms | Sync: 3875.1ms | Speed:  29.0 img/s
+        [bench #2  8/8] Step:   4.39s | Fwd: 169.6ms | Bwd: 358.5ms | Sync: 3852.6ms | Speed:  29.2 img/s
+        [  warmup  1/8] Step:   4.93s | Fwd: 493.3ms | Bwd: 368.0ms | Sync: 4063.0ms | Speed:  26.0 img/s
+        [  warmup  2/8] Step:   4.43s | Fwd: 179.3ms | Bwd: 363.5ms | Sync: 3879.0ms | Speed:  28.9 img/s
+        [bench #3  3/8] Step:   4.34s | Fwd: 177.4ms | Bwd: 365.9ms | Sync: 3782.1ms | Speed:  29.5 img/s
+        [bench #3  4/8] Step:   4.43s | Fwd: 177.3ms | Bwd: 368.3ms | Sync: 3873.0ms | Speed:  28.9 img/s
+        [bench #3  5/8] Step:   4.42s | Fwd: 174.6ms | Bwd: 365.9ms | Sync: 3875.0ms | Speed:  28.9 img/s
+        [bench #3  6/8] Step:   4.39s | Fwd: 183.4ms | Bwd: 360.8ms | Sync: 3844.6ms | Speed:  29.1 img/s
+        [bench #3  7/8] Step:   4.40s | Fwd: 175.7ms | Bwd: 366.4ms | Sync: 3851.0ms | Speed:  29.1 img/s
+        [bench #3  8/8] Step:   4.40s | Fwd: 173.0ms | Bwd: 356.5ms | Sync: 3861.6ms | Speed:  29.1 img/s
+    --> K=2 Summary: 29.03 ± 0.12 images/sec | Step: 4.409s | AllReduce: 3863.6ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=4 (microbatch=32, global=256)...
+        [  warmup  1/8] Step:   5.47s | Fwd: 663.0ms | Bwd: 728.0ms | Sync: 4068.3ms | Speed:  46.8 img/s
+        [  warmup  2/8] Step:   4.98s | Fwd: 352.3ms | Bwd: 725.0ms | Sync: 3889.6ms | Speed:  51.4 img/s
+        [bench #1  3/8] Step:   4.97s | Fwd: 350.1ms | Bwd: 732.0ms | Sync: 3880.2ms | Speed:  51.5 img/s
+        [bench #1  4/8] Step:   4.98s | Fwd: 347.9ms | Bwd: 738.7ms | Sync: 3879.9ms | Speed:  51.4 img/s
+        [bench #1  5/8] Step:   4.97s | Fwd: 347.7ms | Bwd: 740.6ms | Sync: 3876.2ms | Speed:  51.5 img/s
+        [bench #1  6/8] Step:   4.98s | Fwd: 359.5ms | Bwd: 737.8ms | Sync: 3876.9ms | Speed:  51.4 img/s
+        [bench #1  7/8] Step:   4.98s | Fwd: 347.9ms | Bwd: 739.9ms | Sync: 3876.7ms | Speed:  51.4 img/s
+        [bench #1  8/8] Step:   4.98s | Fwd: 349.9ms | Bwd: 742.4ms | Sync: 3874.5ms | Speed:  51.4 img/s
+        [  warmup  1/8] Step:   5.34s | Fwd: 658.7ms | Bwd: 735.6ms | Sync: 3934.8ms | Speed:  48.0 img/s
+        [  warmup  2/8] Step:   4.84s | Fwd: 352.6ms | Bwd: 735.2ms | Sync: 3743.3ms | Speed:  52.9 img/s
+        [bench #2  3/8] Step:   4.84s | Fwd: 339.2ms | Bwd: 702.7ms | Sync: 3788.2ms | Speed:  52.9 img/s
+        [bench #2  4/8] Step:   4.84s | Fwd: 334.7ms | Bwd: 695.4ms | Sync: 3802.9ms | Speed:  52.9 img/s
+        [bench #2  5/8] Step:   4.84s | Fwd: 336.7ms | Bwd: 698.7ms | Sync: 3791.6ms | Speed:  52.9 img/s
+        [bench #2  6/8] Step:   4.84s | Fwd: 337.5ms | Bwd: 702.6ms | Sync: 3787.1ms | Speed:  52.9 img/s
+        [bench #2  7/8] Step:   4.84s | Fwd: 337.5ms | Bwd: 698.2ms | Sync: 3794.1ms | Speed:  52.9 img/s
+        [bench #2  8/8] Step:   4.84s | Fwd: 346.3ms | Bwd: 734.5ms | Sync: 3748.1ms | Speed:  52.9 img/s
+        [  warmup  1/8] Step:   5.33s | Fwd: 657.3ms | Bwd: 736.7ms | Sync: 3923.9ms | Speed:  48.1 img/s
+        [  warmup  2/8] Step:   4.84s | Fwd: 346.0ms | Bwd: 735.3ms | Sync: 3754.5ms | Speed:  52.9 img/s
+        [bench #3  3/8] Step:   4.84s | Fwd: 347.4ms | Bwd: 736.9ms | Sync: 3746.7ms | Speed:  52.9 img/s
+        [bench #3  4/8] Step:   4.86s | Fwd: 348.7ms | Bwd: 764.1ms | Sync: 3736.4ms | Speed:  52.7 img/s
+        [bench #3  5/8] Step:   4.84s | Fwd: 349.0ms | Bwd: 733.8ms | Sync: 3745.2ms | Speed:  52.9 img/s
+        [bench #3  6/8] Step:   4.83s | Fwd: 339.1ms | Bwd: 700.2ms | Sync: 3785.1ms | Speed:  53.0 img/s
+        [bench #3  7/8] Step:   4.84s | Fwd: 339.8ms | Bwd: 702.3ms | Sync: 3788.7ms | Speed:  52.9 img/s
+        [bench #3  8/8] Step:   4.84s | Fwd: 341.0ms | Bwd: 695.9ms | Sync: 3795.7ms | Speed:  52.9 img/s
+    --> K=4 Summary: 52.4 ± 0.87 images/sec | Step: 4.886s | AllReduce: 3809.7ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=8 (microbatch=32, global=512)...
+        [  warmup  1/8] Step:   6.41s | Fwd: 984.6ms | Bwd: 1486.5ms | Sync: 3929.4ms | Speed:  79.9 img/s
+        [  warmup  2/8] Step:   5.92s | Fwd: 679.4ms | Bwd: 1441.0ms | Sync: 3790.5ms | Speed:  86.5 img/s
+        [bench #1  3/8] Step:   5.93s | Fwd: 697.3ms | Bwd: 1482.1ms | Sync: 3743.0ms | Speed:  86.3 img/s
+        [bench #1  4/8] Step:   5.94s | Fwd: 693.0ms | Bwd: 1467.2ms | Sync: 3767.6ms | Speed:  86.2 img/s
+        [bench #1  5/8] Step:   5.93s | Fwd: 695.5ms | Bwd: 1481.1ms | Sync: 3741.9ms | Speed:  86.3 img/s
+        [bench #1  6/8] Step:   5.94s | Fwd: 696.7ms | Bwd: 1481.0ms | Sync: 3745.2ms | Speed:  86.3 img/s
+        [bench #1  7/8] Step:   5.94s | Fwd: 696.3ms | Bwd: 1468.0ms | Sync: 3765.7ms | Speed:  86.2 img/s
+        [bench #1  8/8] Step:   5.95s | Fwd: 699.3ms | Bwd: 1478.0ms | Sync: 3760.7ms | Speed:  86.1 img/s
+        [  warmup  1/8] Step:   6.43s | Fwd: 1010.4ms | Bwd: 1473.7ms | Sync: 3940.7ms | Speed:  79.6 img/s
+        [  warmup  2/8] Step:   5.89s | Fwd: 673.8ms | Bwd: 1466.3ms | Sync: 3744.2ms | Speed:  86.9 img/s
+        [bench #2  3/8] Step:   5.93s | Fwd: 701.3ms | Bwd: 1478.5ms | Sync: 3744.7ms | Speed:  86.3 img/s
+        [bench #2  4/8] Step:   5.96s | Fwd: 700.6ms | Bwd: 1513.0ms | Sync: 3739.7ms | Speed:  85.9 img/s
+        [bench #2  5/8] Step:   5.93s | Fwd: 695.0ms | Bwd: 1477.6ms | Sync: 3744.7ms | Speed:  86.4 img/s
+        [bench #2  6/8] Step:   5.93s | Fwd: 697.5ms | Bwd: 1474.1ms | Sync: 3744.2ms | Speed:  86.4 img/s
+        [bench #2  7/8] Step:   5.93s | Fwd: 699.7ms | Bwd: 1474.4ms | Sync: 3745.2ms | Speed:  86.4 img/s
+        [bench #2  8/8] Step:   5.95s | Fwd: 696.0ms | Bwd: 1487.0ms | Sync: 3750.3ms | Speed:  86.1 img/s
+        [  warmup  1/8] Step:   6.44s | Fwd: 1009.0ms | Bwd: 1472.5ms | Sync: 3949.9ms | Speed:  79.5 img/s
+        [  warmup  2/8] Step:   5.94s | Fwd: 677.5ms | Bwd: 1415.5ms | Sync: 3837.6ms | Speed:  86.2 img/s
+        [bench #3  3/8] Step:   5.95s | Fwd: 674.9ms | Bwd: 1432.0ms | Sync: 3828.4ms | Speed:  86.1 img/s
+        [bench #3  4/8] Step:   5.93s | Fwd: 670.3ms | Bwd: 1409.4ms | Sync: 3838.9ms | Speed:  86.4 img/s
+        [bench #3  5/8] Step:   5.92s | Fwd: 676.1ms | Bwd: 1413.8ms | Sync: 3820.7ms | Speed:  86.5 img/s
+        [bench #3  6/8] Step:   5.93s | Fwd: 693.7ms | Bwd: 1479.2ms | Sync: 3749.5ms | Speed:  86.3 img/s
+        [bench #3  7/8] Step:   5.92s | Fwd: 693.3ms | Bwd: 1472.0ms | Sync: 3745.7ms | Speed:  86.4 img/s
+        [bench #3  8/8] Step:   5.93s | Fwd: 694.3ms | Bwd: 1476.3ms | Sync: 3748.2ms | Speed:  86.4 img/s
+    --> K=8 Summary: 86.23 ± 0.06 images/sec | Step: 5.936s | AllReduce: 3762.5ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=16 (microbatch=32, global=1024)...
+        [  warmup  1/8] Step:   8.64s | Fwd: 1707.0ms | Bwd: 2956.0ms | Sync: 3964.9ms | Speed: 118.5 img/s
+        [  warmup  2/8] Step:   8.23s | Fwd: 1395.6ms | Bwd: 2987.2ms | Sync: 3831.3ms | Speed: 124.4 img/s
+        [bench #1  3/8] Step:   8.25s | Fwd: 1392.8ms | Bwd: 2969.6ms | Sync: 3873.4ms | Speed: 124.1 img/s
+        [bench #1  4/8] Step:   8.26s | Fwd: 1397.5ms | Bwd: 2972.0ms | Sync: 3876.8ms | Speed: 123.9 img/s
+        [bench #1  5/8] Step:   8.34s | Fwd: 1410.7ms | Bwd: 3037.0ms | Sync: 3871.8ms | Speed: 122.8 img/s
+        [bench #1  6/8] Step:   8.21s | Fwd: 1406.7ms | Bwd: 2996.7ms | Sync: 3790.6ms | Speed: 124.7 img/s
+        [bench #1  7/8] Step:   8.14s | Fwd: 1398.8ms | Bwd: 2972.9ms | Sync: 3747.6ms | Speed: 125.8 img/s
+        [bench #1  8/8] Step:   8.16s | Fwd: 1397.2ms | Bwd: 2979.2ms | Sync: 3764.7ms | Speed: 125.5 img/s
+        [  warmup  1/8] Step:   8.61s | Fwd: 1688.3ms | Bwd: 2978.3ms | Sync: 3932.2ms | Speed: 118.9 img/s
+        [  warmup  2/8] Step:   8.19s | Fwd: 1400.0ms | Bwd: 3030.3ms | Sync: 3737.9ms | Speed: 125.1 img/s
+        [bench #2  3/8] Step:   8.13s | Fwd: 1399.5ms | Bwd: 2977.7ms | Sync: 3741.8ms | Speed: 125.9 img/s
+        [bench #2  4/8] Step:   8.15s | Fwd: 1387.2ms | Bwd: 2971.6ms | Sync: 3770.8ms | Speed: 125.7 img/s
+        [bench #2  5/8] Step:   8.14s | Fwd: 1398.7ms | Bwd: 2986.7ms | Sync: 3740.7ms | Speed: 125.8 img/s
+        [bench #2  6/8] Step:   8.15s | Fwd: 1405.1ms | Bwd: 2988.2ms | Sync: 3740.6ms | Speed: 125.7 img/s
+        [bench #2  7/8] Step:   8.20s | Fwd: 1374.7ms | Bwd: 2929.1ms | Sync: 3879.1ms | Speed: 124.9 img/s
+        [bench #2  8/8] Step:   8.23s | Fwd: 1362.1ms | Bwd: 2830.7ms | Sync: 4030.3ms | Speed: 124.4 img/s
+        [  warmup  1/8] Step:   8.63s | Fwd: 1674.2ms | Bwd: 2838.1ms | Sync: 4110.0ms | Speed: 118.6 img/s
+        [  warmup  2/8] Step:   7.96s | Fwd: 1344.2ms | Bwd: 2786.2ms | Sync: 3813.1ms | Speed: 128.7 img/s
+        [bench #3  3/8] Step:   7.98s | Fwd: 1350.8ms | Bwd: 2872.0ms | Sync: 3747.9ms | Speed: 128.3 img/s
+        [bench #3  4/8] Step:   8.08s | Fwd: 1356.7ms | Bwd: 2790.0ms | Sync: 3917.7ms | Speed: 126.8 img/s
+        [bench #3  5/8] Step:   8.12s | Fwd: 1349.9ms | Bwd: 2888.7ms | Sync: 3875.3ms | Speed: 126.1 img/s
+        [bench #3  6/8] Step:   8.08s | Fwd: 1361.2ms | Bwd: 2847.0ms | Sync: 3859.3ms | Speed: 126.7 img/s
+        [bench #3  7/8] Step:   8.12s | Fwd: 1370.2ms | Bwd: 2842.9ms | Sync: 3892.4ms | Speed: 126.1 img/s
+        [bench #3  8/8] Step:   8.16s | Fwd: 1352.2ms | Bwd: 2850.2ms | Sync: 3943.0ms | Speed: 125.5 img/s
+    --> K=16 Summary: 125.5 ± 1.05 images/sec | Step: 8.162s | AllReduce: 3836.9ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=32 (microbatch=32, global=2048)...
+        [  warmup  1/8] Step:  13.27s | Fwd: 3148.5ms | Bwd: 6172.9ms | Sync: 3927.1ms | Speed: 154.3 img/s
+        [  warmup  2/8] Step:  13.05s | Fwd: 2950.6ms | Bwd: 6334.4ms | Sync: 3730.0ms | Speed: 157.0 img/s
+        [bench #1  3/8] Step:  12.90s | Fwd: 2966.4ms | Bwd: 6169.7ms | Sync: 3736.5ms | Speed: 158.8 img/s
+        [bench #1  4/8] Step:  12.85s | Fwd: 2817.7ms | Bwd: 5976.4ms | Sync: 4039.0ms | Speed: 159.4 img/s
+        [bench #1  5/8] Step:  12.91s | Fwd: 2898.6ms | Bwd: 6252.4ms | Sync: 3734.1ms | Speed: 158.6 img/s
+        [bench #1  6/8] Step:  12.96s | Fwd: 2900.2ms | Bwd: 6304.7ms | Sync: 3732.9ms | Speed: 158.0 img/s
+        [bench #1  7/8] Step:  12.91s | Fwd: 2964.5ms | Bwd: 6179.9ms | Sync: 3735.3ms | Speed: 158.7 img/s
+        [bench #1  8/8] Step:  12.96s | Fwd: 2932.9ms | Bwd: 6267.8ms | Sync: 3732.9ms | Speed: 158.0 img/s
+        [  warmup  1/8] Step:  13.39s | Fwd: 3283.1ms | Bwd: 6152.0ms | Sync: 3927.9ms | Speed: 153.0 img/s
+        [  warmup  2/8] Step:  12.93s | Fwd: 2904.7ms | Bwd: 6260.0ms | Sync: 3732.8ms | Speed: 158.4 img/s
+        [bench #2  3/8] Step:  12.99s | Fwd: 2946.0ms | Bwd: 6276.6ms | Sync: 3734.3ms | Speed: 157.7 img/s
+        [bench #2  4/8] Step:  13.00s | Fwd: 2994.0ms | Bwd: 6244.1ms | Sync: 3734.4ms | Speed: 157.5 img/s
+        [bench #2  5/8] Step:  13.05s | Fwd: 3000.5ms | Bwd: 6288.9ms | Sync: 3731.8ms | Speed: 157.0 img/s
+        [bench #2  6/8] Step:  12.94s | Fwd: 2919.9ms | Bwd: 6260.1ms | Sync: 3732.0ms | Speed: 158.3 img/s
+        [bench #2  7/8] Step:  13.10s | Fwd: 2948.3ms | Bwd: 6398.0ms | Sync: 3729.4ms | Speed: 156.3 img/s
+        [bench #2  8/8] Step:  12.94s | Fwd: 2960.4ms | Bwd: 6219.5ms | Sync: 3735.3ms | Speed: 158.2 img/s
+        [  warmup  1/8] Step:  13.41s | Fwd: 3242.5ms | Bwd: 6221.0ms | Sync: 3923.2ms | Speed: 152.7 img/s
+        [  warmup  2/8] Step:  12.89s | Fwd: 2851.4ms | Bwd: 6163.1ms | Sync: 3863.0ms | Speed: 158.8 img/s
+        [bench #3  3/8] Step:  12.77s | Fwd: 2829.1ms | Bwd: 5928.8ms | Sync: 4001.1ms | Speed: 160.3 img/s
+        [bench #3  4/8] Step:  12.86s | Fwd: 2898.5ms | Bwd: 6047.4ms | Sync: 3897.4ms | Speed: 159.2 img/s
+        [bench #3  5/8] Step:  13.09s | Fwd: 2981.1ms | Bwd: 6215.3ms | Sync: 3865.1ms | Speed: 156.5 img/s
+        [bench #3  6/8] Step:  13.26s | Fwd: 3015.5ms | Bwd: 6348.3ms | Sync: 3864.4ms | Speed: 154.5 img/s
+        [bench #3  7/8] Step:  13.13s | Fwd: 3000.2ms | Bwd: 6225.1ms | Sync: 3870.6ms | Speed: 156.0 img/s
+        [bench #3  8/8] Step:  13.09s | Fwd: 2929.3ms | Bwd: 6175.7ms | Sync: 3962.7ms | Speed: 156.5 img/s
+    --> K=32 Summary: 157.73 ± 0.78 images/sec | Step: 12.983s | AllReduce: 3809.4ms
+
+>>> [ResNet-18 | MICRO] Benchmarking K=64 (microbatch=32, global=4096)...
+        [  warmup  1/8] Step:  23.15s | Fwd: 6319.6ms | Bwd: 12731.9ms | Sync: 4052.0ms | Speed: 176.9 img/s
+        [  warmup  2/8] Step:  22.38s | Fwd: 5863.3ms | Bwd: 12599.5ms | Sync: 3869.9ms | Speed: 183.0 img/s
+        [bench #1  3/8] Step:  22.36s | Fwd: 5873.1ms | Bwd: 12585.3ms | Sync: 3870.2ms | Speed: 183.2 img/s
+        [bench #1  4/8] Step:  22.33s | Fwd: 5922.2ms | Bwd: 12509.7ms | Sync: 3869.9ms | Speed: 183.4 img/s
+        [bench #1  5/8] Step:  22.33s | Fwd: 5855.4ms | Bwd: 12497.8ms | Sync: 3946.3ms | Speed: 183.5 img/s
+        [bench #1  6/8] Step:  22.53s | Fwd: 5965.1ms | Bwd: 12572.0ms | Sync: 3963.4ms | Speed: 181.8 img/s
+        [bench #1  7/8] Step:  22.52s | Fwd: 5860.5ms | Bwd: 12572.8ms | Sync: 4054.9ms | Speed: 181.9 img/s
+        [bench #1  8/8] Step:  22.92s | Fwd: 6090.4ms | Bwd: 12909.2ms | Sync: 3864.3ms | Speed: 178.7 img/s
+        [  warmup  1/8] Step:  23.13s | Fwd: 6322.2ms | Bwd: 12705.9ms | Sync: 4056.6ms | Speed: 177.1 img/s
+        [  warmup  2/8] Step:  22.81s | Fwd: 6031.7ms | Bwd: 12861.7ms | Sync: 3867.0ms | Speed: 179.5 img/s
+        [bench #2  3/8] Step:  22.80s | Fwd: 6127.6ms | Bwd: 12749.1ms | Sync: 3865.9ms | Speed: 179.7 img/s
+        [bench #2  4/8] Step:  22.76s | Fwd: 6023.8ms | Bwd: 12815.9ms | Sync: 3863.3ms | Speed: 180.0 img/s
+        [bench #2  5/8] Step:  22.45s | Fwd: 5962.4ms | Bwd: 12582.4ms | Sync: 3870.5ms | Speed: 182.4 img/s
+        [bench #2  6/8] Step:  22.50s | Fwd: 5959.1ms | Bwd: 12202.9ms | Sync: 4311.2ms | Speed: 182.0 img/s
+        [bench #2  7/8] Step:  22.73s | Fwd: 5973.6ms | Bwd: 12839.8ms | Sync: 3866.9ms | Speed: 180.2 img/s
+        [bench #2  8/8] Step:  22.94s | Fwd: 6104.4ms | Bwd: 12918.7ms | Sync: 3865.7ms | Speed: 178.5 img/s
+        [  warmup  1/8] Step:  23.22s | Fwd: 6377.4ms | Bwd: 12743.0ms | Sync: 4054.1ms | Speed: 176.4 img/s
+        [  warmup  2/8] Step:  22.84s | Fwd: 6014.9ms | Bwd: 12909.3ms | Sync: 3864.5ms | Speed: 179.3 img/s
+        [bench #3  3/8] Step:  22.70s | Fwd: 6056.8ms | Bwd: 12723.5ms | Sync: 3868.1ms | Speed: 180.5 img/s
+        [bench #3  4/8] Step:  23.13s | Fwd: 6078.6ms | Bwd: 13143.2ms | Sync: 3858.9ms | Speed: 177.1 img/s
+        [bench #3  5/8] Step:  22.64s | Fwd: 5925.6ms | Bwd: 12817.4ms | Sync: 3867.1ms | Speed: 180.9 img/s
+        [bench #3  6/8] Step:  22.49s | Fwd: 5993.4ms | Bwd: 12465.7ms | Sync: 3999.4ms | Speed: 182.1 img/s
+        [bench #3  7/8] Step:  22.49s | Fwd: 6011.5ms | Bwd: 12582.2ms | Sync: 3868.9ms | Speed: 182.1 img/s
+        [bench #3  8/8] Step:  22.64s | Fwd: 5862.9ms | Bwd: 12237.4ms | Sync: 4512.7ms | Speed: 180.9 img/s
+    --> K=64 Summary: 181.07 ± 0.9 images/sec | Step: 22.626s | AllReduce: 3954.9ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=1 (microbatch=4, global=4096 tokens)...
+[transformers] `loss_type=None` was set in the config but it is unrecognized. Using the default loss: `ForCausalLMLoss`.
+        [  warmup  1/8] Step:  50.91s | Fwd: 2705.9ms | Bwd:   0.0ms | Sync: 47869.7ms | Speed:  80.4 tok/s
+        [  warmup  2/8] Step:  48.33s | Fwd: 2609.2ms | Bwd:   0.0ms | Sync: 45439.1ms | Speed:  84.8 tok/s
+        [bench #1  3/8] Step:  48.27s | Fwd: 2527.4ms | Bwd:   0.0ms | Sync: 45462.1ms | Speed:  84.9 tok/s
+        [bench #1  4/8] Step:  48.31s | Fwd: 2573.8ms | Bwd:   0.0ms | Sync: 45459.5ms | Speed:  84.8 tok/s
+        [bench #1  5/8] Step:  48.22s | Fwd: 2482.2ms | Bwd:   0.0ms | Sync: 45465.2ms | Speed:  84.9 tok/s
+        [bench #1  6/8] Step:  47.76s | Fwd: 2476.0ms | Bwd:   0.0ms | Sync: 45009.7ms | Speed:  85.8 tok/s
+        [bench #1  7/8] Step:  47.93s | Fwd: 2455.7ms | Bwd:   0.0ms | Sync: 45187.1ms | Speed:  85.5 tok/s
+        [bench #1  8/8] Step:  48.22s | Fwd: 2506.5ms | Bwd:   0.0ms | Sync: 45436.3ms | Speed:  84.9 tok/s
+        [  warmup  1/8] Step:  50.41s | Fwd: 2477.8ms | Bwd:   0.0ms | Sync: 47609.1ms | Speed:  81.3 tok/s
+        [  warmup  2/8] Step:  48.05s | Fwd: 2517.9ms | Bwd:   0.0ms | Sync: 45269.7ms | Speed:  85.2 tok/s
+        [bench #2  3/8] Step:  46.72s | Fwd: 2456.0ms | Bwd:   0.0ms | Sync: 43992.7ms | Speed:  87.7 tok/s
+        [bench #2  4/8] Step:  46.80s | Fwd: 2518.0ms | Bwd:   0.0ms | Sync: 44007.2ms | Speed:  87.5 tok/s
+        [bench #2  5/8] Step:  46.82s | Fwd: 2569.5ms | Bwd:   0.0ms | Sync: 43969.2ms | Speed:  87.5 tok/s
+        [bench #2  6/8] Step:  46.72s | Fwd: 2482.9ms | Bwd:   0.0ms | Sync: 43962.9ms | Speed:  87.7 tok/s
+        [bench #2  7/8] Step:  46.73s | Fwd: 2489.8ms | Bwd:   0.0ms | Sync: 43971.4ms | Speed:  87.7 tok/s
+        [bench #2  8/8] Step:  46.75s | Fwd: 2454.5ms | Bwd:   0.0ms | Sync: 44017.1ms | Speed:  87.6 tok/s
+        [  warmup  1/8] Step:  49.17s | Fwd: 2421.7ms | Bwd:   0.0ms | Sync: 46433.1ms | Speed:  83.3 tok/s
+        [  warmup  2/8] Step:  46.71s | Fwd: 2500.9ms | Bwd:   0.0ms | Sync: 43940.5ms | Speed:  87.7 tok/s
+        [bench #3  3/8] Step:  46.70s | Fwd: 2434.6ms | Bwd:   0.0ms | Sync: 43995.3ms | Speed:  87.7 tok/s
+        [bench #3  4/8] Step:  46.93s | Fwd: 2476.6ms | Bwd:   0.0ms | Sync: 44170.5ms | Speed:  87.3 tok/s
+        [bench #3  5/8] Step:  48.19s | Fwd: 2472.2ms | Bwd:   0.0ms | Sync: 45450.1ms | Speed:  85.0 tok/s
+        [bench #3  6/8] Step:  48.19s | Fwd: 2457.8ms | Bwd:   0.0ms | Sync: 45461.5ms | Speed:  85.0 tok/s
+        [bench #3  7/8] Step:  46.78s | Fwd: 2469.4ms | Bwd:   0.0ms | Sync: 44035.3ms | Speed:  87.6 tok/s
+        [bench #3  8/8] Step:  46.73s | Fwd: 2502.8ms | Bwd:   0.0ms | Sync: 43954.9ms | Speed:  87.6 tok/s
+    --> K=1 Summary: 86.47 ± 1.27 tokens/sec | Step: 47.376s | AllReduce: 44611.6ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=2 (microbatch=4, global=8192 tokens)...
+        [  warmup  1/8] Step:  55.81s | Fwd: 5003.2ms | Bwd: 5175.3ms | Sync: 45298.9ms | Speed: 146.8 tok/s
+        [  warmup  2/8] Step:  53.61s | Fwd: 5216.6ms | Bwd: 5299.9ms | Sync: 42823.3ms | Speed: 152.8 tok/s
+        [bench #1  3/8] Step:  53.07s | Fwd: 5029.5ms | Bwd: 5248.4ms | Sync: 42522.6ms | Speed: 154.4 tok/s
+        [bench #1  4/8] Step:  51.81s | Fwd: 4947.6ms | Bwd: 5248.3ms | Sync: 41340.7ms | Speed: 158.1 tok/s
+        [bench #1  5/8] Step:  52.05s | Fwd: 4945.6ms | Bwd: 5239.2ms | Sync: 41582.6ms | Speed: 157.4 tok/s
+        [bench #1  6/8] Step:  51.89s | Fwd: 5004.8ms | Bwd: 5235.2ms | Sync: 41367.3ms | Speed: 157.9 tok/s
+        [bench #1  7/8] Step:  52.09s | Fwd: 4992.1ms | Bwd: 5213.1ms | Sync: 41605.4ms | Speed: 157.3 tok/s
+        [bench #1  8/8] Step:  51.92s | Fwd: 5003.2ms | Bwd: 5259.5ms | Sync: 41361.5ms | Speed: 157.8 tok/s
+        [  warmup  1/8] Step:  55.13s | Fwd: 4907.6ms | Bwd: 5170.3ms | Sync: 44725.9ms | Speed: 148.6 tok/s
+        [  warmup  2/8] Step:  51.86s | Fwd: 4967.1ms | Bwd: 5297.1ms | Sync: 41322.4ms | Speed: 158.0 tok/s
+        [bench #2  3/8] Step:  51.88s | Fwd: 5008.8ms | Bwd: 5229.2ms | Sync: 41350.1ms | Speed: 157.9 tok/s
+        [bench #2  4/8] Step:  52.02s | Fwd: 4940.2ms | Bwd: 5246.9ms | Sync: 41561.4ms | Speed: 157.5 tok/s
+        [bench #2  5/8] Step:  53.04s | Fwd: 5086.1ms | Bwd: 5247.2ms | Sync: 42431.7ms | Speed: 154.4 tok/s
+        [bench #2  6/8] Step:  51.90s | Fwd: 5027.0ms | Bwd: 5237.8ms | Sync: 41353.0ms | Speed: 157.9 tok/s
+        [bench #2  7/8] Step:  51.89s | Fwd: 5012.6ms | Bwd: 5273.2ms | Sync: 41341.8ms | Speed: 157.9 tok/s
+        [bench #2  8/8] Step:  51.93s | Fwd: 4948.8ms | Bwd: 5262.0ms | Sync: 41430.7ms | Speed: 157.8 tok/s
+        [  warmup  1/8] Step:  54.34s | Fwd: 4932.5ms | Bwd: 5137.4ms | Sync: 43938.3ms | Speed: 150.8 tok/s
+        [  warmup  2/8] Step:  51.80s | Fwd: 4931.4ms | Bwd: 5295.4ms | Sync: 41312.9ms | Speed: 158.1 tok/s
+        [bench #3  3/8] Step:  51.85s | Fwd: 4926.1ms | Bwd: 5219.0ms | Sync: 41425.5ms | Speed: 158.0 tok/s
+        [bench #3  4/8] Step:  51.85s | Fwd: 4925.1ms | Bwd: 5267.5ms | Sync: 41386.0ms | Speed: 158.0 tok/s
+        [bench #3  5/8] Step:  51.79s | Fwd: 4906.5ms | Bwd: 5221.9ms | Sync: 41376.9ms | Speed: 158.2 tok/s
+        [bench #3  6/8] Step:  52.01s | Fwd: 4954.3ms | Bwd: 5265.0ms | Sync: 41513.1ms | Speed: 157.5 tok/s
+        [bench #3  7/8] Step:  51.83s | Fwd: 4968.4ms | Bwd: 5233.5ms | Sync: 41355.8ms | Speed: 158.1 tok/s
+        [bench #3  8/8] Step:  51.79s | Fwd: 4947.1ms | Bwd: 5231.3ms | Sync: 41353.5ms | Speed: 158.2 tok/s
+    --> K=2 Summary: 157.43 ± 0.49 tokens/sec | Step: 52.034s | AllReduce: 41536.6ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=4 (microbatch=4, global=16384 tokens)...
+        [  warmup  1/8] Step:  65.02s | Fwd: 9926.0ms | Bwd: 10524.3ms | Sync: 44227.3ms | Speed: 252.0 tok/s
+        [  warmup  2/8] Step:  62.85s | Fwd: 10154.3ms | Bwd: 11175.3ms | Sync: 41243.3ms | Speed: 260.7 tok/s
+        [bench #1  3/8] Step:  62.94s | Fwd: 10282.6ms | Bwd: 11152.6ms | Sync: 41239.9ms | Speed: 260.3 tok/s
+        [bench #1  4/8] Step:  62.59s | Fwd: 10014.9ms | Bwd: 11017.1ms | Sync: 41278.0ms | Speed: 261.8 tok/s
+        [bench #1  5/8] Step:  62.73s | Fwd: 10059.6ms | Bwd: 11045.5ms | Sync: 41348.3ms | Speed: 261.2 tok/s
+        [bench #1  6/8] Step:  62.62s | Fwd: 10073.3ms | Bwd: 10630.2ms | Sync: 41640.5ms | Speed: 261.7 tok/s
+        [bench #1  7/8] Step:  62.72s | Fwd: 9884.3ms | Bwd: 10711.4ms | Sync: 41831.6ms | Speed: 261.2 tok/s
+        [bench #1  8/8] Step:  62.93s | Fwd: 10183.4ms | Bwd: 11233.7ms | Sync: 41234.0ms | Speed: 260.3 tok/s
+        [  warmup  1/8] Step:  64.69s | Fwd: 9868.8ms | Bwd: 10503.3ms | Sync: 43999.4ms | Speed: 253.3 tok/s
+        [  warmup  2/8] Step:  63.03s | Fwd: 10109.1ms | Bwd: 10913.1ms | Sync: 41737.1ms | Speed: 259.9 tok/s
+        [bench #2  3/8] Step:  63.40s | Fwd: 10095.1ms | Bwd: 11380.1ms | Sync: 41642.8ms | Speed: 258.4 tok/s
+        [bench #2  4/8] Step:  62.27s | Fwd: 10085.2ms | Bwd: 10573.6ms | Sync: 41348.2ms | Speed: 263.1 tok/s
+        [bench #2  5/8] Step:  62.47s | Fwd: 9922.9ms | Bwd: 10998.6ms | Sync: 41280.5ms | Speed: 262.3 tok/s
+        [bench #2  6/8] Step:  62.69s | Fwd: 10087.4ms | Bwd: 11071.6ms | Sync: 41263.6ms | Speed: 261.3 tok/s
+        [bench #2  7/8] Step:  62.89s | Fwd: 10219.0ms | Bwd: 11110.8ms | Sync: 41286.9ms | Speed: 260.5 tok/s
+        [bench #2  8/8] Step:  62.62s | Fwd: 10067.3ms | Bwd: 11004.2ms | Sync: 41270.6ms | Speed: 261.6 tok/s
+        [  warmup  1/8] Step:  64.66s | Fwd: 10054.0ms | Bwd: 10551.4ms | Sync: 43737.6ms | Speed: 253.4 tok/s
+        [  warmup  2/8] Step:  62.76s | Fwd: 9942.4ms | Bwd: 10693.0ms | Sync: 41853.8ms | Speed: 261.1 tok/s
+        [bench #3  3/8] Step:  62.61s | Fwd: 10118.7ms | Bwd: 10910.8ms | Sync: 41303.9ms | Speed: 261.7 tok/s
+        [bench #3  4/8] Step:  62.36s | Fwd: 9925.2ms | Bwd: 10832.9ms | Sync: 41326.5ms | Speed: 262.7 tok/s
+        [bench #3  5/8] Step:  62.76s | Fwd: 10018.8ms | Bwd: 10922.9ms | Sync: 41550.7ms | Speed: 261.1 tok/s
+        [bench #3  6/8] Step:  62.68s | Fwd: 9969.0ms | Bwd: 11204.5ms | Sync: 41233.5ms | Speed: 261.4 tok/s
+        [bench #3  7/8] Step:  62.67s | Fwd: 10150.1ms | Bwd: 10942.7ms | Sync: 41296.7ms | Speed: 261.4 tok/s
+        [bench #3  8/8] Step:  64.25s | Fwd: 10115.7ms | Bwd: 11138.2ms | Sync: 42726.4ms | Speed: 255.0 tok/s
+    --> K=4 Summary: 260.93 ± 0.38 tokens/sec | Step: 62.789s | AllReduce: 41450.2ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=8 (microbatch=4, global=32768 tokens)...
+        [  warmup  1/8] Step:  88.10s | Fwd: 20309.6ms | Bwd: 22421.4ms | Sync: 45038.1ms | Speed: 372.0 tok/s
+        [  warmup  2/8] Step:  84.58s | Fwd: 20423.1ms | Bwd: 22628.8ms | Sync: 41245.1ms | Speed: 387.4 tok/s
+        [bench #1  3/8] Step:  86.48s | Fwd: 20611.4ms | Bwd: 23173.5ms | Sync: 42428.7ms | Speed: 378.9 tok/s
+        [bench #1  4/8] Step:  85.06s | Fwd: 20537.2ms | Bwd: 23093.0ms | Sync: 41159.7ms | Speed: 385.2 tok/s
+        [bench #1  5/8] Step:  84.70s | Fwd: 20357.7ms | Bwd: 22903.2ms | Sync: 41159.8ms | Speed: 386.9 tok/s
+        [bench #1  6/8] Step:  85.09s | Fwd: 20545.0ms | Bwd: 23023.1ms | Sync: 41252.7ms | Speed: 385.1 tok/s
+        [bench #1  7/8] Step:  84.87s | Fwd: 20507.0ms | Bwd: 22904.0ms | Sync: 41176.4ms | Speed: 386.1 tok/s
+        [bench #1  8/8] Step:  84.82s | Fwd: 20496.6ms | Bwd: 22870.2ms | Sync: 41177.8ms | Speed: 386.3 tok/s
+        [  warmup  1/8] Step:  87.19s | Fwd: 20667.4ms | Bwd: 22581.2ms | Sync: 43614.9ms | Speed: 375.8 tok/s
+        [  warmup  2/8] Step:  85.18s | Fwd: 20692.4ms | Bwd: 23039.5ms | Sync: 41170.9ms | Speed: 384.7 tok/s
+        [bench #2  3/8] Step:  86.15s | Fwd: 20434.7ms | Bwd: 23026.7ms | Sync: 42408.8ms | Speed: 380.3 tok/s
+        [bench #2  4/8] Step:  84.68s | Fwd: 20382.6ms | Bwd: 22815.1ms | Sync: 41196.3ms | Speed: 387.0 tok/s
+        [bench #2  5/8] Step:  84.83s | Fwd: 20413.3ms | Bwd: 22985.9ms | Sync: 41157.4ms | Speed: 386.3 tok/s
+        [bench #2  6/8] Step:  85.40s | Fwd: 20785.7ms | Bwd: 23095.5ms | Sync: 41235.4ms | Speed: 383.7 tok/s
+        [bench #2  7/8] Step:  85.17s | Fwd: 20529.5ms | Bwd: 23126.9ms | Sync: 41244.5ms | Speed: 384.7 tok/s
+        [bench #2  8/8] Step:  84.89s | Fwd: 20268.0ms | Bwd: 23206.5ms | Sync: 41122.2ms | Speed: 386.0 tok/s
+        [  warmup  1/8] Step:  86.83s | Fwd: 20350.3ms | Bwd: 22558.9ms | Sync: 43607.6ms | Speed: 377.4 tok/s
+        [  warmup  2/8] Step:  84.82s | Fwd: 20491.8ms | Bwd: 22880.2ms | Sync: 41175.9ms | Speed: 386.3 tok/s
+        [bench #3  3/8] Step:  84.93s | Fwd: 20444.9ms | Bwd: 22882.5ms | Sync: 41321.3ms | Speed: 385.8 tok/s
+        [bench #3  4/8] Step:  85.62s | Fwd: 20854.2ms | Bwd: 23358.0ms | Sync: 41123.2ms | Speed: 382.7 tok/s
+        [bench #3  5/8] Step:  84.68s | Fwd: 20355.7ms | Bwd: 22869.0ms | Sync: 41176.9ms | Speed: 387.0 tok/s
+        [bench #3  6/8] Step:  85.02s | Fwd: 20600.9ms | Bwd: 23046.1ms | Sync: 41095.4ms | Speed: 385.4 tok/s
+        [bench #3  7/8] Step:  85.55s | Fwd: 20803.3ms | Bwd: 23329.3ms | Sync: 41132.2ms | Speed: 383.0 tok/s
+        [bench #3  8/8] Step:  84.93s | Fwd: 20448.0ms | Bwd: 23076.6ms | Sync: 41141.4ms | Speed: 385.8 tok/s
+    --> K=8 Summary: 384.8 ± 0.17 tokens/sec | Step: 85.160s | AllReduce: 41317.2ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=16 (microbatch=4, global=65536 tokens)...
+        [  warmup  1/8] Step: 131.32s | Fwd: 40690.2ms | Bwd: 45870.6ms | Sync: 44438.7ms | Speed: 499.1 tok/s
+        [  warmup  2/8] Step: 131.42s | Fwd: 41879.9ms | Bwd: 46640.2ms | Sync: 42627.6ms | Speed: 498.7 tok/s
+        [bench #1  3/8] Step: 132.31s | Fwd: 41919.0ms | Bwd: 47520.6ms | Sync: 42588.7ms | Speed: 495.3 tok/s
+        [bench #1  4/8] Step: 132.27s | Fwd: 41914.4ms | Bwd: 47450.8ms | Sync: 42610.9ms | Speed: 495.5 tok/s
+        [bench #1  5/8] Step: 132.33s | Fwd: 42208.2ms | Bwd: 47225.3ms | Sync: 42619.5ms | Speed: 495.2 tok/s
+        [bench #1  6/8] Step: 130.35s | Fwd: 41572.2ms | Bwd: 47396.5ms | Sync: 41091.4ms | Speed: 502.8 tok/s
+        [bench #1  7/8] Step: 130.61s | Fwd: 41977.5ms | Bwd: 47269.6ms | Sync: 41063.7ms | Speed: 501.8 tok/s
+        [bench #1  8/8] Step: 130.64s | Fwd: 42075.3ms | Bwd: 47200.0ms | Sync: 41101.3ms | Speed: 501.6 tok/s
+        [  warmup  1/8] Step: 131.81s | Fwd: 41631.1ms | Bwd: 46285.2ms | Sync: 43578.5ms | Speed: 497.2 tok/s
+        [  warmup  2/8] Step: 130.01s | Fwd: 41907.5ms | Bwd: 46700.2ms | Sync: 41135.4ms | Speed: 504.1 tok/s
+        [bench #2  3/8] Step: 130.50s | Fwd: 41807.6ms | Bwd: 47306.7ms | Sync: 41104.6ms | Speed: 502.2 tok/s
+        [bench #2  4/8] Step: 130.55s | Fwd: 41831.5ms | Bwd: 47305.9ms | Sync: 41127.3ms | Speed: 502.0 tok/s
+        [bench #2  5/8] Step: 130.62s | Fwd: 41491.9ms | Bwd: 47789.5ms | Sync: 41064.6ms | Speed: 501.7 tok/s
+        [bench #2  6/8] Step: 130.42s | Fwd: 41879.8ms | Bwd: 47047.4ms | Sync: 41210.7ms | Speed: 502.5 tok/s
+        [bench #2  7/8] Step: 131.84s | Fwd: 42332.8ms | Bwd: 47537.2ms | Sync: 41705.4ms | Speed: 497.1 tok/s
+        [bench #2  8/8] Step: 130.38s | Fwd: 41798.1ms | Bwd: 47181.0ms | Sync: 41123.3ms | Speed: 502.6 tok/s
+        [  warmup  1/8] Step: 131.77s | Fwd: 41510.4ms | Bwd: 46244.7ms | Sync: 43700.5ms | Speed: 497.3 tok/s
+        [  warmup  2/8] Step: 130.37s | Fwd: 42082.6ms | Bwd: 46938.9ms | Sync: 41061.5ms | Speed: 502.7 tok/s
+        [bench #3  3/8] Step: 130.39s | Fwd: 41921.8ms | Bwd: 47044.0ms | Sync: 41128.3ms | Speed: 502.6 tok/s
+        [bench #3  4/8] Step: 130.38s | Fwd: 41484.9ms | Bwd: 47533.7ms | Sync: 41073.8ms | Speed: 502.6 tok/s
+        [bench #3  5/8] Step: 130.98s | Fwd: 41886.7ms | Bwd: 47634.7ms | Sync: 41177.1ms | Speed: 500.4 tok/s
+        [bench #3  6/8] Step: 130.58s | Fwd: 41855.3ms | Bwd: 47406.1ms | Sync: 41036.4ms | Speed: 501.9 tok/s
+        [bench #3  7/8] Step: 130.71s | Fwd: 42013.0ms | Bwd: 47347.1ms | Sync: 41078.8ms | Speed: 501.4 tok/s
+        [bench #3  8/8] Step: 130.25s | Fwd: 41595.3ms | Bwd: 47258.3ms | Sync: 41115.3ms | Speed: 503.2 tok/s
+    --> K=16 Summary: 500.7 ± 1.76 tokens/sec | Step: 130.896s | AllReduce: 41390.1ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=32 (microbatch=4, global=131072 tokens)...
+        [  warmup  1/8] Step: 221.88s | Fwd: 83410.8ms | Bwd: 94624.9ms | Sync: 43521.8ms | Speed: 590.7 tok/s
+        [  warmup  2/8] Step: 221.99s | Fwd: 83894.5ms | Bwd: 95653.8ms | Sync: 42156.9ms | Speed: 590.4 tok/s
+        [bench #1  3/8] Step: 221.78s | Fwd: 84739.9ms | Bwd: 95697.3ms | Sync: 41058.3ms | Speed: 591.0 tok/s
+        [bench #1  4/8] Step: 222.25s | Fwd: 85250.2ms | Bwd: 95620.1ms | Sync: 41106.1ms | Speed: 589.7 tok/s
+        [bench #1  5/8] Step: 221.41s | Fwd: 84366.1ms | Bwd: 95678.2ms | Sync: 41087.6ms | Speed: 592.0 tok/s
+        [bench #1  6/8] Step: 222.51s | Fwd: 84519.3ms | Bwd: 96163.9ms | Sync: 41544.9ms | Speed: 589.1 tok/s
+        [bench #1  7/8] Step: 224.58s | Fwd: 85256.4ms | Bwd: 96952.5ms | Sync: 42095.0ms | Speed: 583.6 tok/s
+        [bench #1  8/8] Step: 223.95s | Fwd: 85271.6ms | Bwd: 97350.4ms | Sync: 41045.6ms | Speed: 585.3 tok/s
+        [  warmup  1/8] Step: 226.12s | Fwd: 85601.8ms | Bwd: 96319.7ms | Sync: 43875.6ms | Speed: 579.7 tok/s
+        [  warmup  2/8] Step: 222.35s | Fwd: 84761.8ms | Bwd: 96258.6ms | Sync: 41041.3ms | Speed: 589.5 tok/s
+        [bench #2  3/8] Step: 221.98s | Fwd: 84570.4ms | Bwd: 96062.5ms | Sync: 41075.0ms | Speed: 590.5 tok/s
+        [bench #2  4/8] Step: 222.61s | Fwd: 84730.1ms | Bwd: 96574.7ms | Sync: 41026.1ms | Speed: 588.8 tok/s
+        [bench #2  5/8] Step: 222.68s | Fwd: 85066.6ms | Bwd: 96268.6ms | Sync: 41052.0ms | Speed: 588.6 tok/s
+        [bench #2  6/8] Step: 222.55s | Fwd: 84807.7ms | Bwd: 96403.4ms | Sync: 41058.0ms | Speed: 589.0 tok/s
+        [bench #2  7/8] Step: 222.91s | Fwd: 85158.1ms | Bwd: 96415.0ms | Sync: 41053.8ms | Speed: 588.0 tok/s
+        [bench #2  8/8] Step: 222.93s | Fwd: 85326.5ms | Bwd: 96266.6ms | Sync: 41049.8ms | Speed: 588.0 tok/s
+        [  warmup  1/8] Step: 224.08s | Fwd: 84359.7ms | Bwd: 95455.5ms | Sync: 43935.6ms | Speed: 584.9 tok/s
+        [  warmup  2/8] Step: 223.01s | Fwd: 84817.9ms | Bwd: 96782.6ms | Sync: 41126.1ms | Speed: 587.7 tok/s
+        [bench #3  3/8] Step: 223.79s | Fwd: 85569.0ms | Bwd: 96419.3ms | Sync: 41509.3ms | Speed: 585.7 tok/s
+        [bench #3  4/8] Step: 224.06s | Fwd: 85469.7ms | Bwd: 97259.1ms | Sync: 41026.6ms | Speed: 585.0 tok/s
+        [bench #3  5/8] Step: 223.77s | Fwd: 85679.2ms | Bwd: 96821.1ms | Sync: 40992.4ms | Speed: 585.7 tok/s
+        [bench #3  6/8] Step: 222.60s | Fwd: 85403.4ms | Bwd: 95836.6ms | Sync: 41066.4ms | Speed: 588.8 tok/s
+        [bench #3  7/8] Step: 222.40s | Fwd: 84389.3ms | Bwd: 96651.5ms | Sync: 41059.5ms | Speed: 589.3 tok/s
+        [bench #3  8/8] Step: 224.03s | Fwd: 84988.8ms | Bwd: 96738.8ms | Sync: 42002.6ms | Speed: 585.1 tok/s
+    --> K=32 Summary: 587.93 ± 1.17 tokens/sec | Step: 222.934s | AllReduce: 41217.2ms
+
+>>> [GPT-2 Small | MICRO] Benchmarking K=64 (microbatch=4, global=262144 tokens)...
+        [  warmup  1/8] Step: 405.50s | Fwd: 169568.7ms | Bwd: 192090.8ms | Sync: 43514.5ms | Speed: 646.5 tok/s
+        [  warmup  2/8] Step: 406.92s | Fwd: 171255.1ms | Bwd: 194303.1ms | Sync: 41076.5ms | Speed: 644.2 tok/s
+        [bench #1  3/8] Step: 407.21s | Fwd: 171142.8ms | Bwd: 194762.3ms | Sync: 41022.9ms | Speed: 643.8 tok/s
+        [bench #1  4/8] Step: 407.31s | Fwd: 171445.5ms | Bwd: 194526.9ms | Sync: 41056.5ms | Speed: 643.6 tok/s
+        [bench #1  5/8] Step: 406.85s | Fwd: 171014.1ms | Bwd: 194479.3ms | Sync: 41075.6ms | Speed: 644.3 tok/s
+        [bench #1  6/8] Step: 407.30s | Fwd: 171520.5ms | Bwd: 194434.8ms | Sync: 41051.2ms | Speed: 643.6 tok/s
+        [bench #1  7/8] Step: 406.59s | Fwd: 170735.8ms | Bwd: 194537.9ms | Sync: 41033.5ms | Speed: 644.7 tok/s
+        [bench #1  8/8] Step: 407.18s | Fwd: 171053.4ms | Bwd: 194798.7ms | Sync: 41038.2ms | Speed: 643.8 tok/s
+        [  warmup  1/8] Step: 407.20s | Fwd: 169545.2ms | Bwd: 192331.1ms | Sync: 44996.6ms | Speed: 643.8 tok/s
+        [  warmup  2/8] Step: 407.81s | Fwd: 172033.7ms | Bwd: 194447.4ms | Sync: 41055.4ms | Speed: 642.8 tok/s
+        [bench #2  3/8] Step: 406.46s | Fwd: 170661.6ms | Bwd: 194509.2ms | Sync: 41023.5ms | Speed: 644.9 tok/s
+        [bench #2  4/8] Step: 407.03s | Fwd: 171329.0ms | Bwd: 194386.1ms | Sync: 41030.7ms | Speed: 644.0 tok/s
+        [bench #2  5/8] Step: 407.65s | Fwd: 171426.0ms | Bwd: 194905.0ms | Sync: 41020.2ms | Speed: 643.1 tok/s
+        [bench #2  6/8] Step: 408.49s | Fwd: 172036.4ms | Bwd: 195168.2ms | Sync: 40997.3ms | Speed: 641.7 tok/s
+        [bench #2  7/8] Step: 407.78s | Fwd: 171816.3ms | Bwd: 194593.7ms | Sync: 41074.4ms | Speed: 642.9 tok/s
+        [bench #2  8/8] Step: 407.02s | Fwd: 171264.4ms | Bwd: 194471.3ms | Sync: 41000.4ms | Speed: 644.1 tok/s
+        [  warmup  1/8] Step: 406.25s | Fwd: 170473.2ms | Bwd: 192022.1ms | Sync: 43429.6ms | Speed: 645.3 tok/s
+        [  warmup  2/8] Step: 406.73s | Fwd: 171285.2ms | Bwd: 194148.1ms | Sync: 41014.4ms | Speed: 644.5 tok/s
+        [bench #3  3/8] Step: 408.39s | Fwd: 171954.8ms | Bwd: 195110.9ms | Sync: 41012.9ms | Speed: 641.9 tok/s
+        [bench #3  4/8] Step: 408.04s | Fwd: 171990.3ms | Bwd: 194706.1ms | Sync: 41065.3ms | Speed: 642.4 tok/s
+        [bench #3  5/8] Step: 407.84s | Fwd: 171839.1ms | Bwd: 194710.4ms | Sync: 41013.6ms | Speed: 642.8 tok/s
+        [bench #3  6/8] Step: 408.08s | Fwd: 172097.6ms | Bwd: 194707.0ms | Sync: 40998.6ms | Speed: 642.4 tok/s
+        [bench #3  7/8] Step: 407.66s | Fwd: 171488.2ms | Bwd: 194860.7ms | Sync: 41012.6ms | Speed: 643.0 tok/s
+        [bench #3  8/8] Step: 405.93s | Fwd: 169980.9ms | Bwd: 194636.9ms | Sync: 41022.3ms | Speed: 645.8 tok/s
+    --> K=64 Summary: 643.47 ± 0.5 tokens/sec | Step: 407.379s | AllReduce: 41030.6ms
+
+======================================================================
+  CPU CLUSTER LAB — EMPIRICAL SCALING BENCHMARK REPORT
+  Generated : 2026-11-22 04:57:32
+  Cluster   : 2 Nodes  |  Master: 192.168.9.136
+  Mode      : MICRO  |  Reporter: node01
+======================================================================
+
+  Model / Task           K    Global Batch   Step Time (s)    Throughput (μ ± σ)  
+  ------------------------------------------------------------------
+  ResNet-18              1    64             4.116 s          15.57 ± 0.29 images/sec
+  ResNet-18              2    128            4.409 s          29.03 ± 0.12 images/sec
+  ResNet-18              4    256            4.886 s          52.4 ± 0.87 images/sec
+  ResNet-18              8    512            5.936 s          86.23 ± 0.06 images/sec
+  ResNet-18              16   1024           8.162 s          125.5 ± 1.05 images/sec
+  ResNet-18              32   2048           12.983 s         157.73 ± 0.78 images/sec
+  ResNet-18              64   4096           22.626 s         181.07 ± 0.9 images/sec
+  GPT-2 Small            1    4096           47.376 s         86.47 ± 1.27 tokens/sec
+  GPT-2 Small            2    8192           52.034 s         157.43 ± 0.49 tokens/sec
+  GPT-2 Small            4    16384          62.789 s         260.93 ± 0.38 tokens/sec
+  GPT-2 Small            8    32768          85.160 s         384.8 ± 0.17 tokens/sec
+  GPT-2 Small            16   65536          130.896 s        500.7 ± 1.76 tokens/sec
+  GPT-2 Small            32   131072         222.934 s        587.93 ± 1.17 tokens/sec
+  GPT-2 Small            64   262144         407.379 s        643.47 ± 0.5 tokens/sec
+
+  Timing Breakdown (ms):
+  Model            K    Forward (ms)   Backward (ms)  AllReduce (ms)   Optimizer (ms)
+  ------------------------------------------------------------------
+  ResNet-18        1    88.1           0.0            4018.8           4.2           
+  ResNet-18        2    174.7          362.5          3863.6           4.2           
+  ResNet-18        4    344.4          722.0          3809.7           4.1           
+  ResNet-18        8    692.8          1469.1         3762.5           4.2           
+  ResNet-18        16   1381.8         2927.9         3836.9           4.2           
+  ResNet-18        32   2939.1         6209.9         3809.4           4.2           
+  ResNet-18        64   5980.4         12651.4        3954.9           4.2           
+  GPT-2 Small      1    2489.2         0.0            44611.6          271.9         
+  GPT-2 Small      2    4976.3         5243.2         41536.6          273.1         
+  GPT-2 Small      4    10070.7        10993.4        41450.2          272.6         
+  GPT-2 Small      8    20520.9        23043.6        41317.2          275.1         
+  GPT-2 Small      16   41864.8        47358.6        41390.1          277.7         
+  GPT-2 Small      32   85031.2        96398.9        41217.2          278.2         
+  GPT-2 Small      64   171377.6       194683.6       41030.6          277.7         
+======================================================================
+  All measurements collected on bare-metal hardware.
+  AllReduce represents blocking collective network synchronization.
+======================================================================
+
+  ✓ Summary CSV : results/session_20261121_200541_1core/02_sweep_fixed_microbatch/summary_micro_2nodes_20261121_213147.csv
+  ✓ Raw Trials  : results/session_20261121_200541_1core/02_sweep_fixed_microbatch/raw_trials/raw_trials_2nodes_20261121_213147.csv
+  ✓ Timings     : results/session_20261121_200541_1core/04_step_time_breakdown/timing_decomposition_micro_2nodes_20261121_213147.csv
+  ✓ Text Report : results/session_20261121_200541_1core/02_sweep_fixed_microbatch/report_micro_2nodes_20261121_213147.txt
+
+    ✓ Fixed-Microbatch Sweep completed!
+    ⏱ Stage 4 Duration: 07h 25m 48s (26748s)
+  [cleanup] Clearing stale cluster training processes and port 29500...
+
+======================================================================
+>>> [Stage 5/6] Running Fixed-Global-Batch K-Sweep (Exp 3)...
+    K ∈ {1,2,4,8,16,32,64} | 3 Trials each (Constant Cluster Batch)
+======================================================================
+
+==============================================
+  MASTER NODE | rank=0 | world_size=2
+  Script    : src/04_benchmark.py
+  Args      : --mode global --trials 3 --steps 6 --k_list 1,2,4,8,16,32,64
+  Address   : 192.168.9.136:29500
+  Interface : enp2s0
+  [Auto-Launch] Starting Worker (rank 1) on 192.168.9.135 (logging to results/session_20261121_200541_1core/worker_logs/worker_192.168.9.135.log)...
+  All workers dispatched. Starting master process...
+==============================================
+
+
+======================================================================
+  CPU CLUSTER LAB — BENCHMARK & COMMUNICATION PROFILER
+  Cluster Size : 2 Nodes  |  Backend: gloo
+  Run Mode     : GLOBAL  |  Trials/Config: 3
+======================================================================
+
+>>> [ResNet-18 | GLOBAL] Benchmarking K=1 (microbatch=32, global=64)...
+        [  warmup  1/8] Step:   4.39s | Fwd: 170.6ms | Bwd:   0.0ms | Sync: 4218.5ms | Speed:  14.6 img/s
+        [  warmup  2/8] Step:   4.02s | Fwd:  91.2ms | Bwd:   0.0ms | Sync: 3927.2ms | Speed:  15.9 img/s
+        [bench #1  3/8] Step:   4.03s | Fwd:  88.9ms | Bwd:   0.0ms | Sync: 3928.6ms | Speed:  15.9 img/s
+        [bench #1  4/8] Step:   4.03s | Fwd:  88.9ms | Bwd:   0.0ms | Sync: 3925.9ms | Speed:  15.9 img/s
+        [bench #1  5/8] Step:   4.02s | Fwd:  89.9ms | Bwd:   0.0ms | Sync: 3928.0ms | Speed:  15.9 img/s
+        [bench #1  6/8] Step:   4.02s | Fwd:  87.5ms | Bwd:   0.0ms | Sync: 3927.5ms | Speed:  15.9 img/s
+        [bench #1  7/8] Step:   4.03s | Fwd:  89.5ms | Bwd:   0.0ms | Sync: 3926.1ms | Speed:  15.9 img/s
+        [bench #1  8/8] Step:   4.03s | Fwd:  85.5ms | Bwd:   0.0ms | Sync: 3930.7ms | Speed:  15.9 img/s
+        [  warmup  1/8] Step:   4.38s | Fwd: 247.3ms | Bwd:   0.0ms | Sync: 4125.3ms | Speed:  14.6 img/s
+        [  warmup  2/8] Step:   4.03s | Fwd:  90.7ms | Bwd:   0.0ms | Sync: 3927.1ms | Speed:  15.9 img/s
+        [bench #2  3/8] Step:   4.03s | Fwd:  88.5ms | Bwd:   0.0ms | Sync: 3927.4ms | Speed:  15.9 img/s
+        [bench #2  4/8] Step:   4.03s | Fwd:  88.0ms | Bwd:   0.0ms | Sync: 3930.8ms | Speed:  15.9 img/s
+        [bench #2  5/8] Step:   4.03s | Fwd:  88.9ms | Bwd:   0.0ms | Sync: 3929.9ms | Speed:  15.9 img/s
+        [bench #2  6/8] Step:   4.03s | Fwd:  84.7ms | Bwd:   0.0ms | Sync: 3933.8ms | Speed:  15.9 img/s
+        [bench #2  7/8] Step:   4.03s | Fwd:  88.2ms | Bwd:   0.0ms | Sync: 3929.8ms | Speed:  15.9 img/s
+        [bench #2  8/8] Step:   4.03s | Fwd:  94.8ms | Bwd:   0.0ms | Sync: 3926.1ms | Speed:  15.9 img/s
+        [  warmup  1/8] Step:   4.43s | Fwd: 295.3ms | Bwd:   0.0ms | Sync: 4133.2ms | Speed:  14.4 img/s
+        [  warmup  2/8] Step:   4.03s | Fwd:  92.1ms | Bwd:   0.0ms | Sync: 3931.7ms | Speed:  15.9 img/s
+        [bench #3  3/8] Step:   4.03s | Fwd:  89.6ms | Bwd:   0.0ms | Sync: 3930.3ms | Speed:  15.9 img/s
+        [bench #3  4/8] Step:   4.03s | Fwd:  91.0ms | Bwd:   0.0ms | Sync: 3931.8ms | Speed:  15.9 img/s
+        [bench #3  5/8] Step:   4.03s | Fwd:  94.2ms | Bwd:   0.0ms | Sync: 3933.4ms | Speed:  15.9 img/s
+        [bench #3  6/8] Step:   4.03s | Fwd:  93.5ms | Bwd:   0.0ms | Sync: 3931.7ms | Speed:  15.9 img/s
+        [bench #3  7/8] Step:   4.03s | Fwd:  93.1ms | Bwd:   0.0ms | Sync: 3929.5ms | Speed:  15.9 img/s
+        [bench #3  8/8] Step:   4.03s | Fwd:  90.8ms | Bwd:   0.0ms | Sync: 3928.6ms | Speed:  15.9 img/s
+    --> K=1 Summary: 15.9 ± 0.0 images/sec | Step: 4.028s | AllReduce: 3929.4ms
+
+>>> [ResNet-18 | GLOBAL] Benchmarking K=2 (microbatch=16, global=64)...
+        [  warmup  1/8] Step:   4.46s | Fwd: 300.3ms | Bwd: 207.3ms | Sync: 3944.9ms | Speed:  14.4 img/s
+        [  warmup  2/8] Step:   4.12s | Fwd:  95.6ms | Bwd: 190.7ms | Sync: 3828.6ms | Speed:  15.5 img/s
+        [bench #1  3/8] Step:   4.12s | Fwd:  88.0ms | Bwd: 183.9ms | Sync: 3841.3ms | Speed:  15.5 img/s
+        [bench #1  4/8] Step:   4.12s | Fwd:  85.3ms | Bwd: 183.0ms | Sync: 3846.0ms | Speed:  15.5 img/s
+        [bench #1  5/8] Step:   4.12s | Fwd:  84.6ms | Bwd: 183.4ms | Sync: 3841.7ms | Speed:  15.5 img/s
+        [bench #1  6/8] Step:   4.12s | Fwd:  86.6ms | Bwd: 183.0ms | Sync: 3842.8ms | Speed:  15.5 img/s
+        [bench #1  7/8] Step:   4.12s | Fwd:  85.8ms | Bwd: 181.1ms | Sync: 3847.5ms | Speed:  15.5 img/s
+        [bench #1  8/8] Step:   4.12s | Fwd:  86.7ms | Bwd: 184.4ms | Sync: 3839.4ms | Speed:  15.5 img/s
+        [  warmup  1/8] Step:   4.45s | Fwd: 296.2ms | Bwd: 189.8ms | Sync: 3955.0ms | Speed:  14.4 img/s
+        [  warmup  2/8] Step:   4.12s | Fwd:  94.8ms | Bwd: 191.4ms | Sync: 3825.2ms | Speed:  15.5 img/s
+        [bench #2  3/8] Step:   4.12s | Fwd:  92.2ms | Bwd: 187.0ms | Sync: 3831.1ms | Speed:  15.5 img/s
+        [bench #2  4/8] Step:   4.12s | Fwd:  92.0ms | Bwd: 187.6ms | Sync: 3831.4ms | Speed:  15.5 img/s
+        [bench #2  5/8] Step:   4.10s | Fwd:  86.7ms | Bwd: 172.2ms | Sync: 3840.4ms | Speed:  15.6 img/s
+        [bench #2  6/8] Step:   4.11s | Fwd:  85.8ms | Bwd: 180.4ms | Sync: 3843.4ms | Speed:  15.6 img/s
+        [bench #2  7/8] Step:   4.12s | Fwd:  85.9ms | Bwd: 176.1ms | Sync: 3848.6ms | Speed:  15.5 img/s
+        [bench #2  8/8] Step:   4.12s | Fwd:  88.1ms | Bwd: 170.8ms | Sync: 3854.2ms | Speed:  15.5 img/s
+        [  warmup  1/8] Step:   4.50s | Fwd: 359.6ms | Bwd: 175.1ms | Sync: 3960.0ms | Speed:  14.2 img/s
+        [  warmup  2/8] Step:   4.11s | Fwd:  88.2ms | Bwd: 175.8ms | Sync: 3841.7ms | Speed:  15.6 img/s
+        [bench #3  3/8] Step:   4.11s | Fwd:  86.1ms | Bwd: 177.2ms | Sync: 3837.8ms | Speed:  15.6 img/s
+        [bench #3  4/8] Step:   4.11s | Fwd:  86.2ms | Bwd: 173.3ms | Sync: 3842.2ms | Speed:  15.6 img/s
+        [bench #3  5/8] Step:   4.11s | Fwd:  89.1ms | Bwd: 187.0ms | Sync: 3827.0ms | Speed:  15.6 img/s
+        [bench #3  6/8] Step:   4.10s | Fwd:  86.2ms | Bwd: 175.4ms | Sync: 3834.6ms | Speed:  15.6 img/s
+        [bench #3  7/8] Step:   4.10s | Fwd:  84.3ms | Bwd: 173.7ms | Sync: 3839.7ms | Speed:  15.6 img/s
+        [bench #3  8/8] Step:   4.11s | Fwd:  91.9ms | Bwd: 191.5ms | Sync: 3824.7ms | Speed:  15.6 img/s
+    --> K=2 Summary: 15.57 ± 0.06 images/sec | Step: 4.114s | AllReduce: 3839.7ms
+
+>>> [ResNet-18 | GLOBAL] Benchmarking K=4 (microbatch=8, global=64)...
+        [  warmup  1/8] Step:   4.56s | Fwd: 371.8ms | Bwd: 198.3ms | Sync: 3984.2ms | Speed:  14.0 img/s
+        [  warmup  2/8] Step:   4.20s | Fwd: 106.2ms | Bwd: 211.2ms | Sync: 3873.8ms | Speed:  15.3 img/s
+        [bench #1  3/8] Step:   4.19s | Fwd: 104.1ms | Bwd: 210.4ms | Sync: 3872.8ms | Speed:  15.3 img/s
+        [bench #1  4/8] Step:   4.19s | Fwd: 104.3ms | Bwd: 211.2ms | Sync: 3872.5ms | Speed:  15.3 img/s
+        [bench #1  5/8] Step:   4.19s | Fwd: 104.6ms | Bwd: 210.7ms | Sync: 3871.6ms | Speed:  15.3 img/s
+        [bench #1  6/8] Step:   4.19s | Fwd: 104.8ms | Bwd: 211.2ms | Sync: 3872.2ms | Speed:  15.3 img/s
+        [bench #1  7/8] Step:   4.19s | Fwd: 105.0ms | Bwd: 210.3ms | Sync: 3872.2ms | Speed:  15.3 img/s
+        [bench #1  8/8] Step:   4.19s | Fwd: 104.8ms | Bwd: 210.5ms | Sync: 3872.6ms | Speed:  15.3 img/s
+        [  warmup  1/8] Step:   4.56s | Fwd: 378.7ms | Bwd: 221.0ms | Sync: 3955.0ms | Speed:  14.0 img/s
+        [  warmup  2/8] Step:   4.20s | Fwd: 107.1ms | Bwd: 211.1ms | Sync: 3873.6ms | Speed:  15.2 img/s
+        [bench #2  3/8] Step:   4.19s | Fwd: 105.5ms | Bwd: 210.9ms | Sync: 3872.0ms | Speed:  15.3 img/s
+        [bench #2  4/8] Step:   4.19s | Fwd:  96.2ms | Bwd: 199.3ms | Sync: 3892.0ms | Speed:  15.3 img/s
+        [bench #2  5/8] Step:   4.17s | Fwd:  95.1ms | Bwd: 199.9ms | Sync: 3873.2ms | Speed:  15.3 img/s
+        [bench #2  6/8] Step:   4.19s | Fwd:  95.1ms | Bwd: 197.2ms | Sync: 3893.3ms | Speed:  15.3 img/s
+        [bench #2  7/8] Step:   4.19s | Fwd: 105.2ms | Bwd: 210.7ms | Sync: 3870.3ms | Speed:  15.3 img/s
+        [bench #2  8/8] Step:   4.19s | Fwd: 104.4ms | Bwd: 212.7ms | Sync: 3869.2ms | Speed:  15.3 img/s
+        [  warmup  1/8] Step:   4.55s | Fwd: 374.3ms | Bwd: 218.0ms | Sync: 3955.6ms | Speed:  14.1 img/s
+        [  warmup  2/8] Step:   4.17s | Fwd:  95.9ms | Bwd: 197.0ms | Sync: 3875.2ms | Speed:  15.3 img/s
+        [bench #3  3/8] Step:   4.17s | Fwd:  94.3ms | Bwd: 197.5ms | Sync: 3873.1ms | Speed:  15.3 img/s
+        [bench #3  4/8] Step:   4.19s | Fwd: 104.9ms | Bwd: 210.9ms | Sync: 3864.6ms | Speed:  15.3 img/s
+        [bench #3  5/8] Step:   4.19s | Fwd: 105.2ms | Bwd: 212.1ms | Sync: 3869.3ms | Speed:  15.3 img/s
+        [bench #3  6/8] Step:   4.19s | Fwd: 105.4ms | Bwd: 211.1ms | Sync: 3870.0ms | Speed:  15.3 img/s
+        [bench #3  7/8] Step:   4.19s | Fwd: 103.4ms | Bwd: 211.4ms | Sync: 3871.5ms | Speed:  15.3 img/s
+        [bench #3  8/8] Step:   4.19s | Fwd: 104.2ms | Bwd: 210.4ms | Sync: 3871.4ms | Speed:  15.3 img/s
+    --> K=4 Summary: 15.3 ± 0.0 images/sec | Step: 4.191s | AllReduce: 3873.5ms
+
+>>> [ResNet-18 | GLOBAL] Benchmarking K=8 (microbatch=4, global=64)...
+        [  warmup  1/8] Step:   4.66s | Fwd: 410.7ms | Bwd: 297.0ms | Sync: 3949.8ms | Speed:  13.7 img/s
+        [  warmup  2/8] Step:   4.29s | Fwd: 136.8ms | Bwd: 264.3ms | Sync: 3883.0ms | Speed:  14.9 img/s
+        [bench #1  3/8] Step:   4.29s | Fwd: 134.2ms | Bwd: 264.5ms | Sync: 3882.9ms | Speed:  14.9 img/s
+        [bench #1  4/8] Step:   4.30s | Fwd: 135.4ms | Bwd: 263.6ms | Sync: 3889.7ms | Speed:  14.9 img/s
+        [bench #1  5/8] Step:   4.30s | Fwd: 134.1ms | Bwd: 264.3ms | Sync: 3891.7ms | Speed:  14.9 img/s
+        [bench #1  6/8] Step:   4.30s | Fwd: 134.3ms | Bwd: 266.0ms | Sync: 3889.0ms | Speed:  14.9 img/s
+        [bench #1  7/8] Step:   4.30s | Fwd: 134.0ms | Bwd: 264.3ms | Sync: 3891.6ms | Speed:  14.9 img/s
+        [bench #1  8/8] Step:   4.30s | Fwd: 133.8ms | Bwd: 263.9ms | Sync: 3892.2ms | Speed:  14.9 img/s
+        [  warmup  1/8] Step:   4.61s | Fwd: 391.5ms | Bwd: 265.3ms | Sync: 3950.4ms | Speed:  13.9 img/s
+        [  warmup  2/8] Step:   4.29s | Fwd: 136.5ms | Bwd: 264.6ms | Sync: 3883.0ms | Speed:  14.9 img/s
+        [bench #2  3/8] Step:   4.29s | Fwd: 133.6ms | Bwd: 263.2ms | Sync: 3883.0ms | Speed:  14.9 img/s
+        [bench #2  4/8] Step:   4.28s | Fwd: 128.6ms | Bwd: 257.2ms | Sync: 3883.8ms | Speed:  15.0 img/s
+        [bench #2  5/8] Step:   4.30s | Fwd: 133.9ms | Bwd: 263.3ms | Sync: 3893.2ms | Speed:  14.9 img/s
+        [bench #2  6/8] Step:   4.29s | Fwd: 132.8ms | Bwd: 262.9ms | Sync: 3883.3ms | Speed:  14.9 img/s
+        [bench #2  7/8] Step:   4.29s | Fwd: 133.7ms | Bwd: 261.7ms | Sync: 3883.2ms | Speed:  14.9 img/s
+        [bench #2  8/8] Step:   4.29s | Fwd: 133.3ms | Bwd: 262.8ms | Sync: 3883.1ms | Speed:  14.9 img/s
+        [  warmup  1/8] Step:   4.61s | Fwd: 390.2ms | Bwd: 262.0ms | Sync: 3949.5ms | Speed:  13.9 img/s
+        [  warmup  2/8] Step:   4.25s | Fwd: 116.3ms | Bwd: 238.0ms | Sync: 3891.4ms | Speed:  15.1 img/s
+        [bench #3  3/8] Step:   4.25s | Fwd: 113.5ms | Bwd: 238.0ms | Sync: 3891.5ms | Speed:  15.1 img/s
+        [bench #3  4/8] Step:   4.25s | Fwd: 112.8ms | Bwd: 237.2ms | Sync: 3897.3ms | Speed:  15.0 img/s
+        [bench #3  5/8] Step:   4.30s | Fwd: 114.0ms | Bwd: 239.1ms | Sync: 3937.1ms | Speed:  14.9 img/s
+        [bench #3  6/8] Step:   4.30s | Fwd: 114.3ms | Bwd: 238.3ms | Sync: 3939.0ms | Speed:  14.9 img/s
+        [bench #3  7/8] Step:   4.30s | Fwd: 113.9ms | Bwd: 239.3ms | Sync: 3938.8ms | Speed:  14.9 img/s
+        [bench #3  8/8] Step:   4.30s | Fwd: 112.2ms | Bwd: 236.4ms | Sync: 3942.3ms | Speed:  14.9 img/s
+    --> K=8 Summary: 14.9 ± 0.0 images/sec | Step: 4.288s | AllReduce: 3899.6ms
+
+>>> [ResNet-18 | GLOBAL] Benchmarking K=16 (microbatch=2, global=64)...
+        [  warmup  1/8] Step:   4.77s | Fwd: 434.6ms | Bwd: 377.5ms | Sync: 3949.7ms | Speed:  13.4 img/s
+        [  warmup  2/8] Step:   4.48s | Fwd: 157.8ms | Bwd: 323.7ms | Sync: 3990.2ms | Speed:  14.3 img/s
+        [bench #1  3/8] Step:   4.47s | Fwd: 151.7ms | Bwd: 322.0ms | Sync: 3991.9ms | Speed:  14.3 img/s
+        [bench #1  4/8] Step:   4.47s | Fwd: 152.6ms | Bwd: 322.4ms | Sync: 3992.1ms | Speed:  14.3 img/s
+        [bench #1  5/8] Step:   4.48s | Fwd: 187.4ms | Bwd: 371.5ms | Sync: 3908.2ms | Speed:  14.3 img/s
+        [bench #1  6/8] Step:   4.47s | Fwd: 188.6ms | Bwd: 371.6ms | Sync: 3904.5ms | Speed:  14.3 img/s
+        [bench #1  7/8] Step:   4.47s | Fwd: 187.6ms | Bwd: 371.0ms | Sync: 3906.3ms | Speed:  14.3 img/s
+        [bench #1  8/8] Step:   4.48s | Fwd: 186.1ms | Bwd: 372.6ms | Sync: 3908.9ms | Speed:  14.3 img/s
+        [  warmup  1/8] Step:   4.80s | Fwd: 469.1ms | Bwd: 370.1ms | Sync: 3952.5ms | Speed:  13.3 img/s
+        [  warmup  2/8] Step:   4.48s | Fwd: 154.7ms | Bwd: 322.7ms | Sync: 3993.6ms | Speed:  14.3 img/s
+        [bench #2  3/8] Step:   4.47s | Fwd: 151.2ms | Bwd: 321.3ms | Sync: 3993.5ms | Speed:  14.3 img/s
+        [bench #2  4/8] Step:   4.47s | Fwd: 151.6ms | Bwd: 321.8ms | Sync: 3993.1ms | Speed:  14.3 img/s
+        [bench #2  5/8] Step:   4.47s | Fwd: 151.6ms | Bwd: 320.1ms | Sync: 3994.1ms | Speed:  14.3 img/s
+        [bench #2  6/8] Step:   4.47s | Fwd: 151.8ms | Bwd: 321.4ms | Sync: 3992.1ms | Speed:  14.3 img/s
+        [bench #2  7/8] Step:   4.47s | Fwd: 151.1ms | Bwd: 320.0ms | Sync: 3995.1ms | Speed:  14.3 img/s
+        [bench #2  8/8] Step:   4.47s | Fwd: 150.8ms | Bwd: 321.7ms | Sync: 3993.1ms | Speed:  14.3 img/s
+        [  warmup  1/8] Step:   4.72s | Fwd: 432.7ms | Bwd: 320.0ms | Sync: 3966.1ms | Speed:  13.5 img/s
+        [  warmup  2/8] Step:   4.52s | Fwd: 189.2ms | Bwd: 439.2ms | Sync: 3889.4ms | Speed:  14.1 img/s
+        [bench #3  3/8] Step:   4.53s | Fwd: 188.1ms | Bwd: 441.6ms | Sync: 3888.9ms | Speed:  14.1 img/s
+        [bench #3  4/8] Step:   4.47s | Fwd: 157.6ms | Bwd: 387.5ms | Sync: 3920.8ms | Speed:  14.3 img/s
+        [bench #3  5/8] Step:   4.43s | Fwd: 150.3ms | Bwd: 379.1ms | Sync: 3891.5ms | Speed:  14.4 img/s
+        [bench #3  6/8] Step:   4.43s | Fwd: 151.1ms | Bwd: 383.1ms | Sync: 3891.3ms | Speed:  14.4 img/s
+        [bench #3  7/8] Step:   4.43s | Fwd: 153.2ms | Bwd: 379.2ms | Sync: 3891.5ms | Speed:  14.4 img/s
+        [bench #3  8/8] Step:   4.43s | Fwd: 151.6ms | Bwd: 376.8ms | Sync: 3891.9ms | Speed:  14.5 img/s
+    --> K=16 Summary: 14.33 ± 0.06 images/sec | Step: 4.467s | AllReduce: 3941.6ms
+
+>>> [ResNet-18 | GLOBAL] Benchmarking K=32 (microbatch=1, global=64)...
+        [  warmup  1/8] Step:   4.82s | Fwd: 451.1ms | Bwd: 407.8ms | Sync: 3958.2ms | Speed:  13.3 img/s
+        [  warmup  2/8] Step:   4.51s | Fwd: 177.0ms | Bwd: 407.0ms | Sync: 3915.1ms | Speed:  14.2 img/s
+        [bench #1  3/8] Step:   4.64s | Fwd: 174.6ms | Bwd: 409.8ms | Sync: 4046.5ms | Speed:  13.8 img/s
+        [bench #1  4/8] Step:   4.63s | Fwd: 165.0ms | Bwd: 397.9ms | Sync: 4059.5ms | Speed:  13.8 img/s
+        [bench #1  5/8] Step:   4.64s | Fwd: 168.2ms | Bwd: 399.7ms | Sync: 4062.1ms | Speed:  13.8 img/s
+        [bench #1  6/8] Step:   4.63s | Fwd: 166.4ms | Bwd: 396.8ms | Sync: 4059.8ms | Speed:  13.8 img/s
+        [bench #1  7/8] Step:   4.64s | Fwd: 166.0ms | Bwd: 398.0ms | Sync: 4066.3ms | Speed:  13.8 img/s
+        [bench #1  8/8] Step:   4.63s | Fwd: 165.5ms | Bwd: 397.2ms | Sync: 4060.4ms | Speed:  13.8 img/s
+        [  warmup  1/8] Step:   4.90s | Fwd: 468.7ms | Bwd: 478.1ms | Sync: 3945.4ms | Speed:  13.1 img/s
+        [  warmup  2/8] Step:   4.62s | Fwd: 227.3ms | Bwd: 475.1ms | Sync: 3907.4ms | Speed:  13.9 img/s
+        [bench #2  3/8] Step:   4.62s | Fwd: 225.1ms | Bwd: 477.4ms | Sync: 3905.1ms | Speed:  13.9 img/s
+        [bench #2  4/8] Step:   4.62s | Fwd: 226.0ms | Bwd: 479.3ms | Sync: 3910.3ms | Speed:  13.8 img/s
+        [bench #2  5/8] Step:   4.62s | Fwd: 226.0ms | Bwd: 477.6ms | Sync: 3907.9ms | Speed:  13.9 img/s
+        [bench #2  6/8] Step:   4.62s | Fwd: 226.8ms | Bwd: 479.1ms | Sync: 3907.9ms | Speed:  13.8 img/s
+        [bench #2  7/8] Step:   4.63s | Fwd: 221.5ms | Bwd: 475.2ms | Sync: 3926.0ms | Speed:  13.8 img/s
+        [bench #2  8/8] Step:   4.62s | Fwd: 227.1ms | Bwd: 482.4ms | Sync: 3904.6ms | Speed:  13.8 img/s
+        [  warmup  1/8] Step:   4.83s | Fwd: 445.0ms | Bwd: 407.9ms | Sync: 3965.5ms | Speed:  13.3 img/s
+        [  warmup  2/8] Step:   4.63s | Fwd: 230.5ms | Bwd: 482.3ms | Sync: 3911.8ms | Speed:  13.8 img/s
+        [bench #3  3/8] Step:   4.50s | Fwd: 171.5ms | Bwd: 407.3ms | Sync: 3915.4ms | Speed:  14.2 img/s
+        [bench #3  4/8] Step:   4.50s | Fwd: 172.0ms | Bwd: 408.7ms | Sync: 3916.8ms | Speed:  14.2 img/s
+        [bench #3  5/8] Step:   4.51s | Fwd: 172.0ms | Bwd: 407.3ms | Sync: 3920.6ms | Speed:  14.2 img/s
+        [bench #3  6/8] Step:   4.50s | Fwd: 172.2ms | Bwd: 407.4ms | Sync: 3913.2ms | Speed:  14.2 img/s
+        [bench #3  7/8] Step:   4.50s | Fwd: 170.9ms | Bwd: 408.3ms | Sync: 3918.2ms | Speed:  14.2 img/s
+        [bench #3  8/8] Step:   4.50s | Fwd: 172.2ms | Bwd: 408.2ms | Sync: 3914.0ms | Speed:  14.2 img/s
+    --> K=32 Summary: 13.93 ± 0.23 images/sec | Step: 4.586s | AllReduce: 3961.9ms
+
+>>> [ResNet-18 | GLOBAL] Benchmarking K=64 (microbatch=1, global=128)...
+        [  warmup  1/8] Step:   5.60s | Fwd: 719.8ms | Bwd: 950.6ms | Sync: 3921.1ms | Speed:  22.8 img/s
+        [  warmup  2/8] Step:   5.36s | Fwd: 453.4ms | Bwd: 962.3ms | Sync: 3935.1ms | Speed:  23.9 img/s
+        [bench #1  3/8] Step:   5.36s | Fwd: 342.1ms | Bwd: 820.8ms | Sync: 4187.5ms | Speed:  23.9 img/s
+        [bench #1  4/8] Step:   5.36s | Fwd: 332.2ms | Bwd: 800.7ms | Sync: 4214.4ms | Speed:  23.9 img/s
+        [bench #1  5/8] Step:   5.36s | Fwd: 451.3ms | Bwd: 963.4ms | Sync: 3932.7ms | Speed:  23.9 img/s
+        [bench #1  6/8] Step:   5.36s | Fwd: 452.5ms | Bwd: 965.4ms | Sync: 3926.1ms | Speed:  23.9 img/s
+        [bench #1  7/8] Step:   5.35s | Fwd: 452.2ms | Bwd: 963.2ms | Sync: 3927.4ms | Speed:  23.9 img/s
+        [bench #1  8/8] Step:   5.33s | Fwd: 453.1ms | Bwd: 966.6ms | Sync: 3901.2ms | Speed:  24.0 img/s
+        [  warmup  1/8] Step:   5.62s | Fwd: 725.2ms | Bwd: 961.6ms | Sync: 3922.1ms | Speed:  22.8 img/s
+        [  warmup  2/8] Step:   5.35s | Fwd: 455.0ms | Bwd: 965.9ms | Sync: 3913.9ms | Speed:  23.9 img/s
+        [bench #2  3/8] Step:   5.34s | Fwd: 452.1ms | Bwd: 964.7ms | Sync: 3909.5ms | Speed:  24.0 img/s
+        [bench #2  4/8] Step:   5.34s | Fwd: 452.6ms | Bwd: 963.3ms | Sync: 3909.8ms | Speed:  24.0 img/s
+        [bench #2  5/8] Step:   5.34s | Fwd: 452.8ms | Bwd: 964.4ms | Sync: 3912.6ms | Speed:  24.0 img/s
+        [bench #2  6/8] Step:   5.34s | Fwd: 456.1ms | Bwd: 967.4ms | Sync: 3906.8ms | Speed:  24.0 img/s
+        [bench #2  7/8] Step:   5.34s | Fwd: 458.7ms | Bwd: 971.4ms | Sync: 3901.1ms | Speed:  24.0 img/s
+        [bench #2  8/8] Step:   5.35s | Fwd: 457.4ms | Bwd: 973.3ms | Sync: 3906.1ms | Speed:  23.9 img/s
+        [  warmup  1/8] Step:   5.64s | Fwd: 729.7ms | Bwd: 967.8ms | Sync: 3933.4ms | Speed:  22.7 img/s
+        [  warmup  2/8] Step:   5.35s | Fwd: 460.4ms | Bwd: 969.2ms | Sync: 3910.9ms | Speed:  23.9 img/s
+        [bench #3  3/8] Step:   5.35s | Fwd: 457.8ms | Bwd: 969.0ms | Sync: 3906.9ms | Speed:  23.9 img/s
+        [bench #3  4/8] Step:   5.34s | Fwd: 457.9ms | Bwd: 972.6ms | Sync: 3900.8ms | Speed:  24.0 img/s
+        [bench #3  5/8] Step:   5.35s | Fwd: 454.8ms | Bwd: 968.7ms | Sync: 3913.6ms | Speed:  23.9 img/s
+        [bench #3  6/8] Step:   5.35s | Fwd: 458.0ms | Bwd: 973.9ms | Sync: 3906.8ms | Speed:  23.9 img/s
+        [bench #3  7/8] Step:   5.35s | Fwd: 457.4ms | Bwd: 969.9ms | Sync: 3908.4ms | Speed:  23.9 img/s
+        [bench #3  8/8] Step:   5.35s | Fwd: 458.1ms | Bwd: 970.7ms | Sync: 3909.7ms | Speed:  23.9 img/s
+    --> K=64 Summary: 23.93 ± 0.06 images/sec | Step: 5.347s | AllReduce: 3943.4ms
+
+>>> [GPT-2 Small | GLOBAL] Benchmarking K=1 (microbatch=4, global=4096 tokens)...
+[transformers] `loss_type=None` was set in the config but it is unrecognized. Using the default loss: `ForCausalLMLoss`.
+        [  warmup  1/8] Step:  49.48s | Fwd: 2675.8ms | Bwd:   0.0ms | Sync: 46464.1ms | Speed:  82.8 tok/s
+        [  warmup  2/8] Step:  46.97s | Fwd: 2716.1ms | Bwd:   0.0ms | Sync: 43978.3ms | Speed:  87.2 tok/s
+        [bench #1  3/8] Step:  46.82s | Fwd: 2549.9ms | Bwd:   0.0ms | Sync: 43994.8ms | Speed:  87.5 tok/s
+        [bench #1  4/8] Step:  46.76s | Fwd: 2492.4ms | Bwd:   0.0ms | Sync: 44000.7ms | Speed:  87.6 tok/s
+        [bench #1  5/8] Step:  46.74s | Fwd: 2488.6ms | Bwd:   0.0ms | Sync: 43976.6ms | Speed:  87.6 tok/s
+        [bench #1  6/8] Step:  46.77s | Fwd: 2526.2ms | Bwd:   0.0ms | Sync: 43969.4ms | Speed:  87.6 tok/s
+        [bench #1  7/8] Step:  46.69s | Fwd: 2465.2ms | Bwd:   0.0ms | Sync: 43954.8ms | Speed:  87.7 tok/s
+        [bench #1  8/8] Step:  46.84s | Fwd: 2524.6ms | Bwd:   0.0ms | Sync: 44031.4ms | Speed:  87.5 tok/s
+        [  warmup  1/8] Step:  49.24s | Fwd: 2463.3ms | Bwd:   0.0ms | Sync: 46446.0ms | Speed:  83.2 tok/s
+        [  warmup  2/8] Step:  46.81s | Fwd: 2493.0ms | Bwd:   0.0ms | Sync: 44049.8ms | Speed:  87.5 tok/s
+        [bench #2  3/8] Step:  46.72s | Fwd: 2463.7ms | Bwd:   0.0ms | Sync: 43973.9ms | Speed:  87.7 tok/s
+        [bench #2  4/8] Step:  46.79s | Fwd: 2539.2ms | Bwd:   0.0ms | Sync: 43980.1ms | Speed:  87.5 tok/s
+        [bench #2  5/8] Step:  46.72s | Fwd: 2478.1ms | Bwd:   0.0ms | Sync: 43954.7ms | Speed:  87.7 tok/s
+        [bench #2  6/8] Step:  46.76s | Fwd: 2473.4ms | Bwd:   0.0ms | Sync: 44011.6ms | Speed:  87.6 tok/s
+        [bench #2  7/8] Step:  46.68s | Fwd: 2441.8ms | Bwd:   0.0ms | Sync: 43970.4ms | Speed:  87.7 tok/s
+        [bench #2  8/8] Step:  46.70s | Fwd: 2475.6ms | Bwd:   0.0ms | Sync: 43950.2ms | Speed:  87.7 tok/s
+        [  warmup  1/8] Step:  49.14s | Fwd: 2449.8ms | Bwd:   0.0ms | Sync: 46374.5ms | Speed:  83.4 tok/s
+        [  warmup  2/8] Step:  46.70s | Fwd: 2462.0ms | Bwd:   0.0ms | Sync: 43975.4ms | Speed:  87.7 tok/s
+        [bench #3  3/8] Step:  46.71s | Fwd: 2475.7ms | Bwd:   0.0ms | Sync: 43958.4ms | Speed:  87.7 tok/s
+        [bench #3  4/8] Step:  46.80s | Fwd: 2557.5ms | Bwd:   0.0ms | Sync: 43960.9ms | Speed:  87.5 tok/s
+        [bench #3  5/8] Step:  46.71s | Fwd: 2499.4ms | Bwd:   0.0ms | Sync: 43952.4ms | Speed:  87.7 tok/s
+        [bench #3  6/8] Step:  46.84s | Fwd: 2446.3ms | Bwd:   0.0ms | Sync: 44115.2ms | Speed:  87.5 tok/s
+        [bench #3  7/8] Step:  46.77s | Fwd: 2534.8ms | Bwd:   0.0ms | Sync: 43958.1ms | Speed:  87.6 tok/s
+        [bench #3  8/8] Step:  46.74s | Fwd: 2455.9ms | Bwd:   0.0ms | Sync: 44005.9ms | Speed:  87.6 tok/s
+    --> K=1 Summary: 87.63 ± 0.06 tokens/sec | Step: 46.753s | AllReduce: 43984.4ms
+
+>>> [GPT-2 Small | GLOBAL] Benchmarking K=2 (microbatch=2, global=4096 tokens)...
+        [  warmup  1/8] Step:  49.09s | Fwd: 2376.7ms | Bwd: 2568.1ms | Sync: 43825.5ms | Speed:  83.4 tok/s
+        [  warmup  2/8] Step:  47.64s | Fwd: 2353.0ms | Bwd: 2538.8ms | Sync: 42478.3ms | Speed:  86.0 tok/s
+        [bench #1  3/8] Step:  47.62s | Fwd: 2349.2ms | Bwd: 2560.0ms | Sync: 42450.5ms | Speed:  86.0 tok/s
+        [bench #1  4/8] Step:  47.68s | Fwd: 2355.0ms | Bwd: 2550.0ms | Sync: 42510.5ms | Speed:  85.9 tok/s
+        [bench #1  5/8] Step:  47.63s | Fwd: 2336.2ms | Bwd: 2562.2ms | Sync: 42466.5ms | Speed:  86.0 tok/s
+        [bench #1  6/8] Step:  47.69s | Fwd: 2366.0ms | Bwd: 2558.7ms | Sync: 42503.1ms | Speed:  85.9 tok/s
+        [bench #1  7/8] Step:  47.70s | Fwd: 2362.2ms | Bwd: 2577.4ms | Sync: 42500.5ms | Speed:  85.9 tok/s
+        [bench #1  8/8] Step:  47.83s | Fwd: 2363.3ms | Bwd: 2568.9ms | Sync: 42636.3ms | Speed:  85.6 tok/s
+        [  warmup  1/8] Step:  49.16s | Fwd: 2393.6ms | Bwd: 2567.0ms | Sync: 43883.3ms | Speed:  83.3 tok/s
+        [  warmup  2/8] Step:  47.76s | Fwd: 2368.1ms | Bwd: 2617.3ms | Sync: 42505.0ms | Speed:  85.8 tok/s
+        [bench #2  3/8] Step:  47.78s | Fwd: 2506.3ms | Bwd: 2623.7ms | Sync: 42375.4ms | Speed:  85.7 tok/s
+        [bench #2  4/8] Step:  47.81s | Fwd: 2452.1ms | Bwd: 2592.5ms | Sync: 42497.9ms | Speed:  85.7 tok/s
+        [bench #2  5/8] Step:  47.72s | Fwd: 2470.6ms | Bwd: 2581.0ms | Sync: 42396.8ms | Speed:  85.8 tok/s
+        [bench #2  6/8] Step:  47.68s | Fwd: 2429.3ms | Bwd: 2597.6ms | Sync: 42384.5ms | Speed:  85.9 tok/s
+        [bench #2  7/8] Step:  47.82s | Fwd: 2550.2ms | Bwd: 2608.6ms | Sync: 42393.1ms | Speed:  85.6 tok/s
+        [bench #2  8/8] Step:  47.64s | Fwd: 2381.6ms | Bwd: 2610.4ms | Sync: 42378.2ms | Speed:  86.0 tok/s
+        [  warmup  1/8] Step:  49.10s | Fwd: 2384.6ms | Bwd: 2597.2ms | Sync: 43795.0ms | Speed:  83.4 tok/s
+        [  warmup  2/8] Step:  47.65s | Fwd: 2348.8ms | Bwd: 2598.4ms | Sync: 42434.1ms | Speed:  86.0 tok/s
+        [bench #3  3/8] Step:  47.66s | Fwd: 2354.3ms | Bwd: 2580.7ms | Sync: 42454.6ms | Speed:  85.9 tok/s
+        [bench #3  4/8] Step:  47.65s | Fwd: 2370.2ms | Bwd: 2619.6ms | Sync: 42394.3ms | Speed:  86.0 tok/s
+        [bench #3  5/8] Step:  47.63s | Fwd: 2363.4ms | Bwd: 2561.3ms | Sync: 42436.2ms | Speed:  86.0 tok/s
+        [bench #3  6/8] Step:  47.76s | Fwd: 2352.5ms | Bwd: 2588.6ms | Sync: 42558.8ms | Speed:  85.8 tok/s
+        [bench #3  7/8] Step:  47.70s | Fwd: 2339.7ms | Bwd: 2564.1ms | Sync: 42520.3ms | Speed:  85.9 tok/s
+        [bench #3  8/8] Step:  47.74s | Fwd: 2481.4ms | Bwd: 2580.8ms | Sync: 42405.3ms | Speed:  85.8 tok/s
+    --> K=2 Summary: 85.87 ± 0.06 tokens/sec | Step: 47.708s | AllReduce: 42459.1ms
+
+>>> [GPT-2 Small | GLOBAL] Benchmarking K=4 (microbatch=1, global=4096 tokens)...
+        [  warmup  1/8] Step:  49.28s | Fwd: 2366.5ms | Bwd: 2798.2ms | Sync: 43799.9ms | Speed:  83.1 tok/s
+        [  warmup  2/8] Step:  48.33s | Fwd: 2381.8ms | Bwd: 2799.8ms | Sync: 42881.7ms | Speed:  84.7 tok/s
+        [bench #1  3/8] Step:  48.30s | Fwd: 2347.8ms | Bwd: 2776.6ms | Sync: 42909.2ms | Speed:  84.8 tok/s
+        [bench #1  4/8] Step:  48.28s | Fwd: 2348.1ms | Bwd: 2771.7ms | Sync: 42897.7ms | Speed:  84.8 tok/s
+        [bench #1  5/8] Step:  48.31s | Fwd: 2353.5ms | Bwd: 2763.6ms | Sync: 42931.6ms | Speed:  84.8 tok/s
+        [bench #1  6/8] Step:  48.29s | Fwd: 2361.7ms | Bwd: 2770.2ms | Sync: 42895.7ms | Speed:  84.8 tok/s
+        [bench #1  7/8] Step:  48.26s | Fwd: 2337.5ms | Bwd: 2729.6ms | Sync: 42928.2ms | Speed:  84.9 tok/s
+        [bench #1  8/8] Step:  48.24s | Fwd: 2350.6ms | Bwd: 2738.9ms | Sync: 42882.4ms | Speed:  84.9 tok/s
+        [  warmup  1/8] Step:  49.25s | Fwd: 2381.7ms | Bwd: 2745.4ms | Sync: 43800.8ms | Speed:  83.2 tok/s
+        [  warmup  2/8] Step:  48.30s | Fwd: 2347.9ms | Bwd: 2716.6ms | Sync: 42972.5ms | Speed:  84.8 tok/s
+        [bench #2  3/8] Step:  48.37s | Fwd: 2351.9ms | Bwd: 2782.4ms | Sync: 42969.0ms | Speed:  84.7 tok/s
+        [bench #2  4/8] Step:  48.34s | Fwd: 2352.3ms | Bwd: 2755.8ms | Sync: 42963.4ms | Speed:  84.7 tok/s
+        [bench #2  5/8] Step:  48.39s | Fwd: 2435.3ms | Bwd: 2766.7ms | Sync: 42919.6ms | Speed:  84.6 tok/s
+        [bench #2  6/8] Step:  48.60s | Fwd: 2666.5ms | Bwd: 2797.7ms | Sync: 42860.1ms | Speed:  84.3 tok/s
+        [bench #2  7/8] Step:  48.59s | Fwd: 2664.2ms | Bwd: 2785.6ms | Sync: 42870.8ms | Speed:  84.3 tok/s
+        [bench #2  8/8] Step:  48.58s | Fwd: 2619.6ms | Bwd: 2831.3ms | Sync: 42855.1ms | Speed:  84.3 tok/s
+        [  warmup  1/8] Step:  49.27s | Fwd: 2349.6ms | Bwd: 2720.4ms | Sync: 43887.8ms | Speed:  83.1 tok/s
+        [  warmup  2/8] Step:  48.30s | Fwd: 2365.5ms | Bwd: 2717.0ms | Sync: 42958.4ms | Speed:  84.8 tok/s
+        [bench #3  3/8] Step:  48.32s | Fwd: 2358.8ms | Bwd: 2785.8ms | Sync: 42915.4ms | Speed:  84.8 tok/s
+        [bench #3  4/8] Step:  48.27s | Fwd: 2358.3ms | Bwd: 2770.9ms | Sync: 42870.7ms | Speed:  84.9 tok/s
+        [bench #3  5/8] Step:  48.56s | Fwd: 2623.6ms | Bwd: 2802.6ms | Sync: 42866.9ms | Speed:  84.4 tok/s
+        [bench #3  6/8] Step:  48.46s | Fwd: 2428.7ms | Bwd: 2759.6ms | Sync: 43003.3ms | Speed:  84.5 tok/s
+        [bench #3  7/8] Step:  48.35s | Fwd: 2456.9ms | Bwd: 2745.3ms | Sync: 42888.6ms | Speed:  84.7 tok/s
+        [bench #3  8/8] Step:  48.32s | Fwd: 2425.8ms | Bwd: 2774.2ms | Sync: 42851.1ms | Speed:  84.8 tok/s
+    --> K=4 Summary: 84.67 ± 0.15 tokens/sec | Step: 48.380s | AllReduce: 42904.4ms
+
+>>> [GPT-2 Small | GLOBAL] Benchmarking K=8 (microbatch=1, global=8192 tokens)...
+        [  warmup  1/8] Step:  54.49s | Fwd: 4698.8ms | Bwd: 5540.4ms | Sync: 43930.4ms | Speed: 150.3 tok/s
+        [  warmup  2/8] Step:  53.52s | Fwd: 4716.2ms | Bwd: 5599.6ms | Sync: 42936.3ms | Speed: 153.1 tok/s
+        [bench #1  3/8] Step:  53.52s | Fwd: 4753.2ms | Bwd: 5604.2ms | Sync: 42896.1ms | Speed: 153.1 tok/s
+        [bench #1  4/8] Step:  53.52s | Fwd: 4840.9ms | Bwd: 5545.7ms | Sync: 42865.4ms | Speed: 153.1 tok/s
+        [bench #1  5/8] Step:  53.81s | Fwd: 4992.4ms | Bwd: 5688.3ms | Sync: 42853.7ms | Speed: 152.3 tok/s
+        [bench #1  6/8] Step:  53.77s | Fwd: 4984.2ms | Bwd: 5664.9ms | Sync: 42854.1ms | Speed: 152.3 tok/s
+        [bench #1  7/8] Step:  53.64s | Fwd: 4740.6ms | Bwd: 5610.2ms | Sync: 43017.3ms | Speed: 152.7 tok/s
+        [bench #1  8/8] Step:  53.54s | Fwd: 4729.9ms | Bwd: 5591.5ms | Sync: 42955.0ms | Speed: 153.0 tok/s
+        [  warmup  1/8] Step:  54.52s | Fwd: 4736.6ms | Bwd: 5606.4ms | Sync: 43861.0ms | Speed: 150.3 tok/s
+        [  warmup  2/8] Step:  53.52s | Fwd: 4728.3ms | Bwd: 5602.9ms | Sync: 42915.3ms | Speed: 153.1 tok/s
+        [bench #2  3/8] Step:  53.54s | Fwd: 4818.9ms | Bwd: 5601.1ms | Sync: 42856.6ms | Speed: 153.0 tok/s
+        [bench #2  4/8] Step:  53.58s | Fwd: 4836.6ms | Bwd: 5606.6ms | Sync: 42863.7ms | Speed: 152.9 tok/s
+        [bench #2  5/8] Step:  53.73s | Fwd: 4972.5ms | Bwd: 5638.2ms | Sync: 42855.2ms | Speed: 152.5 tok/s
+        [bench #2  6/8] Step:  54.02s | Fwd: 5203.1ms | Bwd: 5705.9ms | Sync: 42845.2ms | Speed: 151.7 tok/s
+        [bench #2  7/8] Step:  53.59s | Fwd: 4773.3ms | Bwd: 5643.6ms | Sync: 42908.2ms | Speed: 152.9 tok/s
+        [bench #2  8/8] Step:  53.64s | Fwd: 4830.8ms | Bwd: 5676.3ms | Sync: 42861.1ms | Speed: 152.7 tok/s
+        [  warmup  1/8] Step:  54.38s | Fwd: 4717.7ms | Bwd: 5569.2ms | Sync: 43780.4ms | Speed: 150.6 tok/s
+        [  warmup  2/8] Step:  53.45s | Fwd: 4708.9ms | Bwd: 5587.5ms | Sync: 42891.6ms | Speed: 153.3 tok/s
+        [bench #3  3/8] Step:  53.45s | Fwd: 4720.1ms | Bwd: 5610.8ms | Sync: 42852.7ms | Speed: 153.3 tok/s
+        [bench #3  4/8] Step:  53.54s | Fwd: 4690.9ms | Bwd: 5579.9ms | Sync: 42999.6ms | Speed: 153.0 tok/s
+        [bench #3  5/8] Step:  53.51s | Fwd: 4711.4ms | Bwd: 5630.4ms | Sync: 42897.5ms | Speed: 153.1 tok/s
+        [bench #3  6/8] Step:  54.08s | Fwd: 4733.8ms | Bwd: 5649.2ms | Sync: 43428.5ms | Speed: 151.5 tok/s
+        [bench #3  7/8] Step:  53.86s | Fwd: 5045.6ms | Bwd: 5681.5ms | Sync: 42863.2ms | Speed: 152.1 tok/s
+        [bench #3  8/8] Step:  53.81s | Fwd: 5037.5ms | Bwd: 5640.1ms | Sync: 42870.4ms | Speed: 152.2 tok/s
+    --> K=8 Summary: 152.6 ± 0.1 tokens/sec | Step: 53.675s | AllReduce: 42919.1ms
+
+>>> [GPT-2 Small | GLOBAL] Benchmarking K=16 (microbatch=1, global=16384 tokens)...
+        [  warmup  1/8] Step:  65.13s | Fwd: 9635.1ms | Bwd: 11262.1ms | Sync: 43909.3ms | Speed: 251.6 tok/s
+        [  warmup  2/8] Step:  64.77s | Fwd: 10043.3ms | Bwd: 11604.6ms | Sync: 42847.9ms | Speed: 253.0 tok/s
+        [bench #1  3/8] Step:  64.87s | Fwd: 9974.1ms | Bwd: 11776.9ms | Sync: 42845.4ms | Speed: 252.6 tok/s
+        [bench #1  4/8] Step:  65.44s | Fwd: 10582.3ms | Bwd: 11731.2ms | Sync: 42853.2ms | Speed: 250.4 tok/s
+        [bench #1  5/8] Step:  64.83s | Fwd: 10101.3ms | Bwd: 11614.7ms | Sync: 42846.1ms | Speed: 252.7 tok/s
+        [bench #1  6/8] Step:  64.72s | Fwd: 9858.6ms | Bwd: 11764.1ms | Sync: 42835.6ms | Speed: 253.1 tok/s
+        [bench #1  7/8] Step:  64.87s | Fwd: 10068.5ms | Bwd: 11696.2ms | Sync: 42841.4ms | Speed: 252.6 tok/s
+        [bench #1  8/8] Step:  64.60s | Fwd: 9986.8ms | Bwd: 11481.6ms | Sync: 42866.4ms | Speed: 253.6 tok/s
+        [  warmup  1/8] Step:  65.21s | Fwd: 9870.6ms | Bwd: 11385.1ms | Sync: 43634.1ms | Speed: 251.3 tok/s
+        [  warmup  2/8] Step:  64.22s | Fwd: 9563.6ms | Bwd: 11532.9ms | Sync: 42861.0ms | Speed: 255.1 tok/s
+        [bench #2  3/8] Step:  64.92s | Fwd: 10047.7ms | Bwd: 11754.8ms | Sync: 42843.0ms | Speed: 252.4 tok/s
+        [bench #2  4/8] Step:  64.93s | Fwd: 9935.4ms | Bwd: 11900.7ms | Sync: 42825.6ms | Speed: 252.3 tok/s
+        [bench #2  5/8] Step:  64.28s | Fwd: 9770.1ms | Bwd: 11378.8ms | Sync: 42863.1ms | Speed: 254.9 tok/s
+        [bench #2  6/8] Step:  64.79s | Fwd: 9988.2ms | Bwd: 11688.0ms | Sync: 42847.6ms | Speed: 252.9 tok/s
+        [bench #2  7/8] Step:  64.64s | Fwd: 9757.3ms | Bwd: 11766.4ms | Sync: 42846.6ms | Speed: 253.5 tok/s
+        [bench #2  8/8] Step:  64.39s | Fwd: 9765.5ms | Bwd: 11500.3ms | Sync: 42854.6ms | Speed: 254.5 tok/s
+        [  warmup  1/8] Step:  65.20s | Fwd: 9852.7ms | Bwd: 11487.4ms | Sync: 43547.2ms | Speed: 251.3 tok/s
+        [  warmup  2/8] Step:  64.12s | Fwd: 9619.6ms | Bwd: 11366.6ms | Sync: 42867.5ms | Speed: 255.5 tok/s
+        [bench #3  3/8] Step:  64.28s | Fwd: 9627.7ms | Bwd: 11529.7ms | Sync: 42855.5ms | Speed: 254.9 tok/s
+        [bench #3  4/8] Step:  64.71s | Fwd: 9901.1ms | Bwd: 11693.4ms | Sync: 42841.3ms | Speed: 253.2 tok/s
+        [bench #3  5/8] Step:  64.44s | Fwd: 9828.6ms | Bwd: 11486.1ms | Sync: 42857.8ms | Speed: 254.3 tok/s
+        [bench #3  6/8] Step:  64.24s | Fwd: 9590.7ms | Bwd: 11533.9ms | Sync: 42852.7ms | Speed: 255.0 tok/s
+        [bench #3  7/8] Step:  64.70s | Fwd: 9940.9ms | Bwd: 11644.8ms | Sync: 42838.0ms | Speed: 253.2 tok/s
+        [bench #3  8/8] Step:  65.22s | Fwd: 10318.7ms | Bwd: 11802.3ms | Sync: 42836.9ms | Speed: 251.2 tok/s
+    --> K=16 Summary: 253.17 ± 0.59 tokens/sec | Step: 64.715s | AllReduce: 42847.3ms
+
+>>> [GPT-2 Small | GLOBAL] Benchmarking K=32 (microbatch=1, global=32768 tokens)...
+        [  warmup  1/8] Step:  87.80s | Fwd: 20375.3ms | Bwd: 23593.8ms | Sync: 43501.1ms | Speed: 373.2 tok/s
+        [  warmup  2/8] Step:  87.12s | Fwd: 20144.9ms | Bwd: 23858.3ms | Sync: 42840.7ms | Speed: 376.1 tok/s
+        [bench #1  3/8] Step:  87.63s | Fwd: 20566.8ms | Bwd: 23958.5ms | Sync: 42829.4ms | Speed: 373.9 tok/s
+        [bench #1  4/8] Step:  86.92s | Fwd: 20084.3ms | Bwd: 23721.6ms | Sync: 42842.3ms | Speed: 377.0 tok/s
+        [bench #1  5/8] Step:  87.35s | Fwd: 20402.4ms | Bwd: 23836.6ms | Sync: 42839.7ms | Speed: 375.1 tok/s
+        [bench #1  6/8] Step:  87.78s | Fwd: 20597.1ms | Bwd: 24091.6ms | Sync: 42820.3ms | Speed: 373.3 tok/s
+        [bench #1  7/8] Step:  88.26s | Fwd: 21224.9ms | Bwd: 23934.3ms | Sync: 42828.4ms | Speed: 371.3 tok/s
+        [bench #1  8/8] Step:  87.68s | Fwd: 20647.4ms | Bwd: 23937.0ms | Sync: 42830.4ms | Speed: 373.7 tok/s
+        [  warmup  1/8] Step:  87.59s | Fwd: 20069.0ms | Bwd: 23722.6ms | Sync: 43480.2ms | Speed: 374.1 tok/s
+        [  warmup  2/8] Step:  87.34s | Fwd: 20317.8ms | Bwd: 23920.8ms | Sync: 42829.3ms | Speed: 375.2 tok/s
+        [bench #2  3/8] Step:  86.88s | Fwd: 19966.5ms | Bwd: 23819.6ms | Sync: 42830.4ms | Speed: 377.1 tok/s
+        [bench #2  4/8] Step:  87.30s | Fwd: 20180.1ms | Bwd: 24035.4ms | Sync: 42815.8ms | Speed: 375.4 tok/s
+        [bench #2  5/8] Step:  86.94s | Fwd: 20097.1ms | Bwd: 23736.1ms | Sync: 42831.2ms | Speed: 376.9 tok/s
+        [bench #2  6/8] Step:  87.11s | Fwd: 20118.2ms | Bwd: 23882.7ms | Sync: 42841.6ms | Speed: 376.2 tok/s
+        [bench #2  7/8] Step:  87.57s | Fwd: 20612.7ms | Bwd: 23854.1ms | Sync: 42827.6ms | Speed: 374.2 tok/s
+        [bench #2  8/8] Step:  87.15s | Fwd: 19996.8ms | Bwd: 24068.8ms | Sync: 42817.1ms | Speed: 376.0 tok/s
+        [  warmup  1/8] Step:  87.63s | Fwd: 20050.5ms | Bwd: 23753.3ms | Sync: 43497.5ms | Speed: 373.9 tok/s
+        [  warmup  2/8] Step:  86.81s | Fwd: 20121.8ms | Bwd: 23588.8ms | Sync: 42834.9ms | Speed: 377.4 tok/s
+        [bench #3  3/8] Step:  87.35s | Fwd: 20394.0ms | Bwd: 23853.9ms | Sync: 42827.2ms | Speed: 375.1 tok/s
+        [bench #3  4/8] Step:  87.13s | Fwd: 20110.2ms | Bwd: 23920.1ms | Sync: 42831.1ms | Speed: 376.1 tok/s
+        [bench #3  5/8] Step:  87.20s | Fwd: 20162.4ms | Bwd: 23948.0ms | Sync: 42825.7ms | Speed: 375.8 tok/s
+        [bench #3  6/8] Step:  87.38s | Fwd: 20348.0ms | Bwd: 23949.6ms | Sync: 42819.6ms | Speed: 375.0 tok/s
+        [bench #3  7/8] Step:  87.34s | Fwd: 20163.1ms | Bwd: 24062.5ms | Sync: 42834.5ms | Speed: 375.2 tok/s
+        [bench #3  8/8] Step:  87.00s | Fwd: 20067.5ms | Bwd: 23845.5ms | Sync: 42816.3ms | Speed: 376.7 tok/s
+    --> K=32 Summary: 375.23 ± 1.0 tokens/sec | Step: 87.331s | AllReduce: 42828.2ms
+
+>>> [GPT-2 Small | GLOBAL] Benchmarking K=64 (microbatch=1, global=65536 tokens)...
+        [  warmup  1/8] Step: 133.19s | Fwd: 41201.2ms | Bwd: 48167.4ms | Sync: 43492.4ms | Speed: 492.0 tok/s
+        [  warmup  2/8] Step: 133.17s | Fwd: 41380.1ms | Bwd: 48685.8ms | Sync: 42827.9ms | Speed: 492.1 tok/s
+        [bench #1  3/8] Step: 133.44s | Fwd: 41684.8ms | Bwd: 48651.5ms | Sync: 42834.0ms | Speed: 491.1 tok/s
+        [bench #1  4/8] Step: 133.44s | Fwd: 41378.9ms | Bwd: 48961.3ms | Sync: 42818.8ms | Speed: 491.1 tok/s
+        [bench #1  5/8] Step: 133.53s | Fwd: 41600.1ms | Bwd: 48835.6ms | Sync: 42821.7ms | Speed: 490.8 tok/s
+        [bench #1  6/8] Step: 132.22s | Fwd: 40519.4ms | Bwd: 48606.0ms | Sync: 42819.6ms | Speed: 495.7 tok/s
+        [bench #1  7/8] Step: 132.18s | Fwd: 40579.1ms | Bwd: 48518.3ms | Sync: 42813.0ms | Speed: 495.8 tok/s
+        [bench #1  8/8] Step: 133.54s | Fwd: 41615.1ms | Bwd: 48850.1ms | Sync: 42807.1ms | Speed: 490.7 tok/s
+        [  warmup  1/8] Step: 132.68s | Fwd: 40616.1ms | Bwd: 48266.7ms | Sync: 43477.3ms | Speed: 493.9 tok/s
+        [  warmup  2/8] Step: 132.54s | Fwd: 40688.9ms | Bwd: 48762.3ms | Sync: 42814.6ms | Speed: 494.5 tok/s
+        [bench #2  3/8] Step: 132.50s | Fwd: 40696.8ms | Bwd: 48686.5ms | Sync: 42840.2ms | Speed: 494.6 tok/s
+        [bench #2  4/8] Step: 132.76s | Fwd: 40961.1ms | Bwd: 48681.9ms | Sync: 42836.9ms | Speed: 493.7 tok/s
+        [bench #2  5/8] Step: 132.66s | Fwd: 40880.4ms | Bwd: 48693.9ms | Sync: 42812.0ms | Speed: 494.0 tok/s
+        [bench #2  6/8] Step: 132.57s | Fwd: 40878.3ms | Bwd: 48508.8ms | Sync: 42904.4ms | Speed: 494.4 tok/s
+        [bench #2  7/8] Step: 132.76s | Fwd: 40799.9ms | Bwd: 48861.9ms | Sync: 42831.4ms | Speed: 493.6 tok/s
+        [bench #2  8/8] Step: 133.80s | Fwd: 41683.7ms | Bwd: 49022.4ms | Sync: 42814.4ms | Speed: 489.8 tok/s
+        [  warmup  1/8] Step: 133.02s | Fwd: 40534.5ms | Bwd: 48688.4ms | Sync: 43470.5ms | Speed: 492.7 tok/s
+        [  warmup  2/8] Step: 132.53s | Fwd: 40576.6ms | Bwd: 48850.7ms | Sync: 42823.2ms | Speed: 494.5 tok/s
+        [bench #3  3/8] Step: 132.67s | Fwd: 40819.6ms | Bwd: 48753.1ms | Sync: 42820.7ms | Speed: 494.0 tok/s
+        [bench #3  4/8] Step: 132.84s | Fwd: 40851.7ms | Bwd: 48897.7ms | Sync: 42814.3ms | Speed: 493.4 tok/s
+        [bench #3  5/8] Step: 132.95s | Fwd: 40815.3ms | Bwd: 49023.5ms | Sync: 42834.1ms | Speed: 492.9 tok/s
+        [bench #3  6/8] Step: 132.24s | Fwd: 40603.9ms | Bwd: 48543.7ms | Sync: 42815.0ms | Speed: 495.6 tok/s
+        [bench #3  7/8] Step: 133.14s | Fwd: 41065.6ms | Bwd: 48982.7ms | Sync: 42824.4ms | Speed: 492.2 tok/s
+        [bench #3  8/8] Step: 132.42s | Fwd: 40307.0ms | Bwd: 49013.4ms | Sync: 42823.0ms | Speed: 494.9 tok/s
+    --> K=64 Summary: 493.2 ± 0.66 tokens/sec | Step: 132.870s | AllReduce: 42826.9ms
+
+======================================================================
+  CPU CLUSTER LAB — EMPIRICAL SCALING BENCHMARK REPORT
+  Generated : 2026-11-22 08:39:14
+  Cluster   : 2 Nodes  |  Master: 192.168.9.136
+  Mode      : GLOBAL  |  Reporter: node01
+======================================================================
+
+  Model / Task           K    Global Batch   Step Time (s)    Throughput (μ ± σ)  
+  ------------------------------------------------------------------
+  ResNet-18              1    64             4.028 s          15.9 ± 0.0 images/sec
+  ResNet-18              2    64             4.114 s          15.57 ± 0.06 images/sec
+  ResNet-18              4    64             4.191 s          15.3 ± 0.0 images/sec
+  ResNet-18              8    64             4.288 s          14.9 ± 0.0 images/sec
+  ResNet-18              16   64             4.467 s          14.33 ± 0.06 images/sec
+  ResNet-18              32   64             4.586 s          13.93 ± 0.23 images/sec
+  ResNet-18              64   128            5.347 s          23.93 ± 0.06 images/sec
+  GPT-2 Small            1    4096           46.753 s         87.63 ± 0.06 tokens/sec
+  GPT-2 Small            2    4096           47.708 s         85.87 ± 0.06 tokens/sec
+  GPT-2 Small            4    4096           48.380 s         84.67 ± 0.15 tokens/sec
+  GPT-2 Small            8    8192           53.675 s         152.6 ± 0.1 tokens/sec
+  GPT-2 Small            16   16384          64.715 s         253.17 ± 0.59 tokens/sec
+  GPT-2 Small            32   32768          87.331 s         375.23 ± 1.0 tokens/sec
+  GPT-2 Small            64   65536          132.870 s        493.2 ± 0.66 tokens/sec
+
+  Timing Breakdown (ms):
+  Model            K    Forward (ms)   Backward (ms)  AllReduce (ms)   Optimizer (ms)
+  ------------------------------------------------------------------
+  ResNet-18        1    89.7           0.0            3929.4           4.2           
+  ResNet-18        2    87.3           180.6          3839.7           4.1           
+  ResNet-18        4    102.6          208.2          3873.5           4.2           
+  ResNet-18        8    126.8          254.8          3899.6           4.2           
+  ResNet-18        16   161.9          355.8          3941.6           4.1           
+  ResNet-18        32   188.3          428.8          3961.9           4.1           
+  ResNet-18        64   442.1          950.5          3943.4           4.2           
+  GPT-2 Small      1    2493.8         0.0            43984.4          270.5         
+  GPT-2 Small      2    2399.1         2582.6         42459.1          266.8         
+  GPT-2 Small      4    2435.6         2772.7         42904.4          266.6         
+  GPT-2 Small      8    4856.4         5631.6         42919.1          266.6         
+  GPT-2 Small      16   9946.9         11652.4        42847.3          265.8         
+  GPT-2 Small      32   20318.9        23914.2        42828.2          265.8         
+  GPT-2 Small      64   40985.6        48782.9        42826.9          266.4         
+======================================================================
+  All measurements collected on bare-metal hardware.
+  AllReduce represents blocking collective network synchronization.
+======================================================================
+
+  ✓ Summary CSV : results/session_20261121_200541_1core/03_sweep_fixed_global_batch/summary_global_2nodes_20261122_045738.csv
+  ✓ Raw Trials  : results/session_20261121_200541_1core/03_sweep_fixed_global_batch/raw_trials/raw_trials_2nodes_20261122_045738.csv
+  ✓ Timings     : results/session_20261121_200541_1core/04_step_time_breakdown/timing_decomposition_global_2nodes_20261122_045738.csv
+  ✓ Text Report : results/session_20261121_200541_1core/03_sweep_fixed_global_batch/report_global_2nodes_20261122_045738.txt
+
+    ✓ Fixed-Global-Batch Sweep completed!
+    ⏱ Stage 5 Duration: 03h 41m 39s (13299s)
+  [cleanup] Clearing stale cluster training processes and port 29500...
+
+======================================================================
+>>> [Stage 5b/6] Running Training Convergence Verification (Exp 5 / Fig 4)...
+    Verifying loss decrease on ResNet-18 (CIFAR-10) and GPT-2 (WikiText-2)
+======================================================================
+  [1/2] Training ResNet-18 on CIFAR-10 (2 epochs)...
+
+==============================================
+  MASTER NODE | rank=0 | world_size=2
+  Script    : src/02_train_cifar.py
+  Args      : --epochs 2
+  Address   : 192.168.9.136:29500
+  Interface : enp2s0
+  [Auto-Launch] Starting Worker (rank 1) on 192.168.9.135 (logging to results/session_20261121_200541_1core/worker_logs/worker_192.168.9.135.log)...
+  All workers dispatched. Starting master process...
+==============================================
+
+
+=================================================================
+  DISTRIBUTED CIFAR-10 TRAINING — CPU Cluster Lab
+  Nodes      : 2
+  Model      : ResNet-18 (~11M params)
+  Dataset    : CIFAR-10 (60,000 images, 10 classes)
+  Batch/node : 32  |  Global batch: 64
+  Epochs     : 2
+  Backend    : gloo
+=================================================================
+  Parameters : 11.2M
+
+  Epoch      Loss   Acc (%)   Time (s)   Imgs/sec
+  ----------------------------------------------
+
+>>> Starting Epoch 1/2 ...
+  [Epoch  1/2 | Batch   1/782 ( 0.1%)] Loss: 2.2562 (avg: 2.2562) | 225.1 imgs/s
+  [Epoch  1/2 | Batch  25/782 ( 3.2%)] Loss: 2.2217 (avg: 2.2995) | 237.4 imgs/s
+  [Epoch  1/2 | Batch  50/782 ( 6.4%)] Loss: 2.1554 (avg: 2.2576) | 235.8 imgs/s
+  [Epoch  1/2 | Batch  75/782 ( 9.6%)] Loss: 2.1659 (avg: 2.2169) | 241.8 imgs/s
+  [Epoch  1/2 | Batch 100/782 (12.8%)] Loss: 1.9267 (avg: 2.1796) |  15.6 imgs/s
+  [Epoch  1/2 | Batch 125/782 (16.0%)] Loss: 2.0670 (avg: 2.1397) | 242.3 imgs/s
+  [Epoch  1/2 | Batch 150/782 (19.2%)] Loss: 2.2171 (avg: 2.1006) | 233.7 imgs/s
+  [Epoch  1/2 | Batch 175/782 (22.4%)] Loss: 1.8779 (avg: 2.0614) | 234.9 imgs/s
+  [Epoch  1/2 | Batch 200/782 (25.6%)] Loss: 1.7071 (avg: 2.0267) |  15.8 imgs/s
+  [Epoch  1/2 | Batch 225/782 (28.8%)] Loss: 1.7571 (avg: 1.9979) | 244.7 imgs/s
+  [Epoch  1/2 | Batch 250/782 (32.0%)] Loss: 1.9057 (avg: 1.9692) | 235.8 imgs/s
+  [Epoch  1/2 | Batch 275/782 (35.2%)] Loss: 1.6127 (avg: 1.9467) | 235.7 imgs/s
+  [Epoch  1/2 | Batch 300/782 (38.4%)] Loss: 1.7670 (avg: 1.9297) |  15.9 imgs/s
+  [Epoch  1/2 | Batch 325/782 (41.6%)] Loss: 1.4858 (avg: 1.9130) | 239.4 imgs/s
+  [Epoch  1/2 | Batch 350/782 (44.8%)] Loss: 1.7716 (avg: 1.8962) | 240.4 imgs/s
+  [Epoch  1/2 | Batch 375/782 (48.0%)] Loss: 1.7870 (avg: 1.8804) | 238.1 imgs/s
+  [Epoch  1/2 | Batch 400/782 (51.2%)] Loss: 1.8357 (avg: 1.8629) |  15.9 imgs/s
+  [Epoch  1/2 | Batch 425/782 (54.3%)] Loss: 1.6735 (avg: 1.8492) | 237.6 imgs/s
+  [Epoch  1/2 | Batch 450/782 (57.5%)] Loss: 1.5411 (avg: 1.8318) | 236.1 imgs/s
+  [Epoch  1/2 | Batch 475/782 (60.7%)] Loss: 1.3555 (avg: 1.8169) | 236.5 imgs/s
+  [Epoch  1/2 | Batch 500/782 (63.9%)] Loss: 1.5591 (avg: 1.8087) |  15.9 imgs/s
+  [Epoch  1/2 | Batch 525/782 (67.1%)] Loss: 1.1741 (avg: 1.7955) | 237.3 imgs/s
+  [Epoch  1/2 | Batch 550/782 (70.3%)] Loss: 1.3003 (avg: 1.7834) | 235.3 imgs/s
+  [Epoch  1/2 | Batch 575/782 (73.5%)] Loss: 1.4655 (avg: 1.7733) | 235.9 imgs/s
+  [Epoch  1/2 | Batch 600/782 (76.7%)] Loss: 1.3678 (avg: 1.7615) |  15.9 imgs/s
+  [Epoch  1/2 | Batch 625/782 (79.9%)] Loss: 1.2909 (avg: 1.7509) | 229.6 imgs/s
+  [Epoch  1/2 | Batch 650/782 (83.1%)] Loss: 1.1347 (avg: 1.7420) | 235.1 imgs/s
+  [Epoch  1/2 | Batch 675/782 (86.3%)] Loss: 1.6538 (avg: 1.7329) | 234.2 imgs/s
+  [Epoch  1/2 | Batch 700/782 (89.5%)] Loss: 1.4372 (avg: 1.7226) |  15.9 imgs/s
+  [Epoch  1/2 | Batch 725/782 (92.7%)] Loss: 1.4026 (avg: 1.7126) | 237.8 imgs/s
+  [Epoch  1/2 | Batch 750/782 (95.9%)] Loss: 1.5509 (avg: 1.7009) | 235.7 imgs/s
+  [Epoch  1/2 | Batch 775/782 (99.1%)] Loss: 1.4705 (avg: 1.6899) | 236.4 imgs/s
+  [Epoch  1/2 | Batch 782/782 (100.0%)] Loss: 1.4904 (avg: 1.6885) |   4.0 imgs/s
+  [Evaluating Epoch 1 Test Accuracy...]
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/02_train_cifar.py", line 328, in <module>
+[rank0]:     main()
+[rank0]:     ~~~~^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/02_train_cifar.py", line 268, in main
+[rank0]:     test_acc = evaluate(model, test_loader, criterion)
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/02_train_cifar.py", line 183, in evaluate
+[rank0]:     outputs = model(inputs)
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/nn/modules/module.py", line 1787, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/nn/modules/module.py", line 1798, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/nn/parallel/distributed.py", line 1908, in forward
+[rank0]:     inputs, kwargs = self._pre_forward(*inputs, **kwargs)
+[rank0]:                      ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/nn/parallel/distributed.py", line 1804, in _pre_forward
+[rank0]:     self._sync_buffers()
+[rank0]:     ~~~~~~~~~~~~~~~~~~^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/nn/parallel/distributed.py", line 2447, in _sync_buffers
+[rank0]:     self._sync_module_buffers(authoritative_rank)
+[rank0]:     ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/nn/parallel/distributed.py", line 2451, in _sync_module_buffers
+[rank0]:     self._default_broadcast_coalesced(authoritative_rank=authoritative_rank)
+[rank0]:     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/nn/parallel/distributed.py", line 2473, in _default_broadcast_coalesced
+[rank0]:     self._distributed_broadcast_coalesced(bufs, bucket_size, authoritative_rank)
+[rank0]:     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/nn/parallel/distributed.py", line 2385, in _distributed_broadcast_coalesced
+[rank0]:     dist._broadcast_coalesced(
+[rank0]:     ~~~~~~~~~~~~~~~~~~~~~~~~~^
+[rank0]:         self.process_group, tensors, buffer_size, authoritative_rank
+[rank0]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:     )
+[rank0]:     ^
+[rank0]: RuntimeError: [/__w/pytorch/pytorch/third_party/gloo/gloo/transport/tcp/pair.cc:561] Connection closed by peer [192.168.9.135]:65450. This is typically caused by a remote worker crashing. Check the logs of the remote worker before reporting an error. GLHF! 🏖️
+E1122 09:25:19.540000 3697443 torch/distributed/elastic/multiprocessing/api.py:1002] failed (exitcode: 1) local_rank: 0 (pid: 3697480) of binary: /home/cluster/Research/CPU Cluster/.venv/bin/python3
+Traceback (most recent call last):
+  File "/home/cluster/Research/CPU Cluster/.venv/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 384, in wrapper
+    result = f(*args, **kwargs)
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/run.py", line 1138, in main
+    run(args)
+    ~~~^^^^^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/run.py", line 1129, in run
+    elastic_launch(
+    ~~~~~~~~~~~~~~~
+        config=config,
+        ~~~~~~~~~~~~~~
+        entrypoint=cmd,
+        ~~~~~~~~~~~~~~~
+    )(*cmd_args)
+    ~^^^^^^^^^^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/launcher/api.py", line 197, in __call__
+    return launch_agent(
+        self._config,
+    ...<2 lines>...
+        health_check_server=self._health_check_server,
+    )
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/launcher/api.py", line 386, in launch_agent
+    raise ChildFailedError(
+    ...<2 lines>...
+    )
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+src/02_train_cifar.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-11-22_09:25:19
+  host      : node01
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 3697480) 
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+  [cleanup] Clearing stale cluster training processes and port 29500...
+  [2/2] Training GPT-2 Small on WikiText-2 (15 steps)...
+
+==============================================
+  MASTER NODE | rank=0 | world_size=2
+  Script    : src/03_train_gpt2.py
+  Args      : --steps 15
+  Address   : 192.168.9.136:29500
+  Interface : enp2s0
+  [Auto-Launch] Starting Worker (rank 1) on 192.168.9.135 (logging to results/session_20261121_200541_1core/worker_logs/worker_192.168.9.135.log)...
+  All workers dispatched. Starting master process...
+==============================================
+
+
+=================================================================
+  DISTRIBUTED GPT-2 TRAINING — CPU Cluster Lab
+  Nodes      : 2
+  Model      : GPT-2 Small (117M parameters)
+  Dataset    : WikiText-2
+  Seq length : 512 tokens
+  Batch/node : 4  |  Global: 8
+  Steps      : 15
+  Backend    : gloo
+=================================================================
+  Loading WikiText-2 (train)...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (2415650 > 1024). Running this sequence through the model will result in indexing errors
+  Dataset : 4708 chunks × 513 tokens ready ✓
+  Parameters : 124.0M
+
+    Step      Loss         PPL     Tok/sec   Time(s)
+  --------------------------------------------------
+[transformers] `loss_type=None` was set in the config but it is unrecognized. Using the default loss: `ForCausalLMLoss`.
+       1   10.9708    58153.18       251.1    65.259
+       2   10.0670    23552.02       258.8    63.306
+       3    9.6336    15269.63       261.9    62.555
+       4    9.4167    12292.11       261.5    62.647
+       5    9.2021     9917.63       259.1    63.223
+       6    8.9910     8030.84       259.6    63.107
+       7    8.7975     6617.85       259.2    63.210
+       8    8.5673     5256.76       260.0    63.017
+       9    8.4765     4800.43       258.9    63.284
+      10    8.2603     3867.43       261.1    62.753
+      11    8.1465     3451.23       260.3    62.945
+      12    7.9132     2733.20       261.6    62.633
+      13    7.8804     2644.91       259.9    63.050
+      14    7.6664     2135.42       260.5    62.905
+      15    7.5850     1968.37       259.3    63.188
+
+=================================================================
+  TRAINING COMPLETE
+  Final loss       : 7.5850
+  Final perplexity : 1968.37
+  Avg tokens/sec   : 259.5 (global, 2 nodes)
+  Results saved    : results/session_20261121_200541_1core/gpt2_2nodes_20261122_094345.csv
+=================================================================
+
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/03_train_gpt2.py", line 271, in <module>
+[rank0]:     main()
+[rank0]:     ~~~~^^
+[rank0]:   File "/home/cluster/Research/CPU Cluster/src/03_train_gpt2.py", line 265, in main
+[rank0]:     writer.close()
+[rank0]:     ^^^^^^^^^^^^
+[rank0]: AttributeError: 'DictWriter' object has no attribute 'close'
+E1122 09:43:46.570000 3757903 torch/distributed/elastic/multiprocessing/api.py:1002] failed (exitcode: 1) local_rank: 0 (pid: 3757942) of binary: /home/cluster/Research/CPU Cluster/.venv/bin/python3
+Traceback (most recent call last):
+  File "/home/cluster/Research/CPU Cluster/.venv/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 384, in wrapper
+    result = f(*args, **kwargs)
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/run.py", line 1138, in main
+    run(args)
+    ~~~^^^^^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/run.py", line 1129, in run
+    elastic_launch(
+    ~~~~~~~~~~~~~~~
+        config=config,
+        ~~~~~~~~~~~~~~
+        entrypoint=cmd,
+        ~~~~~~~~~~~~~~~
+    )(*cmd_args)
+    ~^^^^^^^^^^^
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/launcher/api.py", line 197, in __call__
+    return launch_agent(
+        self._config,
+    ...<2 lines>...
+        health_check_server=self._health_check_server,
+    )
+  File "/home/cluster/Research/CPU Cluster/.venv/lib/python3.14/site-packages/torch/distributed/launcher/api.py", line 386, in launch_agent
+    raise ChildFailedError(
+    ...<2 lines>...
+    )
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+src/03_train_gpt2.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-11-22_09:43:46
+  host      : node01
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 3757942) 
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+  [cleanup] Clearing stale cluster training processes and port 29500...
+    ✓ Convergence experiments completed!
+    ⏱ Stage 5b Duration: 01h 04m 31s (3871s)
+
+======================================================================
+>>> [Stage 6/6] Generating All 5 Official Publication Figures...
+======================================================================
+
+======================================================================
+  CPU CLUSTER LAB — PUBLICATION FIGURE GENERATOR
+  Source Directory : results/session_20261121_200541_1core/
+  Target Directory : results/session_20261121_200541_1core/figures/
+  Archive Snapshot : results/session_20261121_200541_1core/figures/run_20261122_094349/
+======================================================================
+
+  ✓ Saved   → results/session_20261121_200541_1core/figures/Figure_1_throughput_vs_accumulation.png
+    Archive → results/session_20261121_200541_1core/figures/run_20261122_094349/Figure_1_throughput_vs_accumulation.png
+  ✓ Saved   → results/session_20261121_200541_1core/figures/Figure_2_single_vs_distributed_scaling.png
+    Archive → results/session_20261121_200541_1core/figures/run_20261122_094349/Figure_2_single_vs_distributed_scaling.png
+  ✓ Saved   → results/session_20261121_200541_1core/figures/Figure_3_compute_vs_communication_breakdown.png
+    Archive → results/session_20261121_200541_1core/figures/run_20261122_094349/Figure_3_compute_vs_communication_breakdown.png
+/home/cluster/Research/CPU Cluster/src/05_plot_results.py:341: UserWarning: No artists with labels found to put in legend.  Note that artists whose label start with an underscore are ignored when legend() is called with no argument.
+  ax1.legend()
+  ✓ Saved   → results/session_20261121_200541_1core/figures/Figure_4_training_convergence_comparison.png
+    Archive → results/session_20261121_200541_1core/figures/run_20261122_094349/Figure_4_training_convergence_comparison.png
+  ✓ Saved   → results/session_20261121_200541_1core/figures/Figure_5_bandwidth_sensitivity.png
+    Archive → results/session_20261121_200541_1core/figures/run_20261122_094349/Figure_5_bandwidth_sensitivity.png
+
+======================================================================
+  ✓ All 5 publication figures generated successfully!
+    Inspect results in: results/session_20261121_200541_1core/figures/
+======================================================================
+
+    ✓ Figures generated!
+    ⏱ Stage 6 Duration: 00h 00m 03s (3s)
+
+======================================================================
+  🎉 PIPELINE EXECUTION FINISHED SUCCESSFULLY!
+  End Time       : 2026-11-22 09:43:52
+  Total Duration : 13h 38m 11s (49091s)
+  Session Folder : results/session_20261121_200541_1core
+  Figures        : results/session_20261121_200541_1core/figures/ (mirrored to results/figures/)
+  Log File       : results/session_20261121_200541_1core/pipeline.log
+  Summary Tables : results/session_20261121_200541_1core/02_sweep_fixed_microbatch/
+======================================================================

@@ -1,0 +1,2 @@
+model,task,accum_steps,batch_per_node,effective_node_b,global_batch,trial_id,avg_step_time_s,throughput,unit,world_size,forward_ms,backward_ms,allreduce_ms,optimizer_ms,mode
+GPT-2 Small,GPT-2 Small (117M),2,4,8,8192,1,55.6219,147.3,tokens/sec,2,5336.21,5470.47,44510.11,301.82,single
