@@ -329,14 +329,13 @@ def plot_figure_2_scaling_efficiency(show=False):
     save_fig(fig, "Figure_2_single_vs_distributed_scaling.png", show)
 
 
-# ── Figure 3: Computation vs. Communication Breakdown (Stacked Bar + Trend) ──
+# ── Figure 3: Computation vs. Communication Breakdown (Stacked Bar) ───────────
 
 def plot_figure_3_timing_breakdown(show=False):
     """
-    Figure 3: Dual-Axis Publication Masterpiece:
-      - Left Y-Axis (Stacked Bars): Local Forward Compute, Backward Compute, and AllReduce Barrier (seconds).
-      - Right Y-Axis (Crimson Trendline): Network Synchronization Overhead % plunging from 95% down to 10%!
-    Visually proves the complete inversion of the distributed communication bottleneck.
+    Figure 3: Clean, publication-grade stacked bar chart decomposing total step time into:
+    Forward Compute, Backward Compute, and AllReduce Network Wait (seconds).
+    Shows how the communication bottleneck inverts from 95% down to 10% of step time.
     """
     timing_files = glob.glob(os.path.join(RESULTS_DIR, "04_step_time_breakdown", "timing_decomposition_*.csv"))
     if not timing_files:
@@ -366,63 +365,40 @@ def plot_figure_3_timing_breakdown(show=False):
         gpt_df = df.drop_duplicates(subset=["accum_steps"], keep="last").sort_values("accum_steps")
 
     ks = [f"K={k}" for k in gpt_df["accum_steps"]]
-    x_indices = np.arange(len(ks))
     fwd = np.array(gpt_df[fwd_col]) / 1000.0  # to seconds
     bwd = np.array(gpt_df[bwd_col]) / 1000.0
     ar  = np.array(gpt_df[ar_col])  / 1000.0
 
-    totals = fwd + bwd + ar
-    ar_pcts = (ar / np.maximum(totals, 1e-4)) * 100.0
-
-    fig, ax = plt.subplots(figsize=(10.5, 6))
+    fig, ax = plt.subplots(figsize=(10, 6))
     fig.suptitle("Figure 3: Step Time Breakdown — Local Compute vs. AllReduce Network Wait",
                  fontsize=14, fontweight="bold", y=1.02)
 
-    width = 0.52
-    p1 = ax.bar(x_indices, fwd, width, label="Forward Compute (Local CPU)", color="#4C72B0")
-    p2 = ax.bar(x_indices, bwd, width, bottom=fwd, label="Backward Compute (Local CPU)", color="#55A868")
-    p3 = ax.bar(x_indices, ar,  width, bottom=fwd + bwd, label="AllReduce Network Barrier (100 Mbps)", color="#C44E52")
+    width = 0.55
+    p1 = ax.bar(ks, fwd, width, label="Forward Compute (Local CPU)", color="#4C72B0")
+    p2 = ax.bar(ks, bwd, width, bottom=fwd, label="Backward Compute (Local CPU)", color="#55A868")
+    p3 = ax.bar(ks, ar,  width, bottom=fwd + bwd, label="AllReduce Network Barrier (100 Mbps)", color="#C44E52")
 
-    # Annotate total step time above each stacked bar
-    for i, tot in enumerate(totals):
-        ax.annotate(f"{tot:.1f}s", (i, tot), textcoords="offset points",
-                    xytext=(0, 6), ha="center", fontsize=9, fontweight="bold")
+    totals = fwd + bwd + ar
+    for i, (tot, ar_val) in enumerate(zip(totals, ar)):
+        ar_pct = (ar_val / max(tot, 1e-4)) * 100.0
+        ax.annotate(f"Total: {tot:.1f}s\n(Sync: {ar_pct:.0f}%)",
+                    (i, tot), textcoords="offset points", xytext=(0, 8),
+                    ha="center", fontsize=9, fontweight="bold")
 
     ax.set_ylabel("Step Duration (seconds)", fontsize=11, fontweight="bold")
     ax.set_xlabel("Gradient Accumulation Configuration", fontsize=11, fontweight="bold")
-    ax.set_xticks(x_indices)
-    ax.set_xticklabels(ks)
+    ax.legend(loc="upper left", framealpha=0.92)
     ax.set_ylim(0, max(totals) * 1.25)
-    ax.grid(axis="y", linestyle="--", alpha=0.5)
-
-    # Secondary Twin Axis for Network Synchronization Overhead %
-    ax2 = ax.twinx()
-    ax2.plot(x_indices, ar_pcts, color="#8B0000", linestyle="--", marker="D", markersize=7,
-             linewidth=2.2, label="Network Sync Overhead (%)")
-
-    for i, pct in enumerate(ar_pcts):
-        ax2.annotate(f"{pct:.0f}%", (i, pct), textcoords="offset points",
-                     xytext=(0, 9), ha="center", fontsize=9, fontweight="bold", color="#8B0000")
-
-    ax2.set_ylabel("Network Synchronization Overhead (%)", fontsize=11, fontweight="bold", color="#8B0000")
-    ax2.set_ylim(0, 115)
-    ax2.grid(False)
-
-    # Combined clean legend
-    lines1, labels1 = ax.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax.legend(lines1 + lines2, labels1 + labels2, loc="upper left", framealpha=0.92, fontsize=9.5)
 
     save_fig(fig, "Figure_3_compute_vs_communication_breakdown.png", show)
 
 
-# ── Figure 4: Training Convergence Comparison (Dual-Metric & Smooth Shading) ──
+# ── Figure 4: Training Convergence Comparison (Clean & Spacious) ──────────────
 
 def plot_figure_4_convergence(show=False):
     """
-    Figure 4: Loss curves and validation accuracy verifying numerical convergence across K.
-      - Left Plot: ResNet-18 / CIFAR-10 Cross-Entropy Loss (descending) + Test Accuracy % (ascending).
-      - Right Plot: GPT-2 Small / WikiText-2 Language Model Loss descent over steps.
+    Figure 4: Loss curves verifying numerical convergence across K.
+    Clean single-axis layout with generous spacing to avoid text collisions.
     """
     cifar_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "cifar_*.csv")))
     gpt2_files  = sorted(glob.glob(os.path.join(RESULTS_DIR, "gpt2_*.csv")))
@@ -432,51 +408,42 @@ def plot_figure_4_convergence(show=False):
         return
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+    fig.subplots_adjust(wspace=0.25)
     fig.suptitle("Figure 4: Training Convergence & Loss Stability Across Accumulation Steps",
                  fontsize=14, fontweight="bold", y=1.02)
 
-    # CIFAR (Dual Axis: Loss on left, Accuracy on right)
+    # CIFAR (Clean single-axis with clear accuracy annotations)
     ax1 = axes[0]
     for i, f in enumerate(cifar_files):
         df = pd.read_csv(f)
         k_val = df["accum_steps"].iloc[0] if "accum_steps" in df.columns else "?"
         nodes = df["world_size"].iloc[0] if "world_size" in df.columns else "?"
+        label = f"{nodes} Nodes (K={k_val})"
 
-        l1 = ax1.plot(df["epoch"], df["train_loss"], marker="o", markersize=8, linewidth=2.2,
-                      label=f"Loss ({nodes} Nodes, K={k_val})", color="#4C72B0")
-
-        for ep, loss_val in zip(df["epoch"], df["train_loss"]):
-            ax1.annotate(f"Loss: {loss_val:.2f}", (ep, loss_val),
-                         textcoords="offset points", xytext=(0, 10 if ep == 1 else -18),
-                         ha="center", fontsize=9, fontweight="bold", color="#4C72B0")
+        ax1.plot(df["epoch"], df["train_loss"], marker="o", markersize=8, linewidth=2.2,
+                 label=label, color=COLORS[i % len(COLORS)])
 
         if "test_acc_pct" in df.columns:
-            ax1_twin = ax1.twinx()
-            l2 = ax1_twin.plot(df["epoch"], df["test_acc_pct"], marker="s", markersize=8, linewidth=2.2,
-                               linestyle="--", label="Test Accuracy (%)", color="#55A868")
-            for ep, acc in zip(df["epoch"], df["test_acc_pct"]):
-                ax1_twin.annotate(f"{acc:.1f}% Acc", (ep, acc),
-                                  textcoords="offset points", xytext=(0, 10 if ep == 2 else -18),
-                                  ha="center", fontsize=9, fontweight="bold", color="#55A868")
-            ax1_twin.set_ylabel("CIFAR-10 Test Accuracy (%)", fontsize=11, fontweight="bold", color="#55A868")
-            ax1_twin.set_ylim(40, 70)
-            ax1_twin.grid(False)
-
-            # Combined legend
-            lines = l1 + l2
-            labels = [l.get_label() for l in lines]
-            ax1.legend(lines, labels, loc="center left", framealpha=0.92)
+            for ep, loss_val, acc in zip(df["epoch"], df["train_loss"], df["test_acc_pct"]):
+                ax1.annotate(f"Epoch {ep:.0f}: {loss_val:.2f} ({acc:.1f}% Acc)",
+                             (ep, loss_val), textcoords="offset points",
+                             xytext=(0, 10 if ep == 1 else -18),
+                             ha="center", fontsize=9, fontweight="bold")
         else:
-            ax1.legend(loc="upper right")
+            for ep, loss_val in zip(df["epoch"], df["train_loss"]):
+                ax1.annotate(f"Loss: {loss_val:.2f}", (ep, loss_val),
+                             textcoords="offset points", xytext=(0, 10 if ep == 1 else -18),
+                             ha="center", fontsize=9, fontweight="bold")
 
-    ax1.set_title("ResNet-18 / CIFAR-10 Convergence", fontsize=12, fontweight="bold")
+    ax1.set_title("ResNet-18 / CIFAR-10 Loss", fontsize=12, fontweight="bold")
     ax1.set_xlabel("Epoch", fontsize=11, fontweight="bold")
-    ax1.set_ylabel("Training Cross-Entropy Loss", fontsize=11, fontweight="bold", color="#4C72B0")
-    ax1.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-    ax1.set_xlim(0.8, 2.2)
+    ax1.set_ylabel("Training Cross-Entropy Loss", fontsize=11, fontweight="bold")
+    ax1.set_xticks([1, 2])
+    ax1.set_xlim(0.7, 2.3)
     ax1.set_ylim(1.15, 1.85)
+    ax1.legend(loc="upper right", framealpha=0.92)
 
-    # GPT-2
+    # GPT-2 (Clean single-axis with start/final loss callouts)
     ax2 = axes[1]
     for i, f in enumerate(gpt2_files):
         df = pd.read_csv(f)
@@ -484,21 +451,21 @@ def plot_figure_4_convergence(show=False):
         nodes = df["world_size"].iloc[0] if "world_size" in df.columns else "?"
         label = f"{nodes} Nodes (K={k_val})"
 
-        ax2.plot(df["step"], df["loss"], marker="o", markersize=5, linewidth=2.2,
-                 label=label, color="#4C72B0")
-        ax2.fill_between(df["step"], df["loss"], min(df["loss"]) * 0.95, color="#4C72B0", alpha=0.12)
+        ax2.plot(df["step"], df["loss"], marker="o", markersize=5, linewidth=2.0,
+                 label=label, color=COLORS[i % len(COLORS)])
 
-        # Annotate initial and final loss
         first_step, first_loss = df["step"].iloc[0], df["loss"].iloc[0]
         last_step, last_loss   = df["step"].iloc[-1], df["loss"].iloc[-1]
-        ax2.annotate(f"Start: {first_loss:.2f}", (first_step, first_loss),
-                     textcoords="offset points", xytext=(20, 5), fontsize=9, fontweight="bold")
-        ax2.annotate(f"Final: {last_loss:.2f}\n(PPL: {np.exp(last_loss):.0f})", (last_step, last_loss),
-                     textcoords="offset points", xytext=(-25, 15), fontsize=9, fontweight="bold")
 
-    ax2.set_title("GPT-2 Small / WikiText-2 Language Model Loss", fontsize=12, fontweight="bold")
+        ax2.annotate(f"Start: {first_loss:.2f}", (first_step, first_loss),
+                     textcoords="offset points", xytext=(15, 6), fontsize=9, fontweight="bold")
+        ax2.annotate(f"Final: {last_loss:.2f}", (last_step, last_loss),
+                     textcoords="offset points", xytext=(-20, 12), fontsize=9, fontweight="bold")
+
+    ax2.set_title("GPT-2 Small / WikiText-2 Loss", fontsize=12, fontweight="bold")
     ax2.set_xlabel("Optimizer Step", fontsize=11, fontweight="bold")
     ax2.set_ylabel("Language Model Loss (Cross-Entropy)", fontsize=11, fontweight="bold")
+    ax2.set_ylim(7.0, 11.5)
     ax2.legend(loc="upper right", framealpha=0.92)
 
     save_fig(fig, "Figure_4_training_convergence_comparison.png", show)
