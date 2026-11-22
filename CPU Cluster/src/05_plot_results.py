@@ -77,20 +77,62 @@ def save_fig(fig, name, show=False):
 
 # ── Figure 1: Throughput vs. Accumulation Factor (K) ──────────────────────────
 
+def _render_fig1_axis(ax, sub, base_tput, task, title_prefix, unit, color_idx=0):
+    ks = list(sub["accum_steps"])
+    x_indices = np.arange(len(ks))
+
+    tput = sub["throughput_mean"].values if "throughput_mean" in sub.columns else sub["throughput"].values
+    yerr = sub["throughput_std"].values if "throughput_std" in sub.columns else None
+
+    max_y = max(max(tput), base_tput) * 1.25
+    ax.axhspan(base_tput, max_y, color="#2CA02C", alpha=0.06, label="_nolegend_")
+    ax.axhspan(0, base_tput, color="#D95F02", alpha=0.04, label="_nolegend_")
+
+    ax.axhline(base_tput, color="#D95F02", linestyle="--", linewidth=2.0,
+               label=f"1-Node Baseline ({base_tput:.1f} {unit})")
+
+    ax.errorbar(x_indices, tput, yerr=yerr, marker="o", markersize=8, linewidth=2.2,
+                capsize=5, capthick=1.5, color=COLORS[color_idx % len(COLORS)], label="2-Node Cluster")
+
+    for xi, y_val in zip(x_indices, tput):
+        ax.annotate(f"{y_val:.1f}", (xi, y_val), textcoords="offset points",
+                    xytext=(0, 9), ha="center", fontweight="bold", fontsize=10)
+
+    crossover_idx = np.where(tput > base_tput)[0]
+    if len(crossover_idx) > 0:
+        c_idx = crossover_idx[0]
+        c_k = ks[c_idx]
+        c_val = tput[c_idx]
+        ax.scatter([c_idx], [c_val], color="crimson", s=110, zorder=5)
+        ax.annotate(f"Crossover (K={c_k})\nCluster beats 1-Node",
+                    (c_idx, c_val), textcoords="offset points",
+                    xytext=(-25, 24), ha="center", fontsize=8.5, fontweight="bold",
+                    color="darkred",
+                    arrowprops=dict(arrowstyle="->", color="darkred", lw=1.2))
+
+    prefix = f"({title_prefix}) " if title_prefix else ""
+    ax.set_title(f"{prefix}{task} Throughput", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Accumulation Steps (K)", fontsize=11, fontweight="bold")
+    ax.set_ylabel(f"Throughput ({unit})", fontsize=11, fontweight="bold")
+    ax.set_xticks(x_indices)
+    ax.set_xticklabels([str(k) for k in ks])
+    ax.set_xlim(-0.4, len(ks) - 0.6)
+    ax.set_ylim(0, max_y)
+    ax.legend(loc="lower right", framealpha=0.92)
+
+
 def plot_figure_1_throughput_vs_k(show=False):
     """
     Figure 1: Saturation curve of training throughput vs K with error bars.
-    Includes the 1-Node Baseline to explicitly show the crossover point where
-    distributed multi-node training out-scales single-node execution.
-    Reads strictly from fixed-microbatch sweep CSVs.
-    Uses equidistant categorical x-axis spacing for publication clarity.
+    Generates:
+      - Figure_1_throughput_vs_accumulation.png (Combined dual-panel)
+      - Figure_1a_ResNet18_throughput.png (Standalone solo)
+      - Figure_1b_GPT2_throughput.png (Standalone solo)
     """
-    # 1. Load 1-node baseline files
     single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "01_single_node_baseline", "summary_*.csv")))
     if not single_files:
         single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_1nodes_*.csv")))
 
-    # 2. Load 2-node cluster results (strictly from fixed-microbatch sweep)
     files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
     if not files:
         files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "*.csv")))
@@ -104,7 +146,6 @@ def plot_figure_1_throughput_vs_k(show=False):
     df_single = pd.concat([pd.read_csv(f) for f in single_files], ignore_index=True) if single_files else pd.DataFrame()
     df_all = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
 
-    # Filter mode == micro if column present to prevent any fixed-global-batch mixing
     if "mode" in df_all.columns:
         df_all = df_all[df_all["mode"] == "micro"]
 
@@ -119,10 +160,11 @@ def plot_figure_1_throughput_vs_k(show=False):
         "GPT-2 Small (117M)": 359.5,
     }
 
+    # 1. Combined Dual-Panel Figure
     fig, axes = plt.subplots(1, len(tasks), figsize=(7.5 * len(tasks), 5.5))
     if len(tasks) == 1:
         axes = [axes]
-
+    fig.subplots_adjust(wspace=0.25)
     fig.suptitle("Figure 1: Training Throughput vs. Gradient Accumulation Steps (K)",
                  fontsize=14, fontweight="bold", y=1.02)
 
@@ -130,82 +172,140 @@ def plot_figure_1_throughput_vs_k(show=False):
         sub = df_all[df_all["task"] == task].sort_values("accum_steps")
         if "world_size" in sub.columns:
             sub = sub[sub["world_size"] == sub["world_size"].max()]
-
         sub = sub.drop_duplicates(subset=["accum_steps"], keep="last")
 
-        ks = list(sub["accum_steps"])
-        x_indices = np.arange(len(ks))
-        unit = sub["unit"].iloc[0]
-
-        # Determine 1-node baseline
         base_tput = fallback_single_tput.get(task, 113.2)
         if not df_single.empty and "task" in df_single.columns:
             sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
             if not sub1.empty:
                 base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
 
-        tput = sub["throughput_mean"].values if "throughput_mean" in sub.columns else sub["throughput"].values
-        yerr = sub["throughput_std"].values if "throughput_std" in sub.columns else None
-
-        # Background visual regimes: Speedup Zone vs Communication-Bound Zone
-        max_y = max(max(tput), base_tput) * 1.25
-        ax.axhspan(base_tput, max_y, color="#2CA02C", alpha=0.06, label="_nolegend_")
-        ax.axhspan(0, base_tput, color="#D95F02", alpha=0.04, label="_nolegend_")
-
-        # 1-Node Baseline horizontal line
-        ax.axhline(base_tput, color="#D95F02", linestyle="--", linewidth=2.0,
-                   label=f"1-Node Baseline ({base_tput:.1f} {unit})")
-
-        # 2-Node Cluster curve
-        ax.errorbar(x_indices, tput, yerr=yerr, marker="o", markersize=8, linewidth=2.2,
-                    capsize=5, capthick=1.5, color=COLORS[0], label="2-Node Cluster")
-
-        for xi, y_val in zip(x_indices, tput):
-            ax.annotate(f"{y_val:.1f}", (xi, y_val), textcoords="offset points",
-                        xytext=(0, 9), ha="center", fontweight="bold", fontsize=10)
-
-        # Annotate Crossover Point
-        crossover_idx = np.where(tput > base_tput)[0]
-        if len(crossover_idx) > 0:
-            c_idx = crossover_idx[0]
-            c_k = ks[c_idx]
-            c_val = tput[c_idx]
-            ax.scatter([c_idx], [c_val], color="crimson", s=110, zorder=5)
-            ax.annotate(f"Crossover (K={c_k})\nCluster beats 1-Node",
-                        (c_idx, c_val), textcoords="offset points",
-                        xytext=(-25, 24), ha="center", fontsize=8.5, fontweight="bold",
-                        color="darkred",
-                        arrowprops=dict(arrowstyle="->", color="darkred", lw=1.2))
-
+        unit = sub["unit"].iloc[0]
         panel_letter = chr(97 + i)
-        ax.set_title(f"({panel_letter}) {task} Throughput", fontsize=12, fontweight="bold")
-        ax.set_xlabel("Accumulation Steps (K)", fontsize=11)
-        ax.set_ylabel(f"Throughput ({unit})", fontsize=11)
-        ax.set_xticks(x_indices)
-        ax.set_xticklabels([str(k) for k in ks])
-        ax.set_xlim(-0.4, len(ks) - 0.6)
-        ax.set_ylim(0, max_y)
-        ax.legend(loc="lower right", framealpha=0.92)
+        _render_fig1_axis(ax, sub, base_tput, task, panel_letter, unit, color_idx=i)
 
     save_fig(fig, "Figure_1_throughput_vs_accumulation.png", show)
+
+    # 2. Standalone Solo Figures
+    for i, task in enumerate(tasks):
+        sub = df_all[df_all["task"] == task].sort_values("accum_steps")
+        if "world_size" in sub.columns:
+            sub = sub[sub["world_size"] == sub["world_size"].max()]
+        sub = sub.drop_duplicates(subset=["accum_steps"], keep="last")
+
+        base_tput = fallback_single_tput.get(task, 113.2)
+        if not df_single.empty and "task" in df_single.columns:
+            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
+            if not sub1.empty:
+                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
+
+        unit = sub["unit"].iloc[0]
+        panel_letter = chr(97 + i)
+        task_slug = "ResNet18" if "ResNet" in task else "GPT2"
+
+        fig_solo, ax_solo = plt.subplots(figsize=(8.0, 5.5))
+        _render_fig1_axis(ax_solo, sub, base_tput, task, "", unit, color_idx=i)
+        ax_solo.set_title(f"{task} — Throughput vs. Accumulation Steps (K)", fontsize=13, fontweight="bold")
+        save_fig(fig_solo, f"Figure_1{panel_letter}_{task_slug}_throughput.png", show)
 
 
 # ── Figure 2: Single-Node vs. Distributed Scaling (Speedup & Crossover) ────────
 
+def _render_fig2a_speedup(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, title_prefix=""):
+    ax.axhspan(1.0, 2.15, color="#2CA02C", alpha=0.06, label="_nolegend_")
+    ax.axhspan(0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
+    ax.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="1-Node Baseline (1.0×)")
+    ax.text(0.04, 0.92, "▲ Distributed Speedup (S₂ > 1.0×)", transform=ax.transAxes,
+            fontsize=9.5, fontweight="bold", color="#1B7837", alpha=0.9)
+    ax.text(0.04, 0.06, "▼ Network Bottleneck Slowdown (S₂ < 1.0×)", transform=ax.transAxes,
+            fontsize=9.5, fontweight="bold", color="#B2182B", alpha=0.85)
+
+    for i, task in enumerate(tasks):
+        base_tput = fallback_single_tput.get(task, 150.0)
+        if not df_single.empty and "task" in df_single.columns:
+            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
+            if not sub1.empty:
+                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
+
+        sub2 = df_cluster[df_cluster["task"] == task].sort_values("accum_steps")
+        if sub2.empty:
+            continue
+        sub2 = sub2.drop_duplicates(subset=["accum_steps"], keep="last")
+
+        ks = list(sub2["accum_steps"])
+        x_pos = [k_to_idx[k] for k in ks if k in k_to_idx]
+        tput2 = sub2["throughput_mean"].values if "throughput_mean" in sub2.columns else sub2["throughput"].values
+        speedup = tput2 / base_tput
+
+        ax.plot(x_pos, speedup, marker="s", markersize=8, linewidth=2.2,
+                color=COLORS[i % len(COLORS)], label=f"{task} (2 Nodes)")
+
+        for xp, y_val in zip(x_pos, speedup):
+            ax.annotate(f"{y_val:.2f}×", (xp, y_val), textcoords="offset points",
+                        xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
+
+    prefix = f"({title_prefix}) " if title_prefix else ""
+    ax.set_title(f"{prefix}Cluster Speedup Ratio (S₂)", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Accumulation Steps (K)", fontsize=11, fontweight="bold")
+    ax.set_ylabel("Speedup vs. 1-Node Baseline", fontsize=11, fontweight="bold")
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels([str(k) for k in all_k_vals])
+    ax.set_xlim(-0.4, len(all_k_vals) - 0.6)
+    ax.set_ylim(0, 2.15)
+    ax.legend(loc="lower right", framealpha=0.92)
+
+
+def _render_fig2b_efficiency(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, title_prefix=""):
+    ax.axhspan(0, 100.0, color="#4C72B0", alpha=0.03, label="_nolegend_")
+    ax.axhline(100.0, color="gray", linestyle=":", linewidth=1.5, label="Ideal Linear Scaling (100%)")
+
+    for i, task in enumerate(tasks):
+        base_tput = fallback_single_tput.get(task, 150.0)
+        if not df_single.empty and "task" in df_single.columns:
+            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
+            if not sub1.empty:
+                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
+
+        sub2 = df_cluster[df_cluster["task"] == task].sort_values("accum_steps")
+        if sub2.empty:
+            continue
+        sub2 = sub2.drop_duplicates(subset=["accum_steps"], keep="last")
+
+        ks = list(sub2["accum_steps"])
+        x_pos = [k_to_idx[k] for k in ks if k in k_to_idx]
+        tput2 = sub2["throughput_mean"].values if "throughput_mean" in sub2.columns else sub2["throughput"].values
+        efficiency = (tput2 / (2.0 * base_tput)) * 100.0
+
+        ax.plot(x_pos, efficiency, marker="o", markersize=8, linewidth=2.2,
+                color=COLORS[i % len(COLORS)], label=f"{task} (2 Nodes)")
+
+        for xp, y_val in zip(x_pos, efficiency):
+            ax.annotate(f"{y_val:.1f}%", (xp, y_val), textcoords="offset points",
+                         xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
+
+    prefix = f"({title_prefix}) " if title_prefix else ""
+    ax.set_title(f"{prefix}Weak-Scaling Efficiency (E₂ %)", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Accumulation Steps (K)", fontsize=11, fontweight="bold")
+    ax.set_ylabel("Scaling Efficiency (%)", fontsize=11, fontweight="bold")
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels([str(k) for k in all_k_vals])
+    ax.set_xlim(-0.4, len(all_k_vals) - 0.6)
+    ax.set_ylim(0, 115)
+    ax.legend(loc="lower right", framealpha=0.92)
+
+
 def plot_figure_2_scaling_efficiency(show=False):
     """
     Figure 2: Speedup Ratio (S_N) and Scaling Efficiency (E_N) vs K.
-    Highlights the 1.0x single-node crossover point.
-    Strictly isolates 2-node fixed-microbatch data to prevent contamination
-    from fixed-global-batch data (which caused the artificial dip at K=32).
-    Uses equidistant categorical x-axis spacing for clean, publication-ready presentation.
+    Generates:
+      - Figure_2_single_vs_distributed_scaling.png (Combined dual-panel)
+      - Figure_2a_cluster_speedup_ratio.png (Standalone solo)
+      - Figure_2b_weak_scaling_efficiency.png (Standalone solo)
     """
-    # 1. Load 1-node baseline files
     single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "01_single_node_baseline", "summary_*.csv")))
     if not single_files:
         single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_1nodes_*.csv")))
 
-    # 2. Load 2-node cluster results (strictly from fixed-microbatch sweep)
     sweep_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
     if not sweep_files:
         sweep_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "*.csv")))
@@ -226,10 +326,6 @@ def plot_figure_2_scaling_efficiency(show=False):
     if not len(tasks):
         return
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
-    fig.suptitle("Figure 2: Distributed Speedup & Scaling Efficiency vs. Single-Node Baseline",
-                 fontsize=14, fontweight="bold", y=1.02)
-
     fallback_single_tput = {
         "ResNet-18": 113.2,
         "ResNet-18 / CIFAR-10": 113.2,
@@ -237,106 +333,90 @@ def plot_figure_2_scaling_efficiency(show=False):
         "GPT-2 Small (117M)": 359.5,
     }
 
-    # Determine universal K values across all tasks
     all_k_vals = sorted(df_cluster["accum_steps"].dropna().unique())
     if not len(all_k_vals):
         all_k_vals = [1, 2, 4, 8, 16, 32, 64]
     k_to_idx = {k: i for i, k in enumerate(all_k_vals)}
     x_ticks = np.arange(len(all_k_vals))
 
-    # Left: Speedup Ratio S_N
-    ax1 = axes[0]
-    ax1.axhspan(1.0, 2.15, color="#2CA02C", alpha=0.06, label="_nolegend_")
-    ax1.axhspan(0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
-    ax1.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="1-Node Baseline (1.0×)")
-    ax1.text(0.04, 0.92, "▲ Distributed Speedup (S₂ > 1.0×)", transform=ax1.transAxes,
-             fontsize=9.5, fontweight="bold", color="#1B7837", alpha=0.9)
-    ax1.text(0.04, 0.06, "▼ Network Bottleneck Slowdown (S₂ < 1.0×)", transform=ax1.transAxes,
-             fontsize=9.5, fontweight="bold", color="#B2182B", alpha=0.85)
+    # 1. Combined Dual-Panel Figure
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+    fig.subplots_adjust(wspace=0.25)
+    fig.suptitle("Figure 2: Distributed Speedup & Scaling Efficiency vs. Single-Node Baseline",
+                 fontsize=14, fontweight="bold", y=1.02)
 
-    for i, task in enumerate(tasks):
-        base_tput = fallback_single_tput.get(task, 150.0)
-        if not df_single.empty and "task" in df_single.columns:
-            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
-            if not sub1.empty:
-                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
-
-        sub2 = df_cluster[df_cluster["task"] == task].sort_values("accum_steps")
-        if sub2.empty:
-            continue
-
-        sub2 = sub2.drop_duplicates(subset=["accum_steps"], keep="last")
-
-        ks = list(sub2["accum_steps"])
-        x_pos = [k_to_idx[k] for k in ks if k in k_to_idx]
-        tput2 = sub2["throughput_mean"].values if "throughput_mean" in sub2.columns else sub2["throughput"].values
-        speedup = tput2 / base_tput
-
-        ax1.plot(x_pos, speedup, marker="s", markersize=8, linewidth=2.2,
-                 color=COLORS[i % len(COLORS)], label=f"{task} (2 Nodes)")
-
-        for xp, y_val in zip(x_pos, speedup):
-            ax1.annotate(f"{y_val:.2f}×", (xp, y_val), textcoords="offset points",
-                         xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
-
-    ax1.set_title("(a) Cluster Speedup Ratio (S₂)", fontsize=12, fontweight="bold")
-    ax1.set_xlabel("Accumulation Steps (K)", fontsize=11)
-    ax1.set_ylabel("Speedup vs. 1-Node Baseline", fontsize=11)
-    ax1.set_xticks(x_ticks)
-    ax1.set_xticklabels([str(k) for k in all_k_vals])
-    ax1.set_xlim(-0.4, len(all_k_vals) - 0.6)
-    ax1.set_ylim(0, 2.15)
-    ax1.legend(loc="lower right", framealpha=0.92)
-
-    # Right: Scaling Efficiency E_N (%)
-    ax2 = axes[1]
-    ax2.axhspan(0, 100.0, color="#4C72B0", alpha=0.03, label="_nolegend_")
-    ax2.axhline(100.0, color="gray", linestyle=":", linewidth=1.5, label="Ideal Linear Scaling (100%)")
-
-    for i, task in enumerate(tasks):
-        base_tput = fallback_single_tput.get(task, 150.0)
-        if not df_single.empty and "task" in df_single.columns:
-            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
-            if not sub1.empty:
-                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
-
-        sub2 = df_cluster[df_cluster["task"] == task].sort_values("accum_steps")
-        if sub2.empty:
-            continue
-
-        sub2 = sub2.drop_duplicates(subset=["accum_steps"], keep="last")
-
-        ks = list(sub2["accum_steps"])
-        x_pos = [k_to_idx[k] for k in ks if k in k_to_idx]
-        tput2 = sub2["throughput_mean"].values if "throughput_mean" in sub2.columns else sub2["throughput"].values
-        efficiency = (tput2 / (2.0 * base_tput)) * 100.0
-
-        ax2.plot(x_pos, efficiency, marker="o", markersize=8, linewidth=2.2,
-                 color=COLORS[i % len(COLORS)], label=f"{task} (2 Nodes)")
-
-        for xp, y_val in zip(x_pos, efficiency):
-            ax2.annotate(f"{y_val:.1f}%", (xp, y_val), textcoords="offset points",
-                         xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
-
-    ax2.set_title("(b) Weak-Scaling Efficiency (E₂ %)", fontsize=12, fontweight="bold")
-    ax2.set_xlabel("Accumulation Steps (K)", fontsize=11)
-    ax2.set_ylabel("Scaling Efficiency (%)", fontsize=11)
-    ax2.set_xticks(x_ticks)
-    ax2.set_xticklabels([str(k) for k in all_k_vals])
-    ax2.set_xlim(-0.4, len(all_k_vals) - 0.6)
-    ax2.set_ylim(0, 115)
-    ax2.legend(loc="lower right", framealpha=0.92)
-
+    _render_fig2a_speedup(axes[0], df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, "a")
+    _render_fig2b_efficiency(axes[1], df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, "b")
     save_fig(fig, "Figure_2_single_vs_distributed_scaling.png", show)
+
+    # 2. Standalone Solo Figures
+    fig_solo_a, ax_solo_a = plt.subplots(figsize=(8.0, 5.5))
+    _render_fig2a_speedup(ax_solo_a, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, "")
+    ax_solo_a.set_title("Cluster Speedup Ratio (S₂) vs. Single-Node Baseline", fontsize=13, fontweight="bold")
+    save_fig(fig_solo_a, "Figure_2a_cluster_speedup_ratio.png", show)
+
+    fig_solo_b, ax_solo_b = plt.subplots(figsize=(8.0, 5.5))
+    _render_fig2b_efficiency(ax_solo_b, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, "")
+    ax_solo_b.set_title("Weak-Scaling Efficiency (E₂ %) vs. Accumulation Steps (K)", fontsize=13, fontweight="bold")
+    save_fig(fig_solo_b, "Figure_2b_weak_scaling_efficiency.png", show)
 
 
 # ── Figure 3: Computation vs. Communication Breakdown (Dual-Panel) ────────────
 
+def _render_fig3a_breakdown(ax, x_indices, ks, fwd, bwd, ar, totals, title_prefix=""):
+    width = 0.55
+    ax.bar(x_indices, fwd, width, label="Forward Compute (Local CPU)", color="#4C72B0")
+    ax.bar(x_indices, bwd, width, bottom=fwd, label="Backward Compute (Local CPU)", color="#55A868")
+    ax.bar(x_indices, ar,  width, bottom=fwd + bwd, label="AllReduce Network Barrier (100 Mbps)", color="#C44E52")
+
+    for i, tot in enumerate(totals):
+        ax.annotate(f"{tot:.1f}s", (i, tot), textcoords="offset points",
+                    xytext=(0, 6), ha="center", fontsize=9, fontweight="bold")
+
+    prefix = f"({title_prefix}) " if title_prefix else ""
+    ax.set_title(f"{prefix}Step Duration Breakdown (Wall-Clock Seconds)", fontsize=12, fontweight="bold")
+    ax.set_ylabel("Step Duration (seconds)", fontsize=11, fontweight="bold")
+    ax.set_xlabel("Gradient Accumulation Configuration", fontsize=11, fontweight="bold")
+    ax.set_xticks(x_indices)
+    ax.set_xticklabels(ks)
+    ax.set_ylim(0, max(totals) * 1.22)
+    ax.legend(loc="upper left", framealpha=0.92)
+
+
+def _render_fig3b_gamma(ax, x_indices, ks, gamma_ratio, title_prefix=""):
+    ax.axhspan(1.0, 10.5, color="#2CA02C", alpha=0.06, label="_nolegend_")
+    ax.axhspan(0.0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
+    ax.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="Balanced Threshold (Γ = 1.0)")
+
+    ax.text(0.04, 0.92, "▲ Compute-Dominant Regime (Γ > 1.0)", transform=ax.transAxes,
+            fontsize=9.5, fontweight="bold", color="#1B7837")
+    ax.text(0.04, 0.06, "▼ Communication-Bound Regime (Γ < 1.0)", transform=ax.transAxes,
+            fontsize=9.5, fontweight="bold", color="#B2182B")
+
+    ax.plot(x_indices, gamma_ratio, marker="s", markersize=8, linewidth=2.2,
+            color="#55A868", label="Compute-to-Comm Ratio (Γ)")
+
+    for xi, g_val in zip(x_indices, gamma_ratio):
+        ax.annotate(f"{g_val:.2f}×", (xi, g_val), textcoords="offset points",
+                    xytext=(0, 9), ha="center", fontsize=9, fontweight="bold", color="#2E6930")
+
+    prefix = f"({title_prefix}) " if title_prefix else ""
+    ax.set_title(f"{prefix}Compute-to-Communication Ratio (Γ = T_comp / T_comm)", fontsize=12, fontweight="bold")
+    ax.set_ylabel("Compute-to-Communication Ratio (Γ)", fontsize=11, fontweight="bold")
+    ax.set_xlabel("Gradient Accumulation Configuration", fontsize=11, fontweight="bold")
+    ax.set_xticks(x_indices)
+    ax.set_xticklabels(ks)
+    ax.set_xlim(-0.4, len(ks) - 0.6)
+    ax.set_ylim(0, 10.5)
+    ax.legend(loc="upper left", framealpha=0.92)
+
+
 def plot_figure_3_timing_breakdown(show=False):
     """
     Figure 3: Dual-Panel Systems Decomposition:
-      - Subfigure 3(a): Absolute Step Duration Breakdown (Stacked Bar: Forward, Backward, AllReduce Barrier in seconds).
-      - Subfigure 3(b): Compute-to-Communication Ratio (Γ = T_comp / T_comm) demonstrating the bottleneck inversion.
+      - Figure_3_compute_vs_communication_breakdown.png (Combined dual-panel)
+      - Figure_3a_step_duration_breakdown.png (Standalone solo stacked bar)
+      - Figure_3b_compute_to_comm_ratio.png (Standalone solo Gamma ratio)
     """
     timing_files = glob.glob(os.path.join(RESULTS_DIR, "04_step_time_breakdown", "timing_decomposition_*.csv"))
     if not timing_files:
@@ -367,75 +447,103 @@ def plot_figure_3_timing_breakdown(show=False):
 
     ks = [f"K={k}" for k in gpt_df["accum_steps"]]
     x_indices = np.arange(len(ks))
-    fwd = np.array(gpt_df[fwd_col]) / 1000.0  # to seconds
+    fwd = np.array(gpt_df[fwd_col]) / 1000.0
     bwd = np.array(gpt_df[bwd_col]) / 1000.0
     ar  = np.array(gpt_df[ar_col])  / 1000.0
 
     totals = fwd + bwd + ar
     compute_total = fwd + bwd
     gamma_ratio = compute_total / np.maximum(ar, 1e-4)
-    ar_pcts = (ar / np.maximum(totals, 1e-4)) * 100.0
 
+    # 1. Combined Dual-Panel Figure
     fig, axes = plt.subplots(1, 2, figsize=(15, 5.5))
     fig.subplots_adjust(wspace=0.25)
     fig.suptitle("Figure 3: Step Time Breakdown & Compute-to-Communication Bottleneck Inversion",
                  fontsize=14, fontweight="bold", y=1.02)
 
-    # ── Subfigure 3(a): Absolute Step Duration Breakdown (Stacked Bar) ──
-    ax1 = axes[0]
-    width = 0.55
-    p1 = ax1.bar(x_indices, fwd, width, label="Forward Compute (Local CPU)", color="#4C72B0")
-    p2 = ax1.bar(x_indices, bwd, width, bottom=fwd, label="Backward Compute (Local CPU)", color="#55A868")
-    p3 = ax1.bar(x_indices, ar,  width, bottom=fwd + bwd, label="AllReduce Network Barrier (100 Mbps)", color="#C44E52")
-
-    for i, tot in enumerate(totals):
-        ax1.annotate(f"{tot:.1f}s", (i, tot), textcoords="offset points",
-                     xytext=(0, 6), ha="center", fontsize=9, fontweight="bold")
-
-    ax1.set_title("(a) Step Duration Breakdown (Wall-Clock Seconds)", fontsize=12, fontweight="bold")
-    ax1.set_ylabel("Step Duration (seconds)", fontsize=11, fontweight="bold")
-    ax1.set_xlabel("Gradient Accumulation Configuration", fontsize=11, fontweight="bold")
-    ax1.set_xticks(x_indices)
-    ax1.set_xticklabels(ks)
-    ax1.set_ylim(0, max(totals) * 1.22)
-    ax1.legend(loc="upper left", framealpha=0.92)
-
-    # ── Subfigure 3(b): Compute-to-Communication Ratio (Γ) & Regime Inversion ──
-    ax2 = axes[1]
-    ax2.axhspan(1.0, 10.5, color="#2CA02C", alpha=0.06, label="_nolegend_")
-    ax2.axhspan(0.0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
-    ax2.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="Balanced Threshold (Γ = 1.0)")
-
-    ax2.text(0.04, 0.92, "▲ Compute-Dominant Regime (Γ > 1.0)", transform=ax2.transAxes,
-             fontsize=9.5, fontweight="bold", color="#1B7837")
-    ax2.text(0.04, 0.06, "▼ Communication-Bound Regime (Γ < 1.0)", transform=ax2.transAxes,
-             fontsize=9.5, fontweight="bold", color="#B2182B")
-
-    ax2.plot(x_indices, gamma_ratio, marker="s", markersize=8, linewidth=2.2,
-             color="#55A868", label="Compute-to-Comm Ratio (Γ)")
-
-    for xi, g_val in zip(x_indices, gamma_ratio):
-        ax2.annotate(f"{g_val:.2f}×", (xi, g_val), textcoords="offset points",
-                     xytext=(0, 9), ha="center", fontsize=9, fontweight="bold", color="#2E6930")
-
-    ax2.set_title("(b) Compute-to-Communication Ratio (Γ = T_comp / T_comm)", fontsize=12, fontweight="bold")
-    ax2.set_ylabel("Compute-to-Communication Ratio (Γ)", fontsize=11, fontweight="bold")
-    ax2.set_xlabel("Gradient Accumulation Configuration", fontsize=11, fontweight="bold")
-    ax2.set_xticks(x_indices)
-    ax2.set_xticklabels(ks)
-    ax2.set_xlim(-0.4, len(ks) - 0.6)
-    ax2.set_ylim(0, 10.5)
-    ax2.legend(loc="upper left", framealpha=0.92)
-
+    _render_fig3a_breakdown(axes[0], x_indices, ks, fwd, bwd, ar, totals, "a")
+    _render_fig3b_gamma(axes[1], x_indices, ks, gamma_ratio, "b")
     save_fig(fig, "Figure_3_compute_vs_communication_breakdown.png", show)
+
+    # 2. Standalone Solo Figures
+    fig_solo_a, ax_solo_a = plt.subplots(figsize=(8.5, 5.5))
+    _render_fig3a_breakdown(ax_solo_a, x_indices, ks, fwd, bwd, ar, totals, "")
+    ax_solo_a.set_title("Step Time Breakdown — Local Compute vs. AllReduce Wait", fontsize=13, fontweight="bold")
+    save_fig(fig_solo_a, "Figure_3a_step_duration_breakdown.png", show)
+
+    fig_solo_b, ax_solo_b = plt.subplots(figsize=(8.5, 5.5))
+    _render_fig3b_gamma(ax_solo_b, x_indices, ks, gamma_ratio, "")
+    ax_solo_b.set_title("Compute-to-Communication Ratio (Γ) vs. Accumulation Steps (K)", fontsize=13, fontweight="bold")
+    save_fig(fig_solo_b, "Figure_3b_compute_to_comm_ratio.png", show)
 
 
 # ── Figure 4: Training Convergence Comparison (Dual-Panel Clean) ──────────────
 
+def _render_fig4a_cifar(ax, cifar_files, title_prefix=""):
+    for i, f in enumerate(cifar_files):
+        df = pd.read_csv(f)
+        k_val = df["accum_steps"].iloc[0] if "accum_steps" in df.columns else "?"
+        nodes = df["world_size"].iloc[0] if "world_size" in df.columns else "?"
+        label = f"{nodes} Nodes (K={k_val})"
+
+        ax.plot(df["epoch"], df["train_loss"], marker="o", markersize=8, linewidth=2.2,
+                label=label, color=COLORS[i % len(COLORS)])
+
+        if "test_acc_pct" in df.columns:
+            for ep, loss_val, acc in zip(df["epoch"], df["train_loss"], df["test_acc_pct"]):
+                ax.annotate(f"Epoch {ep:.0f}: {loss_val:.2f} ({acc:.1f}% Acc)",
+                            (ep, loss_val), textcoords="offset points",
+                            xytext=(0, 10 if ep == 1 else -18),
+                            ha="center", fontsize=9, fontweight="bold")
+        else:
+            for ep, loss_val in zip(df["epoch"], df["train_loss"]):
+                ax.annotate(f"Loss: {loss_val:.2f}", (ep, loss_val),
+                            textcoords="offset points", xytext=(0, 10 if ep == 1 else -18),
+                            ha="center", fontsize=9, fontweight="bold")
+
+    prefix = f"({title_prefix}) " if title_prefix else ""
+    ax.set_title(f"{prefix}ResNet-18 / CIFAR-10 Loss Convergence", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Epoch", fontsize=11, fontweight="bold")
+    ax.set_ylabel("Training Cross-Entropy Loss", fontsize=11, fontweight="bold")
+    ax.set_xticks([1, 2])
+    ax.set_xlim(0.7, 2.3)
+    ax.set_ylim(1.15, 1.85)
+    ax.legend(loc="upper right", framealpha=0.92)
+
+
+def _render_fig4b_gpt2(ax, gpt2_files, title_prefix=""):
+    for i, f in enumerate(gpt2_files):
+        df = pd.read_csv(f)
+        k_val = df["accum_steps"].iloc[0] if "accum_steps" in df.columns else "?"
+        nodes = df["world_size"].iloc[0] if "world_size" in df.columns else "?"
+        label = f"{nodes} Nodes (K={k_val})"
+
+        ax.plot(df["step"], df["loss"], marker="o", markersize=5, linewidth=2.0,
+                label=label, color=COLORS[i % len(COLORS)])
+
+        first_step, first_loss = df["step"].iloc[0], df["loss"].iloc[0]
+        last_step, last_loss   = df["step"].iloc[-1], df["loss"].iloc[-1]
+
+        ax.annotate(f"Start: {first_loss:.2f}", (first_step, first_loss),
+                    textcoords="offset points", xytext=(15, 6), fontsize=9, fontweight="bold")
+        ax.annotate(f"Final: {last_loss:.2f}", (last_step, last_loss),
+                    textcoords="offset points", xytext=(-20, 12), fontsize=9, fontweight="bold")
+
+    prefix = f"({title_prefix}) " if title_prefix else ""
+    ax.set_title(f"{prefix}GPT-2 Small / WikiText-2 Language Model Loss", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Optimizer Step", fontsize=11, fontweight="bold")
+    ax.set_ylabel("Language Model Loss (Cross-Entropy)", fontsize=11, fontweight="bold")
+    ax.set_ylim(7.0, 11.5)
+    ax.legend(loc="upper right", framealpha=0.92)
+
+
 def plot_figure_4_convergence(show=False):
     """
     Figure 4: Loss curves verifying numerical convergence across K.
-    Clean dual-panel layout with generous spacing to avoid text collisions.
+    Generates:
+      - Figure_4_training_convergence_comparison.png (Combined dual-panel)
+      - Figure_4a_cifar10_convergence.png (Standalone solo)
+      - Figure_4b_gpt2_convergence.png (Standalone solo)
     """
     cifar_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "cifar_*.csv")))
     gpt2_files  = sorted(glob.glob(os.path.join(RESULTS_DIR, "gpt2_*.csv")))
@@ -444,108 +552,94 @@ def plot_figure_4_convergence(show=False):
         print("  [skip Fig 4] No convergence CSVs found")
         return
 
+    # 1. Combined Dual-Panel Figure
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
     fig.subplots_adjust(wspace=0.25)
     fig.suptitle("Figure 4: Training Convergence & Loss Stability Across Accumulation Steps",
                  fontsize=14, fontweight="bold", y=1.02)
 
-    # CIFAR (Clean single-axis with clear accuracy annotations)
-    ax1 = axes[0]
-    for i, f in enumerate(cifar_files):
-        df = pd.read_csv(f)
-        k_val = df["accum_steps"].iloc[0] if "accum_steps" in df.columns else "?"
-        nodes = df["world_size"].iloc[0] if "world_size" in df.columns else "?"
-        label = f"{nodes} Nodes (K={k_val})"
-
-        ax1.plot(df["epoch"], df["train_loss"], marker="o", markersize=8, linewidth=2.2,
-                 label=label, color=COLORS[i % len(COLORS)])
-
-        if "test_acc_pct" in df.columns:
-            for ep, loss_val, acc in zip(df["epoch"], df["train_loss"], df["test_acc_pct"]):
-                ax1.annotate(f"Epoch {ep:.0f}: {loss_val:.2f} ({acc:.1f}% Acc)",
-                             (ep, loss_val), textcoords="offset points",
-                             xytext=(0, 10 if ep == 1 else -18),
-                             ha="center", fontsize=9, fontweight="bold")
-        else:
-            for ep, loss_val in zip(df["epoch"], df["train_loss"]):
-                ax1.annotate(f"Loss: {loss_val:.2f}", (ep, loss_val),
-                             textcoords="offset points", xytext=(0, 10 if ep == 1 else -18),
-                             ha="center", fontsize=9, fontweight="bold")
-
-    ax1.set_title("(a) ResNet-18 / CIFAR-10 Loss Convergence", fontsize=12, fontweight="bold")
-    ax1.set_xlabel("Epoch", fontsize=11, fontweight="bold")
-    ax1.set_ylabel("Training Cross-Entropy Loss", fontsize=11, fontweight="bold")
-    ax1.set_xticks([1, 2])
-    ax1.set_xlim(0.7, 2.3)
-    ax1.set_ylim(1.15, 1.85)
-    ax1.legend(loc="upper right", framealpha=0.92)
-
-    # GPT-2 (Clean single-axis with start/final loss callouts)
-    ax2 = axes[1]
-    for i, f in enumerate(gpt2_files):
-        df = pd.read_csv(f)
-        k_val = df["accum_steps"].iloc[0] if "accum_steps" in df.columns else "?"
-        nodes = df["world_size"].iloc[0] if "world_size" in df.columns else "?"
-        label = f"{nodes} Nodes (K={k_val})"
-
-        ax2.plot(df["step"], df["loss"], marker="o", markersize=5, linewidth=2.0,
-                 label=label, color=COLORS[i % len(COLORS)])
-
-        first_step, first_loss = df["step"].iloc[0], df["loss"].iloc[0]
-        last_step, last_loss   = df["step"].iloc[-1], df["loss"].iloc[-1]
-
-        ax2.annotate(f"Start: {first_loss:.2f}", (first_step, first_loss),
-                     textcoords="offset points", xytext=(15, 6), fontsize=9, fontweight="bold")
-        ax2.annotate(f"Final: {last_loss:.2f}", (last_step, last_loss),
-                     textcoords="offset points", xytext=(-20, 12), fontsize=9, fontweight="bold")
-
-    ax2.set_title("(b) GPT-2 Small / WikiText-2 Language Model Loss", fontsize=12, fontweight="bold")
-    ax2.set_xlabel("Optimizer Step", fontsize=11, fontweight="bold")
-    ax2.set_ylabel("Language Model Loss (Cross-Entropy)", fontsize=11, fontweight="bold")
-    ax2.set_ylim(7.0, 11.5)
-    ax2.legend(loc="upper right", framealpha=0.92)
-
+    _render_fig4a_cifar(axes[0], cifar_files, "a")
+    _render_fig4b_gpt2(axes[1], gpt2_files, "b")
     save_fig(fig, "Figure_4_training_convergence_comparison.png", show)
+
+    # 2. Standalone Solo Figures
+    fig_solo_a, ax_solo_a = plt.subplots(figsize=(8.0, 5.5))
+    _render_fig4a_cifar(ax_solo_a, cifar_files, "")
+    ax_solo_a.set_title("ResNet-18 / CIFAR-10 Convergence", fontsize=13, fontweight="bold")
+    save_fig(fig_solo_a, "Figure_4a_cifar10_convergence.png", show)
+
+    fig_solo_b, ax_solo_b = plt.subplots(figsize=(8.0, 5.5))
+    _render_fig4b_gpt2(ax_solo_b, gpt2_files, "")
+    ax_solo_b.set_title("GPT-2 Small / WikiText-2 Language Model Loss", fontsize=13, fontweight="bold")
+    save_fig(fig_solo_b, "Figure_4b_gpt2_convergence.png", show)
 
 
 # ── Figure 5: Network Bandwidth & Latency Benchmark ───────────────────────────
 
+def _render_fig5a_bandwidth(ax, net_files, title_prefix=""):
+    for i, f in enumerate(net_files):
+        df    = pd.read_csv(f)
+        nodes = int(df["world_size"].iloc[0]) if "world_size" in df.columns else 2
+        label = f"{nodes}-node cluster"
+        ax.plot(df["size_mb"], df["bandwidth_mbs"], marker="o",
+                label=label, color=COLORS[i % len(COLORS)], linewidth=2)
+
+    ax.axhline(12.5, linestyle="--", color="crimson", alpha=0.7, label="Fast Ethernet Max (12.5 MB/s)")
+    prefix = f"({title_prefix}) " if title_prefix else ""
+    ax.set_xlabel("Tensor Size (MB)", fontsize=11, fontweight="bold")
+    ax.set_ylabel("AllReduce Bandwidth (MB/s)", fontsize=11, fontweight="bold")
+    ax.set_title(f"{prefix}Effective Bandwidth vs. Tensor Size", fontsize=12, fontweight="bold")
+    ax.legend(loc="lower right")
+
+
+def _render_fig5b_latency(ax, net_files, title_prefix=""):
+    for i, f in enumerate(net_files):
+        df    = pd.read_csv(f)
+        nodes = int(df["world_size"].iloc[0]) if "world_size" in df.columns else 2
+        label = f"{nodes}-node cluster"
+        ax.plot(df["size_mb"], df["latency_ms"], marker="s",
+                label=label, color=COLORS[i % len(COLORS)], linewidth=2)
+
+    prefix = f"({title_prefix}) " if title_prefix else ""
+    ax.set_xlabel("Tensor Size (MB)", fontsize=11, fontweight="bold")
+    ax.set_ylabel("Collective Latency (ms)", fontsize=11, fontweight="bold")
+    ax.set_title(f"{prefix}Collective Latency vs. Tensor Size", fontsize=12, fontweight="bold")
+    ax.legend(loc="upper left")
+
+
 def plot_figure_5_bandwidth_sensitivity(show=False):
     """
     Figure 5: Physical AllReduce bandwidth (MB/s) and latency (ms) vs Tensor Size.
+    Generates:
+      - Figure_5_bandwidth_sensitivity.png (Combined dual-panel)
+      - Figure_5a_effective_bandwidth.png (Standalone solo)
+      - Figure_5b_collective_latency.png (Standalone solo)
     """
     net_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "net_test_*.csv")))
     if not net_files:
         print("  [skip Fig 5] No net_test CSVs found")
         return
 
+    # 1. Combined Dual-Panel Figure
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
     fig.subplots_adjust(wspace=0.25)
     fig.suptitle("Figure 5: Physical Interconnect Characterization (100 Mbps Fast Ethernet)",
                  fontsize=14, fontweight="bold", y=1.02)
 
-    for i, f in enumerate(net_files):
-        df    = pd.read_csv(f)
-        nodes = int(df["world_size"].iloc[0]) if "world_size" in df.columns else 2
-        label = f"{nodes}-node cluster"
-        axes[0].plot(df["size_mb"], df["bandwidth_mbs"], marker="o",
-                     label=label, color=COLORS[i % len(COLORS)], linewidth=2)
-        axes[1].plot(df["size_mb"], df["latency_ms"], marker="s",
-                     label=label, color=COLORS[i % len(COLORS)], linewidth=2)
-
-    # 100 Mbps physical ceiling
-    axes[0].axhline(12.5, linestyle="--", color="crimson", alpha=0.7, label="Fast Ethernet Max (12.5 MB/s)")
-    axes[0].set_xlabel("Tensor Size (MB)", fontsize=11, fontweight="bold")
-    axes[0].set_ylabel("AllReduce Bandwidth (MB/s)", fontsize=11, fontweight="bold")
-    axes[0].set_title("(a) Effective Bandwidth vs. Tensor Size", fontsize=12, fontweight="bold")
-    axes[0].legend(loc="lower right")
-
-    axes[1].set_xlabel("Tensor Size (MB)", fontsize=11, fontweight="bold")
-    axes[1].set_ylabel("Collective Latency (ms)", fontsize=11, fontweight="bold")
-    axes[1].set_title("(b) Collective Latency vs. Tensor Size", fontsize=12, fontweight="bold")
-    axes[1].legend(loc="upper left")
-
+    _render_fig5a_bandwidth(axes[0], net_files, "a")
+    _render_fig5b_latency(axes[1], net_files, "b")
     save_fig(fig, "Figure_5_bandwidth_sensitivity.png", show)
+
+    # 2. Standalone Solo Figures
+    fig_solo_a, ax_solo_a = plt.subplots(figsize=(8.0, 5.5))
+    _render_fig5a_bandwidth(ax_solo_a, net_files, "")
+    ax_solo_a.set_title("Effective AllReduce Bandwidth vs. Tensor Size", fontsize=13, fontweight="bold")
+    save_fig(fig_solo_a, "Figure_5a_effective_bandwidth.png", show)
+
+    fig_solo_b, ax_solo_b = plt.subplots(figsize=(8.0, 5.5))
+    _render_fig5b_latency(ax_solo_b, net_files, "")
+    ax_solo_b.set_title("Collective Communication Latency vs. Tensor Size", fontsize=13, fontweight="bold")
+    save_fig(fig_solo_b, "Figure_5b_collective_latency.png", show)
 
 
 # ── Main Entrypoint ───────────────────────────────────────────────────────────
@@ -576,7 +670,9 @@ def main():
 
     print()
     print("=" * 70)
-    print("  ✓ All 5 publication figures generated successfully!")
+    print("  ✓ All 15 publication figures generated successfully!")
+    print("    • 5 Dual-Panel Combined Comparison Figures (Figures 1-5)")
+    print("    • 10 Standalone Solo Subfigures (Figures 1a-5b)")
     print(f"    Inspect results in: {FIG_DIR}/")
     print("=" * 70)
     print()
