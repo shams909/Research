@@ -126,7 +126,7 @@ def plot_figure_1_throughput_vs_k(show=False):
     fig.suptitle("Figure 1: Training Throughput vs. Gradient Accumulation Steps (K)",
                  fontsize=14, fontweight="bold", y=1.02)
 
-    for ax, task in zip(axes, tasks):
+    for i, (ax, task) in enumerate(zip(axes, tasks)):
         sub = df_all[df_all["task"] == task].sort_values("accum_steps")
         if "world_size" in sub.columns:
             sub = sub[sub["world_size"] == sub["world_size"].max()]
@@ -177,7 +177,8 @@ def plot_figure_1_throughput_vs_k(show=False):
                         color="darkred",
                         arrowprops=dict(arrowstyle="->", color="darkred", lw=1.2))
 
-        ax.set_title(task, fontsize=12, fontweight="bold")
+        panel_letter = chr(97 + i)
+        ax.set_title(f"({panel_letter}) {task} Throughput", fontsize=12, fontweight="bold")
         ax.set_xlabel("Accumulation Steps (K)", fontsize=11)
         ax.set_ylabel(f"Throughput ({unit})", fontsize=11)
         ax.set_xticks(x_indices)
@@ -278,7 +279,7 @@ def plot_figure_2_scaling_efficiency(show=False):
             ax1.annotate(f"{y_val:.2f}×", (xp, y_val), textcoords="offset points",
                          xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
 
-    ax1.set_title("Cluster Speedup Ratio (S₂)", fontsize=12, fontweight="bold")
+    ax1.set_title("(a) Cluster Speedup Ratio (S₂)", fontsize=12, fontweight="bold")
     ax1.set_xlabel("Accumulation Steps (K)", fontsize=11)
     ax1.set_ylabel("Speedup vs. 1-Node Baseline", fontsize=11)
     ax1.set_xticks(x_ticks)
@@ -317,7 +318,7 @@ def plot_figure_2_scaling_efficiency(show=False):
             ax2.annotate(f"{y_val:.1f}%", (xp, y_val), textcoords="offset points",
                          xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
 
-    ax2.set_title("Weak-Scaling Efficiency (E₂ %)", fontsize=12, fontweight="bold")
+    ax2.set_title("(b) Weak-Scaling Efficiency (E₂ %)", fontsize=12, fontweight="bold")
     ax2.set_xlabel("Accumulation Steps (K)", fontsize=11)
     ax2.set_ylabel("Scaling Efficiency (%)", fontsize=11)
     ax2.set_xticks(x_ticks)
@@ -329,13 +330,13 @@ def plot_figure_2_scaling_efficiency(show=False):
     save_fig(fig, "Figure_2_single_vs_distributed_scaling.png", show)
 
 
-# ── Figure 3: Computation vs. Communication Breakdown (Stacked Bar) ───────────
+# ── Figure 3: Computation vs. Communication Breakdown (Dual-Panel) ────────────
 
 def plot_figure_3_timing_breakdown(show=False):
     """
-    Figure 3: Clean, publication-grade stacked bar chart decomposing total step time into:
-    Forward Compute, Backward Compute, and AllReduce Network Wait (seconds).
-    Shows how the communication bottleneck inverts from 95% down to 10% of step time.
+    Figure 3: Dual-Panel Systems Decomposition:
+      - Subfigure 3(a): Absolute Step Duration Breakdown (Stacked Bar: Forward, Backward, AllReduce Barrier in seconds).
+      - Subfigure 3(b): Compute-to-Communication Ratio (Γ = T_comp / T_comm) demonstrating the bottleneck inversion.
     """
     timing_files = glob.glob(os.path.join(RESULTS_DIR, "04_step_time_breakdown", "timing_decomposition_*.csv"))
     if not timing_files:
@@ -365,40 +366,76 @@ def plot_figure_3_timing_breakdown(show=False):
         gpt_df = df.drop_duplicates(subset=["accum_steps"], keep="last").sort_values("accum_steps")
 
     ks = [f"K={k}" for k in gpt_df["accum_steps"]]
+    x_indices = np.arange(len(ks))
     fwd = np.array(gpt_df[fwd_col]) / 1000.0  # to seconds
     bwd = np.array(gpt_df[bwd_col]) / 1000.0
     ar  = np.array(gpt_df[ar_col])  / 1000.0
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    fig.suptitle("Figure 3: Step Time Breakdown — Local Compute vs. AllReduce Network Wait",
+    totals = fwd + bwd + ar
+    compute_total = fwd + bwd
+    gamma_ratio = compute_total / np.maximum(ar, 1e-4)
+    ar_pcts = (ar / np.maximum(totals, 1e-4)) * 100.0
+
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5.5))
+    fig.subplots_adjust(wspace=0.25)
+    fig.suptitle("Figure 3: Step Time Breakdown & Compute-to-Communication Bottleneck Inversion",
                  fontsize=14, fontweight="bold", y=1.02)
 
+    # ── Subfigure 3(a): Absolute Step Duration Breakdown (Stacked Bar) ──
+    ax1 = axes[0]
     width = 0.55
-    p1 = ax.bar(ks, fwd, width, label="Forward Compute (Local CPU)", color="#4C72B0")
-    p2 = ax.bar(ks, bwd, width, bottom=fwd, label="Backward Compute (Local CPU)", color="#55A868")
-    p3 = ax.bar(ks, ar,  width, bottom=fwd + bwd, label="AllReduce Network Barrier (100 Mbps)", color="#C44E52")
+    p1 = ax1.bar(x_indices, fwd, width, label="Forward Compute (Local CPU)", color="#4C72B0")
+    p2 = ax1.bar(x_indices, bwd, width, bottom=fwd, label="Backward Compute (Local CPU)", color="#55A868")
+    p3 = ax1.bar(x_indices, ar,  width, bottom=fwd + bwd, label="AllReduce Network Barrier (100 Mbps)", color="#C44E52")
 
-    totals = fwd + bwd + ar
-    for i, (tot, ar_val) in enumerate(zip(totals, ar)):
-        ar_pct = (ar_val / max(tot, 1e-4)) * 100.0
-        ax.annotate(f"Total: {tot:.1f}s\n(Sync: {ar_pct:.0f}%)",
-                    (i, tot), textcoords="offset points", xytext=(0, 8),
-                    ha="center", fontsize=9, fontweight="bold")
+    for i, tot in enumerate(totals):
+        ax1.annotate(f"{tot:.1f}s", (i, tot), textcoords="offset points",
+                     xytext=(0, 6), ha="center", fontsize=9, fontweight="bold")
 
-    ax.set_ylabel("Step Duration (seconds)", fontsize=11, fontweight="bold")
-    ax.set_xlabel("Gradient Accumulation Configuration", fontsize=11, fontweight="bold")
-    ax.legend(loc="upper left", framealpha=0.92)
-    ax.set_ylim(0, max(totals) * 1.25)
+    ax1.set_title("(a) Step Duration Breakdown (Wall-Clock Seconds)", fontsize=12, fontweight="bold")
+    ax1.set_ylabel("Step Duration (seconds)", fontsize=11, fontweight="bold")
+    ax1.set_xlabel("Gradient Accumulation Configuration", fontsize=11, fontweight="bold")
+    ax1.set_xticks(x_indices)
+    ax1.set_xticklabels(ks)
+    ax1.set_ylim(0, max(totals) * 1.22)
+    ax1.legend(loc="upper left", framealpha=0.92)
+
+    # ── Subfigure 3(b): Compute-to-Communication Ratio (Γ) & Regime Inversion ──
+    ax2 = axes[1]
+    ax2.axhspan(1.0, 10.5, color="#2CA02C", alpha=0.06, label="_nolegend_")
+    ax2.axhspan(0.0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
+    ax2.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="Balanced Threshold (Γ = 1.0)")
+
+    ax2.text(0.04, 0.92, "▲ Compute-Dominant Regime (Γ > 1.0)", transform=ax2.transAxes,
+             fontsize=9.5, fontweight="bold", color="#1B7837")
+    ax2.text(0.04, 0.06, "▼ Communication-Bound Regime (Γ < 1.0)", transform=ax2.transAxes,
+             fontsize=9.5, fontweight="bold", color="#B2182B")
+
+    ax2.plot(x_indices, gamma_ratio, marker="s", markersize=8, linewidth=2.2,
+             color="#55A868", label="Compute-to-Comm Ratio (Γ)")
+
+    for xi, g_val in zip(x_indices, gamma_ratio):
+        ax2.annotate(f"{g_val:.2f}×", (xi, g_val), textcoords="offset points",
+                     xytext=(0, 9), ha="center", fontsize=9, fontweight="bold", color="#2E6930")
+
+    ax2.set_title("(b) Compute-to-Communication Ratio (Γ = T_comp / T_comm)", fontsize=12, fontweight="bold")
+    ax2.set_ylabel("Compute-to-Communication Ratio (Γ)", fontsize=11, fontweight="bold")
+    ax2.set_xlabel("Gradient Accumulation Configuration", fontsize=11, fontweight="bold")
+    ax2.set_xticks(x_indices)
+    ax2.set_xticklabels(ks)
+    ax2.set_xlim(-0.4, len(ks) - 0.6)
+    ax2.set_ylim(0, 10.5)
+    ax2.legend(loc="upper left", framealpha=0.92)
 
     save_fig(fig, "Figure_3_compute_vs_communication_breakdown.png", show)
 
 
-# ── Figure 4: Training Convergence Comparison (Clean & Spacious) ──────────────
+# ── Figure 4: Training Convergence Comparison (Dual-Panel Clean) ──────────────
 
 def plot_figure_4_convergence(show=False):
     """
     Figure 4: Loss curves verifying numerical convergence across K.
-    Clean single-axis layout with generous spacing to avoid text collisions.
+    Clean dual-panel layout with generous spacing to avoid text collisions.
     """
     cifar_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "cifar_*.csv")))
     gpt2_files  = sorted(glob.glob(os.path.join(RESULTS_DIR, "gpt2_*.csv")))
@@ -435,7 +472,7 @@ def plot_figure_4_convergence(show=False):
                              textcoords="offset points", xytext=(0, 10 if ep == 1 else -18),
                              ha="center", fontsize=9, fontweight="bold")
 
-    ax1.set_title("ResNet-18 / CIFAR-10 Loss", fontsize=12, fontweight="bold")
+    ax1.set_title("(a) ResNet-18 / CIFAR-10 Loss Convergence", fontsize=12, fontweight="bold")
     ax1.set_xlabel("Epoch", fontsize=11, fontweight="bold")
     ax1.set_ylabel("Training Cross-Entropy Loss", fontsize=11, fontweight="bold")
     ax1.set_xticks([1, 2])
@@ -462,7 +499,7 @@ def plot_figure_4_convergence(show=False):
         ax2.annotate(f"Final: {last_loss:.2f}", (last_step, last_loss),
                      textcoords="offset points", xytext=(-20, 12), fontsize=9, fontweight="bold")
 
-    ax2.set_title("GPT-2 Small / WikiText-2 Loss", fontsize=12, fontweight="bold")
+    ax2.set_title("(b) GPT-2 Small / WikiText-2 Language Model Loss", fontsize=12, fontweight="bold")
     ax2.set_xlabel("Optimizer Step", fontsize=11, fontweight="bold")
     ax2.set_ylabel("Language Model Loss (Cross-Entropy)", fontsize=11, fontweight="bold")
     ax2.set_ylim(7.0, 11.5)
@@ -483,6 +520,7 @@ def plot_figure_5_bandwidth_sensitivity(show=False):
         return
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+    fig.subplots_adjust(wspace=0.25)
     fig.suptitle("Figure 5: Physical Interconnect Characterization (100 Mbps Fast Ethernet)",
                  fontsize=14, fontweight="bold", y=1.02)
 
@@ -497,14 +535,14 @@ def plot_figure_5_bandwidth_sensitivity(show=False):
 
     # 100 Mbps physical ceiling
     axes[0].axhline(12.5, linestyle="--", color="crimson", alpha=0.7, label="Fast Ethernet Max (12.5 MB/s)")
-    axes[0].set_xlabel("Tensor Size (MB)", fontsize=11)
-    axes[0].set_ylabel("AllReduce Bandwidth (MB/s)", fontsize=11)
-    axes[0].set_title("Effective Bandwidth vs. Tensor Size", fontsize=12, fontweight="bold")
+    axes[0].set_xlabel("Tensor Size (MB)", fontsize=11, fontweight="bold")
+    axes[0].set_ylabel("AllReduce Bandwidth (MB/s)", fontsize=11, fontweight="bold")
+    axes[0].set_title("(a) Effective Bandwidth vs. Tensor Size", fontsize=12, fontweight="bold")
     axes[0].legend(loc="lower right")
 
-    axes[1].set_xlabel("Tensor Size (MB)", fontsize=11)
-    axes[1].set_ylabel("Collective Latency (ms)", fontsize=11)
-    axes[1].set_title("Collective Latency vs. Tensor Size", fontsize=12, fontweight="bold")
+    axes[1].set_xlabel("Tensor Size (MB)", fontsize=11, fontweight="bold")
+    axes[1].set_ylabel("Collective Latency (ms)", fontsize=11, fontweight="bold")
+    axes[1].set_title("(b) Collective Latency vs. Tensor Size", fontsize=12, fontweight="bold")
     axes[1].legend(loc="upper left")
 
     save_fig(fig, "Figure_5_bandwidth_sensitivity.png", show)
