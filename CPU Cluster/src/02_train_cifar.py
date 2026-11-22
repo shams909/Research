@@ -319,8 +319,7 @@ def main():
         print(f"  Checkpoint saved : {ckpt_f}")
         print("=" * 65)
         print()
-        if writer:
-            writer.close()
+        # Training complete
 
     dist.destroy_process_group()
 
