@@ -3,16 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CPU Cluster Lab — Interactive Research Dashboard</title>
+    <title>CPU Cluster Lab — Interactive 15-Figure Research Dashboard</title>
     <!-- Plotly.js for interactive academic charts -->
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <!-- Tailwind CSS for sleek UI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .tab-btn.active {
-            background-color: #1e40af;
+        .nav-btn.active {
+            background-color: #1e3a8a;
             color: #ffffff;
-            border-bottom: 3px solid #60a5fa;
+            border-color: #3b82f6;
+        }
+        .mode-btn.active {
+            background-color: #0f172a;
+            color: #ffffff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
     </style>
 </head>
@@ -23,14 +28,14 @@
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="bg-blue-600 text-xs uppercase tracking-wider font-bold px-2 py-0.5 rounded text-white">Empirical Research</span>
-                    <span class="text-xs text-slate-400">13-Hour Benchmark Session</span>
+                    <span class="bg-blue-600 text-xs uppercase tracking-wider font-bold px-2 py-0.5 rounded text-white">Full Research Suite</span>
+                    <span class="text-xs text-slate-400">All 15 Publication Figures (Interactive)</span>
                 </div>
                 <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight mt-1">Distributed Deep Learning on Commodity CPU Clusters</h1>
                 <p class="text-sm text-slate-400 mt-1">Interactive Systems Benchmarking, Timing Decomposition & Amortization Dashboard</p>
             </div>
             <div class="flex items-center gap-3">
-                <span class="text-xs bg-emerald-900/60 text-emerald-300 border border-emerald-700 px-3 py-1.5 rounded-full font-medium">✓ 2 Physical Nodes (100 Mbps Eth)</span>
+                <span class="text-xs bg-emerald-900/60 text-emerald-300 border border-emerald-700 px-3 py-1.5 rounded-full font-medium">✓ 2 Nodes (100 Mbps Fast Ethernet)</span>
             </div>
         </div>
     </header>
@@ -60,59 +65,51 @@
             </div>
         </div>
 
-        <!-- Navigation Tabs -->
-        <div class="flex flex-wrap gap-2 border-b border-slate-200 mb-6 pb-2">
-            <button onclick="switchTab('fig1')" id="btn-fig1" class="tab-btn active px-4 py-2.5 rounded-lg text-sm font-semibold transition">Figure 1: Throughput vs Accumulation</button>
-            <button onclick="switchTab('fig2')" id="btn-fig2" class="tab-btn bg-slate-200 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold transition hover:bg-slate-300">Figure 2: Speedup & Efficiency</button>
-            <button onclick="switchTab('fig3')" id="btn-fig3" class="tab-btn bg-slate-200 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold transition hover:bg-slate-300">Figure 3: Step Time Decomposition</button>
-            <button onclick="switchTab('fig4')" id="btn-fig4" class="tab-btn bg-slate-200 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold transition hover:bg-slate-300">Figure 4: Training Convergence</button>
-            <button onclick="switchTab('fig5')" id="btn-fig5" class="tab-btn bg-slate-200 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold transition hover:bg-slate-300">Figure 5: Network Sensitivity</button>
+        <!-- Mode Selector: Combined vs Solo -->
+        <div class="flex items-center justify-between flex-wrap gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm mb-6">
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-bold uppercase text-slate-500 tracking-wider">Figure View Mode:</span>
+                <div class="inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <button onclick="setViewMode('combined')" id="btn-mode-combined" class="mode-btn active px-3 py-1.5 rounded-md text-xs font-semibold transition">5 Dual-Panel Combined Figures</button>
+                    <button onclick="setViewMode('solo')" id="btn-mode-solo" class="mode-btn px-3 py-1.5 rounded-md text-xs font-semibold text-slate-600 transition hover:text-slate-900">10 Standalone Solo Subfigures</button>
+                </div>
+            </div>
+            <span class="text-xs text-slate-500 italic">Click 📷 in chart corner to export publication-ready PNG</span>
         </div>
 
-        <!-- Chart Containers -->
+        <!-- Combined Navigation Buttons -->
+        <div id="nav-combined" class="flex flex-wrap gap-2 border-b border-slate-200 mb-6 pb-2">
+            <button onclick="switchTab('fig1')" id="btn-fig1" class="nav-btn active px-3.5 py-2 rounded-lg text-xs font-semibold border transition">Figure 1: Dual Throughput</button>
+            <button onclick="switchTab('fig2')" id="btn-fig2" class="nav-btn bg-slate-100 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Figure 2: Speedup & Efficiency</button>
+            <button onclick="switchTab('fig3')" id="btn-fig3" class="nav-btn bg-slate-100 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Figure 3: Step Breakdown & Γ</button>
+            <button onclick="switchTab('fig4')" id="btn-fig4" class="nav-btn bg-slate-100 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Figure 4: Training Convergence</button>
+            <button onclick="switchTab('fig5')" id="btn-fig5" class="nav-btn bg-slate-100 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Figure 5: Network Sensitivity</button>
+        </div>
+
+        <!-- Solo Navigation Buttons (Hidden by default) -->
+        <div id="nav-solo" class="hidden flex flex-wrap gap-2 border-b border-slate-200 mb-6 pb-2">
+            <button onclick="switchTab('fig1a')" id="btn-fig1a" class="nav-btn active px-3 py-1.5 rounded-lg text-xs font-semibold border transition">Fig 1a: ResNet Throughput</button>
+            <button onclick="switchTab('fig1b')" id="btn-fig1b" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 1b: GPT-2 Throughput</button>
+            <button onclick="switchTab('fig2a')" id="btn-fig2a" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 2a: Speedup Ratio (SN)</button>
+            <button onclick="switchTab('fig2b')" id="btn-fig2b" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 2b: Weak Scaling Eff (EN)</button>
+            <button onclick="switchTab('fig3a')" id="btn-fig3a" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 3a: Step Breakdown Stack</button>
+            <button onclick="switchTab('fig3b')" id="btn-fig3b" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 3b: Ratio Γ (Compute/Comm)</button>
+            <button onclick="switchTab('fig4a')" id="btn-fig4a" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 4a: CIFAR-10 Loss & Acc</button>
+            <button onclick="switchTab('fig4b')" id="btn-fig4b" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 4b: GPT-2 LM Loss & PPL</button>
+            <button onclick="switchTab('fig5a')" id="btn-fig5a" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 5a: Effective Bandwidth</button>
+            <button onclick="switchTab('fig5b')" id="btn-fig5b" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 5b: Collective Latency</button>
+        </div>
+
+        <!-- Chart Stage Container -->
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm min-h-[620px]">
-            <div id="fig1-panel" class="tab-panel">
-                <div class="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-2 border-b pb-3 border-slate-100">
-                    <div>
-                        <h2 class="text-lg font-bold text-slate-800">Figure 1: Global Training Throughput vs. Gradient Accumulation (K)</h2>
-                        <p class="text-xs text-slate-500">Dual-panel comparison of ResNet-18 (Vision) and GPT-2 Small (LLM) scaling past single-node ceilings.</p>
-                    </div>
-                    <span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Red Line = Single-Node Baseline Reference</span>
+            <div id="chart-header" class="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-2 border-b pb-3 border-slate-100">
+                <div>
+                    <h2 id="chart-title" class="text-lg font-bold text-slate-800">Figure Title</h2>
+                    <p id="chart-desc" class="text-xs text-slate-500">Figure description</p>
                 </div>
-                <div id="chart-fig1" style="height: 540px;"></div>
+                <div id="chart-badge"></div>
             </div>
-
-            <div id="fig2-panel" class="tab-panel hidden">
-                <div class="mb-4 border-b pb-3 border-slate-100">
-                    <h2 class="text-lg font-bold text-slate-800">Figure 2: Distributed Speedup Ratio & Weak Scaling Efficiency</h2>
-                    <p class="text-xs text-slate-500">Visualizing the single-node crossover (1.0× threshold) and scaling efficiency recovery as communication amortizes.</p>
-                </div>
-                <div id="chart-fig2" style="height: 540px;"></div>
-            </div>
-
-            <div id="fig3-panel" class="tab-panel hidden">
-                <div class="mb-4 border-b pb-3 border-slate-100">
-                    <h2 class="text-lg font-bold text-slate-800">Figure 3: Step Time Breakdown (Local Compute vs. Network AllReduce Barrier)</h2>
-                    <p class="text-xs text-slate-500">Stacked microsecond timing decomposition showing communication amortization from 95% down to 10%.</p>
-                </div>
-                <div id="chart-fig3" style="height: 540px;"></div>
-            </div>
-
-            <div id="fig4-panel" class="tab-panel hidden">
-                <div class="mb-4 border-b pb-3 border-slate-100">
-                    <h2 class="text-lg font-bold text-slate-800">Figure 4: Training Convergence & Loss Stability Across Steps</h2>
-                    <p class="text-xs text-slate-500">Real loss trajectories verifying numerical stability during distributed accumulation on CIFAR-10 and WikiText-2.</p>
-                </div>
-                <div id="chart-fig4" style="height: 540px;"></div>
-            </div>
-
-            <div id="fig5-panel" class="tab-panel hidden">
-                <div class="mb-4 border-b pb-3 border-slate-100">
-                    <h2 class="text-lg font-bold text-slate-800">Figure 5: Physical Interconnect Bandwidth Sensitivity & Collective Latency</h2>
-                    <p class="text-xs text-slate-500">AllReduce collective throughput and latency across payload sizes from 0.1 MB to 500 MB on the 100 Mbps switch.</p>
-                </div>
-                <div id="chart-fig5" style="height: 540px;"></div>
-            </div>
+            <div id="main-chart" style="height: 540px;"></div>
         </div>
 
         <!-- Academic Explanatory Note -->
@@ -121,7 +118,7 @@
                 <span>💡</span> Academic Systems Summary
             </h3>
             <p class="text-xs leading-relaxed text-slate-600">
-                All data points shown above reflect empirical telemetry collected on bare-metal university desktop PCs connected via a physical 100 Mbps Fast Ethernet switch during the 13-hour benchmarking run (<code class="bg-blue-100 px-1 py-0.5 rounded text-blue-800">session_20261121_200541_1core</code>). Single-node baselines are invariant to accumulation factor $K$ because standalone compute has zero network communication overhead ($T_{\text{comm}} = 0$).
+                All data points shown reflect empirical measurements collected on bare-metal university desktop PCs connected via a physical 100 Mbps Fast Ethernet switch during the 13-hour benchmarking run (<code class="bg-blue-100 px-1 py-0.5 rounded text-blue-800">session_20261121_200541_1core</code>). Single-node baselines are invariant to accumulation factor $K$ because standalone compute has zero network communication overhead ($T_{\text{comm}} = 0$).
             </p>
         </div>
     </main>
@@ -130,247 +127,297 @@
         CPU Cluster Lab — Distributed Deep Learning Systems Research | Mohammad Shamsuddoha Shams
     </footer>
 
-    <!-- Plotly Data & Render Logic -->
+    <!-- Plotly Data & Render Logic for ALL 15 Figures -->
     <script>
         const ks = ['1', '2', '4', '8', '16', '32', '64'];
+        const resnet_2nodes = [15.57, 29.03, 52.40, 86.23, 125.50, 157.73, 181.07];
+        const gpt2_2nodes = [86.47, 157.43, 260.93, 384.80, 500.70, 587.93, 643.47];
+        const resnet_baseline = 114.75;
+        const gpt2_baseline = 358.20;
 
-        // --- Figure 1 Data ---
-        function renderFig1() {
-            const resnet_2nodes = [15.57, 29.03, 52.40, 86.23, 125.50, 157.73, 181.07];
-            const gpt2_2nodes = [86.47, 157.43, 260.93, 384.80, 500.70, 587.93, 643.47];
-            const resnet_baseline = 114.75;
-            const gpt2_baseline = 358.20;
+        const resnet_speedup = [0.14, 0.26, 0.46, 0.76, 1.11, 1.39, 1.60];
+        const gpt2_speedup = [0.24, 0.44, 0.73, 1.07, 1.40, 1.64, 1.79];
+        const resnet_eff = [7.1, 12.8, 23.2, 38.1, 55.5, 69.7, 80.0];
+        const gpt2_eff = [12.2, 22.0, 36.4, 53.7, 69.9, 82.1, 89.5];
 
-            const trace1 = {
-                x: ks, y: resnet_2nodes,
-                name: 'ResNet-18 (2 Nodes)',
-                type: 'scatter', mode: 'lines+markers',
-                marker: { size: 9, color: '#2563eb' },
-                line: { width: 3, color: '#2563eb' },
-                xaxis: 'x1', yaxis: 'y1'
-            };
-            const trace1_base = {
-                x: ks, y: Array(7).fill(resnet_baseline),
-                name: 'ResNet-18 1-Node Baseline (114.8 img/s)',
-                type: 'scatter', mode: 'lines',
-                line: { dash: 'dash', color: '#dc2626', width: 2 },
-                xaxis: 'x1', yaxis: 'y1'
-            };
+        const fwd_gpt2 = [2.49, 4.98, 10.07, 20.52, 41.86, 85.03, 171.38];
+        const bwd_gpt2 = [0.0, 5.24, 10.99, 23.04, 47.36, 96.40, 194.68];
+        const comm_gpt2 = [44.61, 41.54, 41.45, 41.32, 41.39, 41.22, 41.03];
+        const gammas_gpt2 = [0.056, 0.246, 0.508, 1.054, 2.156, 4.402, 8.922];
 
-            const trace2 = {
-                x: ks, y: gpt2_2nodes,
-                name: 'GPT-2 Small (2 Nodes)',
-                type: 'scatter', mode: 'lines+markers',
-                marker: { size: 9, color: '#059669' },
-                line: { width: 3, color: '#059669' },
-                xaxis: 'x2', yaxis: 'y2'
-            };
-            const trace2_base = {
-                x: ks, y: Array(7).fill(gpt2_baseline),
-                name: 'GPT-2 1-Node Baseline (358.2 tok/s)',
-                type: 'scatter', mode: 'lines',
-                line: { dash: 'dash', color: '#dc2626', width: 2 },
-                xaxis: 'x2', yaxis: 'y2'
-            };
+        const gpt2_steps = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        const gpt2_loss = [10.97, 10.07, 9.63, 9.42, 9.21, 8.99, 8.80, 8.57, 8.48, 8.26, 8.15, 7.92, 7.88, 7.67, 7.58];
+        const gpt2_ppl = [58153, 23552, 15270, 12332, 10040, 8022, 6634, 5271, 4817, 3870, 3463, 2751, 2645, 2135, 1968];
 
-            const layout = {
-                grid: { rows: 1, columns: 2, pattern: 'independent' },
-                title: { text: 'Global Throughput vs. Accumulation Steps (K)', font: { size: 16 } },
-                xaxis1: { title: 'Accumulation Steps (K)' },
-                yaxis1: { title: 'ResNet-18 Throughput (images/sec)' },
-                xaxis2: { title: 'Accumulation Steps (K)' },
-                yaxis2: { title: 'GPT-2 Small Throughput (tokens/sec)' },
-                margin: { t: 50, b: 60, l: 60, r: 40 },
-                legend: { orientation: 'h', y: -0.2 }
-            };
+        const payloads = [0.1, 1.0, 10.0, 50.0, 100.0, 200.0, 500.0];
+        const bandwidth = [0.85, 4.20, 10.10, 10.82, 10.88, 10.91, 10.92];
+        const latency = [0.12, 0.24, 0.99, 4.62, 9.19, 18.33, 45.86];
 
-            Plotly.newPlot('chart-fig1', [trace1, trace1_base, trace2, trace2_base], layout, {responsive: true});
+        let currentMode = 'combined';
+        let currentTab = 'fig1';
+
+        function setViewMode(mode) {
+            currentMode = mode;
+            if (mode === 'combined') {
+                document.getElementById('btn-mode-combined').classList.add('active');
+                document.getElementById('btn-mode-solo').classList.remove('active');
+                document.getElementById('nav-combined').classList.remove('hidden');
+                document.getElementById('nav-solo').classList.add('hidden');
+                switchTab('fig1');
+            } else {
+                document.getElementById('btn-mode-solo').classList.add('active');
+                document.getElementById('btn-mode-combined').classList.remove('active');
+                document.getElementById('nav-solo').classList.remove('hidden');
+                document.getElementById('nav-combined').classList.add('hidden');
+                switchTab('fig1a');
+            }
         }
 
-        // --- Figure 2 Data ---
-        function renderFig2() {
-            const resnet_speedup = [0.14, 0.26, 0.46, 0.76, 1.11, 1.39, 1.60];
-            const gpt2_speedup = [0.24, 0.44, 0.73, 1.07, 1.40, 1.64, 1.79];
-            const resnet_eff = [7.1, 12.8, 23.2, 38.1, 55.5, 69.7, 80.0];
-            const gpt2_eff = [12.2, 22.0, 36.4, 53.7, 69.9, 82.1, 89.5];
-
-            const t1 = {
-                x: ks, y: resnet_speedup,
-                name: 'ResNet-18 Speedup (SN)',
-                type: 'scatter', mode: 'lines+markers',
-                marker: { size: 9, color: '#2563eb' },
-                line: { width: 3, color: '#2563eb' },
-                xaxis: 'x1', yaxis: 'y1'
-            };
-            const t2 = {
-                x: ks, y: gpt2_speedup,
-                name: 'GPT-2 Speedup (SN)',
-                type: 'scatter', mode: 'lines+markers',
-                marker: { size: 9, color: '#059669' },
-                line: { width: 3, color: '#059669' },
-                xaxis: 'x1', yaxis: 'y1'
-            };
-            const t_base = {
-                x: ks, y: Array(7).fill(1.0),
-                name: '1.0× Single-Node Threshold',
-                type: 'scatter', mode: 'lines',
-                line: { dash: 'dash', color: '#dc2626', width: 2 },
-                xaxis: 'x1', yaxis: 'y1'
-            };
-
-            const t3 = {
-                x: ks, y: resnet_eff,
-                name: 'ResNet-18 Efficiency (%)',
-                type: 'scatter', mode: 'lines+markers',
-                marker: { size: 9, color: '#2563eb' },
-                line: { width: 3, dash: 'dot', color: '#2563eb' },
-                xaxis: 'x2', yaxis: 'y2'
-            };
-            const t4 = {
-                x: ks, y: gpt2_eff,
-                name: 'GPT-2 Efficiency (%)',
-                type: 'scatter', mode: 'lines+markers',
-                marker: { size: 9, color: '#059669' },
-                line: { width: 3, dash: 'dot', color: '#059669' },
-                xaxis: 'x2', yaxis: 'y2'
-            };
-
-            const layout = {
-                grid: { rows: 1, columns: 2, pattern: 'independent' },
-                title: { text: 'Distributed Speedup Ratio (SN) & Weak Scaling Efficiency (EN)', font: { size: 16 } },
-                xaxis1: { title: 'Accumulation Steps (K)' },
-                yaxis1: { title: 'Cluster Speedup Ratio (×)', range: [0, 2.0] },
-                xaxis2: { title: 'Accumulation Steps (K)' },
-                yaxis2: { title: 'Scaling Efficiency (%)', range: [0, 100] },
-                margin: { t: 50, b: 60, l: 60, r: 40 },
-                legend: { orientation: 'h', y: -0.2 }
-            };
-
-            Plotly.newPlot('chart-fig2', [t1, t2, t_base, t3, t4], layout, {responsive: true});
-        }
-
-        // --- Figure 3 Data ---
-        function renderFig3() {
-            const fwd = [2.49, 4.98, 10.07, 20.52, 41.86, 85.03, 171.38];
-            const bwd = [0.0, 5.24, 10.99, 23.04, 47.36, 96.40, 194.68];
-            const comm = [44.61, 41.54, 41.45, 41.32, 41.39, 41.22, 41.03];
-            const gammas = [0.056, 0.246, 0.508, 1.054, 2.156, 4.402, 8.922];
-
-            const trace_fwd = { x: ks, y: fwd, name: 'Forward Compute (s)', type: 'bar', marker: { color: '#3b82f6' } };
-            const trace_bwd = { x: ks, y: bwd, name: 'Backward Compute (s)', type: 'bar', marker: { color: '#10b981' } };
-            const trace_comm = { x: ks, y: comm, name: 'AllReduce Network Wait (s)', type: 'bar', marker: { color: '#ef4444' } };
-
-            const trace_gamma = {
-                x: ks, y: gammas,
-                name: 'Compute-to-Comm Ratio (Γ)',
-                type: 'scatter', mode: 'lines+markers',
-                yaxis: 'y2',
-                marker: { size: 9, color: '#8b5cf6' },
-                line: { width: 3, color: '#8b5cf6' }
-            };
-
-            const layout = {
-                barmode: 'stack',
-                title: { text: 'GPT-2 Step Time Breakdown & Ratio Γ (Compute vs Network)', font: { size: 16 } },
-                xaxis: { title: 'Accumulation Steps (K)' },
-                yaxis: { title: 'Step Duration (seconds)' },
-                yaxis2: {
-                    title: 'Compute-to-Comm Ratio (Γ = Tcomp / Tcomm)',
-                    overlaying: 'y',
-                    side: 'right',
-                    range: [0, 10]
-                },
-                margin: { t: 50, b: 60, l: 60, r: 60 },
-                legend: { orientation: 'h', y: -0.2 }
-            };
-
-            Plotly.newPlot('chart-fig3', [trace_fwd, trace_bwd, trace_comm, trace_gamma], layout, {responsive: true});
-        }
-
-        // --- Figure 4 Data ---
-        function renderFig4() {
-            const steps = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-            const gpt2_loss = [10.97, 10.07, 9.63, 9.42, 9.21, 8.99, 8.80, 8.57, 8.48, 8.26, 8.15, 7.92, 7.88, 7.67, 7.58];
-
-            const trace_gpt2 = {
-                x: steps, y: gpt2_loss,
-                name: 'GPT-2 Language Model Loss',
-                type: 'scatter', mode: 'lines+markers',
-                marker: { size: 8, color: '#2563eb' },
-                line: { width: 3, color: '#2563eb' }
-            };
-
-            const layout = {
-                title: { text: 'Figure 4: GPT-2 Small Language Model Loss Convergence (WikiText-2)', font: { size: 16 } },
-                xaxis: { title: 'Optimizer Step (K=4)' },
-                yaxis: { title: 'Cross-Entropy Loss', range: [7, 11.5] },
-                margin: { t: 50, b: 60, l: 60, r: 40 },
-                legend: { orientation: 'h', y: -0.2 }
-            };
-
-            Plotly.newPlot('chart-fig4', [trace_gpt2], layout, {responsive: true});
-        }
-
-        // --- Figure 5 Data ---
-        function renderFig5() {
-            const payloads = [0.1, 1.0, 10.0, 50.0, 100.0, 200.0, 500.0];
-            const bandwidth = [0.85, 4.20, 10.10, 10.82, 10.88, 10.91, 10.92];
-            const latency = [0.12, 0.24, 0.99, 4.62, 9.19, 18.33, 45.86];
-
-            const trace_bw = {
-                x: payloads, y: bandwidth,
-                name: 'Effective Bandwidth (MB/s)',
-                type: 'scatter', mode: 'lines+markers',
-                marker: { size: 8, color: '#059669' },
-                line: { width: 3, color: '#059669' },
-                xaxis: 'x1', yaxis: 'y1'
-            };
-            const trace_lat = {
-                x: payloads, y: latency,
-                name: 'Collective Latency (seconds)',
-                type: 'scatter', mode: 'lines+markers',
-                marker: { size: 8, color: '#dc2626' },
-                line: { width: 3, color: '#dc2626' },
-                xaxis: 'x2', yaxis: 'y2'
-            };
-
-            const layout = {
-                grid: { rows: 1, columns: 2, pattern: 'independent' },
-                title: { text: 'Figure 5: Physical AllReduce Bandwidth & Latency vs. Payload Size', font: { size: 16 } },
-                xaxis1: { title: 'Payload Size (MB)', type: 'log' },
-                yaxis1: { title: 'Throughput (MB/s)' },
-                xaxis2: { title: 'Payload Size (MB)', type: 'log' },
-                yaxis2: { title: 'Latency (seconds)' },
-                margin: { t: 50, b: 60, l: 60, r: 40 },
-                legend: { orientation: 'h', y: -0.2 }
-            };
-
-            Plotly.newPlot('chart-fig5', [trace_bw, trace_lat], layout, {responsive: true});
-        }
-
-        // --- Tab Switching Logic ---
         function switchTab(tabId) {
-            document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(b => {
-                b.classList.remove('active', 'bg-blue-800', 'text-white');
-                b.classList.add('bg-slate-200', 'text-slate-700');
+            currentTab = tabId;
+            document.querySelectorAll('.nav-btn').forEach(b => {
+                b.classList.remove('active', 'bg-blue-900', 'text-white');
+                b.classList.add('bg-slate-100', 'text-slate-700');
             });
-
-            document.getElementById(tabId + '-panel').classList.remove('hidden');
             const activeBtn = document.getElementById('btn-' + tabId);
-            activeBtn.classList.remove('bg-slate-200', 'text-slate-700');
-            activeBtn.classList.add('active', 'bg-blue-800', 'text-white');
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-slate-100', 'text-slate-700');
+                activeBtn.classList.add('active');
+            }
 
-            if (tabId === 'fig1') renderFig1();
-            if (tabId === 'fig2') renderFig2();
-            if (tabId === 'fig3') renderFig3();
-            if (tabId === 'fig4') renderFig4();
-            if (tabId === 'fig5') renderFig5();
+            const title = document.getElementById('chart-title');
+            const desc = document.getElementById('chart-desc');
+            const badge = document.getElementById('chart-badge');
+
+            // --- RENDER ROUTING ---
+            if (tabId === 'fig1') {
+                title.innerText = 'Figure 1: Global Training Throughput vs. Accumulation Steps (K)';
+                desc.innerText = 'Dual-panel comparison of ResNet-18 (Vision) and GPT-2 Small (LLM) scaling past single-node ceilings.';
+                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Dual Panel</span>';
+                
+                const t1 = { x: ks, y: resnet_2nodes, name: 'ResNet-18 (2 Nodes)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#2563eb' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
+                const t1_b = { x: ks, y: Array(7).fill(resnet_baseline), name: '1-Node Base (114.8 img/s)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2 }, xaxis: 'x1', yaxis: 'y1' };
+                const t2 = { x: ks, y: gpt2_2nodes, name: 'GPT-2 Small (2 Nodes)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#059669' }, line: { width: 3 }, xaxis: 'x2', yaxis: 'y2' };
+                const t2_b = { x: ks, y: Array(7).fill(gpt2_baseline), name: '1-Node Base (358.2 tok/s)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2 }, xaxis: 'x2', yaxis: 'y2' };
+
+                Plotly.newPlot('main-chart', [t1, t1_b, t2, t2_b], {
+                    grid: { rows: 1, columns: 2, pattern: 'independent' },
+                    xaxis1: { title: 'Accumulation Steps (K)' }, yaxis1: { title: 'ResNet-18 Throughput (img/s)' },
+                    xaxis2: { title: 'Accumulation Steps (K)' }, yaxis2: { title: 'GPT-2 Small Throughput (tok/s)' },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: -0.2 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig1a') {
+                title.innerText = 'Figure 1a: ResNet-18 / CIFAR-10 Training Throughput vs. K';
+                desc.innerText = 'Convolutional neural network scaling from 15.57 to 181.07 img/s (11.6× gain). Crossover at K=16.';
+                badge.innerHTML = '<span class="text-xs bg-indigo-50 text-indigo-700 font-medium px-2.5 py-1 rounded-md border border-indigo-200">Solo Subfigure 1a</span>';
+
+                const t1 = { x: ks, y: resnet_2nodes, name: '2-Node Cluster', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#2563eb' }, line: { width: 3.5 } };
+                const t1_b = { x: ks, y: Array(7).fill(resnet_baseline), name: '1-Node Baseline (114.8 img/s)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2.5 } };
+                Plotly.newPlot('main-chart', [t1, t1_b], {
+                    xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Throughput (images/second)' },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig1b') {
+                title.innerText = 'Figure 1b: GPT-2 Small / WikiText-2 Training Throughput vs. K';
+                desc.innerText = 'Autoregressive transformer scaling from 86.47 to 643.47 tok/s (7.4× gain). Crossover at K=8.';
+                badge.innerHTML = '<span class="text-xs bg-emerald-50 text-emerald-700 font-medium px-2.5 py-1 rounded-md border border-emerald-200">Solo Subfigure 1b</span>';
+
+                const t2 = { x: ks, y: gpt2_2nodes, name: '2-Node Cluster', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#059669' }, line: { width: 3.5 } };
+                const t2_b = { x: ks, y: Array(7).fill(gpt2_baseline), name: '1-Node Baseline (358.2 tok/s)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2.5 } };
+                Plotly.newPlot('main-chart', [t2, t2_b], {
+                    xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Throughput (tokens/second)' },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig2') {
+                title.innerText = 'Figure 2: Distributed Speedup Ratio & Weak Scaling Efficiency';
+                desc.innerText = 'Dual-panel comparison of Speedup Ratio SN crossing 1.0× and Scaling Efficiency EN recovering to 89.5%.';
+                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Dual Panel</span>';
+
+                const t1 = { x: ks, y: resnet_speedup, name: 'ResNet-18 (SN)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#2563eb' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
+                const t2 = { x: ks, y: gpt2_speedup, name: 'GPT-2 (SN)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#059669' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
+                const t_b = { x: ks, y: Array(7).fill(1.0), name: '1.0× Parity Threshold', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2 }, xaxis: 'x1', yaxis: 'y1' };
+                const t3 = { x: ks, y: resnet_eff, name: 'ResNet-18 Eff (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#2563eb' }, line: { width: 3, dash: 'dot' }, xaxis: 'x2', yaxis: 'y2' };
+                const t4 = { x: ks, y: gpt2_eff, name: 'GPT-2 Eff (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#059669' }, line: { width: 3, dash: 'dot' }, xaxis: 'x2', yaxis: 'y2' };
+
+                Plotly.newPlot('main-chart', [t1, t2, t_b, t3, t4], {
+                    grid: { rows: 1, columns: 2, pattern: 'independent' },
+                    xaxis1: { title: 'Accumulation Steps (K)' }, yaxis1: { title: 'Speedup Ratio (×)', range: [0, 2.0] },
+                    xaxis2: { title: 'Accumulation Steps (K)' }, yaxis2: { title: 'Scaling Efficiency (%)', range: [0, 100] },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: -0.2 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig2a') {
+                title.innerText = 'Figure 2a: Cluster Speedup Ratio (SN) vs. Single-Node Baseline';
+                desc.innerText = 'Tracking speedup recovery past the 1.0× threshold to 1.60× (ResNet) and 1.79× (GPT-2).';
+                badge.innerHTML = '<span class="text-xs bg-emerald-50 text-emerald-700 font-medium px-2.5 py-1 rounded-md border border-emerald-200">Solo Subfigure 2a</span>';
+
+                const t1 = { x: ks, y: resnet_speedup, name: 'ResNet-18 Speedup', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#2563eb' }, line: { width: 3.5 } };
+                const t2 = { x: ks, y: gpt2_speedup, name: 'GPT-2 Speedup', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#059669' }, line: { width: 3.5 } };
+                const t_b = { x: ks, y: Array(7).fill(1.0), name: '1.0× Baseline Threshold', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2.5 } };
+
+                Plotly.newPlot('main-chart', [t1, t2, t_b], {
+                    xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Speedup Ratio (SN)', range: [0, 2.0] },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig2b') {
+                title.innerText = 'Figure 2b: Weak Scaling Efficiency (EN) Across Accumulation Factors';
+                desc.innerText = 'Proportion of ideal linear 2.0× scaling achieved, scaling from 7.1% up to 89.5%.';
+                badge.innerHTML = '<span class="text-xs bg-emerald-50 text-emerald-700 font-medium px-2.5 py-1 rounded-md border border-emerald-200">Solo Subfigure 2b</span>';
+
+                const t3 = { x: ks, y: resnet_eff, name: 'ResNet-18 Efficiency (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#2563eb' }, line: { width: 3.5 } };
+                const t4 = { x: ks, y: gpt2_eff, name: 'GPT-2 Efficiency (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#059669' }, line: { width: 3.5 } };
+                Plotly.newPlot('main-chart', [t3, t4], {
+                    xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Scaling Efficiency (%)', range: [0, 100] },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig3') {
+                title.innerText = 'Figure 3: Step Time Breakdown & Ratio Γ (Compute vs Network)';
+                desc.innerText = 'Stacked time decomposition and compute-to-comm ratio Γ inverting the network bottleneck from 0.05 to 8.93.';
+                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Dual Panel</span>';
+
+                const trace_fwd = { x: ks, y: fwd_gpt2, name: 'Forward Compute (s)', type: 'bar', marker: { color: '#3b82f6' } };
+                const trace_bwd = { x: ks, y: bwd_gpt2, name: 'Backward Compute (s)', type: 'bar', marker: { color: '#10b981' } };
+                const trace_comm = { x: ks, y: comm_gpt2, name: 'AllReduce Network Wait (s)', type: 'bar', marker: { color: '#ef4444' } };
+                const trace_gamma = { x: ks, y: gammas_gpt2, name: 'Ratio Γ = Tcomp / Tcomm', type: 'scatter', mode: 'lines+markers', yaxis: 'y2', marker: { size: 9, color: '#8b5cf6' }, line: { width: 3 } };
+
+                Plotly.newPlot('main-chart', [trace_fwd, trace_bwd, trace_comm, trace_gamma], {
+                    barmode: 'stack',
+                    xaxis: { title: 'Accumulation Steps (K)' }, yaxis: { title: 'Step Duration (seconds)' },
+                    yaxis2: { title: 'Compute-to-Comm Ratio (Γ)', overlaying: 'y', side: 'right', range: [0, 10] },
+                    margin: { t: 40, b: 60, l: 60, r: 60 }, legend: { orientation: 'h', y: -0.2 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig3a') {
+                title.innerText = 'Figure 3a: Step Duration Stacked Breakdown (GPT-2 Small)';
+                desc.innerText = 'Visualizing constant AllReduce communication time (~41s) as compute work scales up with K.';
+                badge.innerHTML = '<span class="text-xs bg-purple-50 text-purple-700 font-medium px-2.5 py-1 rounded-md border border-purple-200">Solo Subfigure 3a</span>';
+
+                const trace_fwd = { x: ks, y: fwd_gpt2, name: 'Forward Compute (Local CPU)', type: 'bar', marker: { color: '#3b82f6' } };
+                const trace_bwd = { x: ks, y: bwd_gpt2, name: 'Backward Compute (Local CPU)', type: 'bar', marker: { color: '#10b981' } };
+                const trace_comm = { x: ks, y: comm_gpt2, name: 'AllReduce Network Barrier (100 Mbps)', type: 'bar', marker: { color: '#ef4444' } };
+                Plotly.newPlot('main-chart', [trace_fwd, trace_bwd, trace_comm], {
+                    barmode: 'stack',
+                    xaxis: { title: 'Gradient Accumulation Configuration (K)' }, yaxis: { title: 'Step Duration (seconds)' },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig3b') {
+                title.innerText = 'Figure 3b: Compute-to-Communication Ratio (Γ = Tcomp / Tcomm)';
+                desc.innerText = 'Bottleneck inversion: Γ moves from 0.05 (severe network bound) to 8.93 (fully compute bound).';
+                badge.innerHTML = '<span class="text-xs bg-purple-50 text-purple-700 font-medium px-2.5 py-1 rounded-md border border-purple-200">Solo Subfigure 3b</span>';
+
+                const t_g = { x: ks, y: gammas_gpt2, name: 'Ratio Γ', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#8b5cf6' }, line: { width: 3.5 } };
+                const t_p = { x: ks, y: Array(7).fill(1.0), name: 'Parity Boundary (Γ = 1.0)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2 } };
+                Plotly.newPlot('main-chart', [t_g, t_p], {
+                    xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Ratio Γ = Tcomp / Tcomm' },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig4') {
+                title.innerText = 'Figure 4: Training Convergence & Loss Stability Across Accumulation Steps';
+                desc.innerText = 'Dual panel: CIFAR-10 classification loss & accuracy vs. GPT-2 language model cross-entropy loss.';
+                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Dual Panel</span>';
+
+                const t_c1 = { x: [1, 2], y: [1.71, 1.27], name: 'CIFAR-10 Loss', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#2563eb' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
+                const t_c2 = { x: [1, 2], y: [49.0, 58.8], name: 'Test Accuracy (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#10b981' }, line: { width: 3, dash: 'dash' }, xaxis: 'x1', yaxis: 'y2' };
+                const t_g = { x: gpt2_steps, y: gpt2_loss, name: 'GPT-2 LM Loss', type: 'scatter', mode: 'lines+markers', marker: { size: 8, color: '#2563eb' }, line: { width: 3 }, xaxis: 'x2', yaxis: 'y3' };
+
+                Plotly.newPlot('main-chart', [t_c1, t_c2, t_g], {
+                    grid: { rows: 1, columns: 2, pattern: 'independent' },
+                    xaxis1: { title: 'Training Epoch', dtick: 1 }, yaxis1: { title: 'Cross-Entropy Loss' },
+                    yaxis2: { title: 'Test Accuracy (%)', overlaying: 'y1', side: 'right', range: [40, 70] },
+                    xaxis2: { title: 'Optimizer Step (K=4)' }, yaxis3: { title: 'LM Loss' },
+                    margin: { t: 40, b: 60, l: 60, r: 60 }, legend: { orientation: 'h', y: -0.2 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig4a') {
+                title.innerText = 'Figure 4a: ResNet-18 / CIFAR-10 Convergence (Loss & Accuracy)';
+                desc.innerText = 'Healthy optimization: loss drops 1.71 to 1.27 while test accuracy reaches 58.8% in 2 epochs.';
+                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Solo Subfigure 4a</span>';
+
+                const t_loss = { x: [1, 2], y: [1.71, 1.27], name: 'Training Loss', type: 'scatter', mode: 'lines+markers', marker: { size: 11, color: '#2563eb' }, line: { width: 3.5 } };
+                const t_acc = { x: [1, 2], y: [49.0, 58.8], name: 'Test Accuracy (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 11, color: '#10b981' }, line: { width: 3.5, dash: 'dash' }, yaxis: 'y2' };
+                Plotly.newPlot('main-chart', [t_loss, t_acc], {
+                    xaxis: { title: 'Epoch', dtick: 1 }, yaxis: { title: 'Training Cross-Entropy Loss' },
+                    yaxis2: { title: 'Test Accuracy (%)', overlaying: 'y', side: 'right', range: [40, 70] },
+                    margin: { t: 40, b: 60, l: 60, r: 60 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig4b') {
+                title.innerText = 'Figure 4b: GPT-2 Small / WikiText-2 Language Model Loss & Perplexity';
+                desc.innerText = 'Smooth monotonic descent: Loss drops from 10.97 to 7.58 (Perplexity: 58,153 to 1,968) over 15 steps.';
+                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Solo Subfigure 4b</span>';
+
+                const t_g_loss = { x: gpt2_steps, y: gpt2_loss, name: 'Cross-Entropy Loss', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#2563eb' }, line: { width: 3.5 } };
+                const t_g_ppl = { x: gpt2_steps, y: gpt2_ppl, name: 'Perplexity (PPL)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#d97706' }, line: { width: 3.5, dash: 'dot' }, yaxis: 'y2' };
+                Plotly.newPlot('main-chart', [t_g_loss, t_g_ppl], {
+                    xaxis: { title: 'Optimizer Step (K=4 Accumulation)' }, yaxis: { title: 'Cross-Entropy Loss' },
+                    yaxis2: { title: 'Perplexity (log scale)', overlaying: 'y', side: 'right', type: 'log' },
+                    margin: { t: 40, b: 60, l: 60, r: 60 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig5') {
+                title.innerText = 'Figure 5: Physical Interconnect Bandwidth Sensitivity & Collective Latency';
+                desc.innerText = 'Dual-panel characterization of 100 Mbps switch saturation at 10.9 MB/s and linear latency scaling.';
+                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Dual Panel</span>';
+
+                const t_bw = { x: payloads, y: bandwidth, name: 'Bandwidth (MB/s)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#059669' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
+                const t_lat = { x: payloads, y: latency, name: 'Latency (s)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#dc2626' }, line: { width: 3 }, xaxis: 'x2', yaxis: 'y2' };
+
+                Plotly.newPlot('main-chart', [t_bw, t_lat], {
+                    grid: { rows: 1, columns: 2, pattern: 'independent' },
+                    xaxis1: { title: 'Payload Size (MB)', type: 'log' }, yaxis1: { title: 'Effective Throughput (MB/s)' },
+                    xaxis2: { title: 'Payload Size (MB)', type: 'log' }, yaxis2: { title: 'Latency (seconds)' },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: -0.2 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig5a') {
+                title.innerText = 'Figure 5a: Effective AllReduce Bandwidth vs. Payload Size';
+                desc.innerText = 'Interconnect saturates at 10.9 MB/s (87.2% of Fast Ethernet line rate) for payloads ≥ 10 MB.';
+                badge.innerHTML = '<span class="text-xs bg-emerald-50 text-emerald-700 font-medium px-2.5 py-1 rounded-md border border-emerald-200">Solo Subfigure 5a</span>';
+
+                const t_bw = { x: payloads, y: bandwidth, name: 'Effective Bandwidth', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#059669' }, line: { width: 3.5 } };
+                const t_wire = { x: payloads, y: Array(7).fill(12.5), name: '100 Mbps Wire Ceiling (12.5 MB/s)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2.5 } };
+                Plotly.newPlot('main-chart', [t_bw, t_wire], {
+                    xaxis: { title: 'Payload Size (MB)', type: 'log' }, yaxis: { title: 'Throughput (MB/s)', range: [0, 14] },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig5b') {
+                title.innerText = 'Figure 5b: Collective AllReduce Latency Scaling';
+                desc.innerText = 'Strict linear scaling with payload (R² = 0.9998), proving communication is pure bandwidth-bound.';
+                badge.innerHTML = '<span class="text-xs bg-rose-50 text-rose-700 font-medium px-2.5 py-1 rounded-md border border-rose-200">Solo Subfigure 5b</span>';
+
+                const t_lat = { x: payloads, y: latency, name: 'Collective Latency', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#dc2626' }, line: { width: 3.5 } };
+                Plotly.newPlot('main-chart', [t_lat], {
+                    xaxis: { title: 'Payload Size (MB)', type: 'log' }, yaxis: { title: 'Duration (seconds)' },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
         }
 
         // Initialize on load
         window.addEventListener('DOMContentLoaded', () => {
-            renderFig1();
+            switchTab('fig1');
         });
     </script>
 </body>
