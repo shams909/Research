@@ -1,9 +1,10 @@
 # CPU Cluster Lab: Distributed Deep Learning on Commodity Intel Hardware
 
 > **Research Project** — Distributed LLM/ML Training on Commodity Intel CPU Hardware  
+> **Working Paper Title**: *"Communication Amortization in Distributed CPU Training over Fast Ethernet: An Empirical Study"*  
 > **Comparative Baseline**: *"Towards Large-Scale Training on Apple Silicon"* (2025)  
 > **Master Report**: See [EXPERIMENTAL_RESULTS.md](EXPERIMENTAL_RESULTS.md) for full A-to-Z empirical data, 13-hour benchmark tables, and systems profiling.  
-> **Publication Figures**: 15 high-resolution figures available in [figures/](figures/).
+> **Publication Figures**: 16 high-resolution publication figures available in [figures/](figures/).
 
 ---
 

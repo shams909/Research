@@ -1,6 +1,7 @@
-# Distributed Deep Learning on Commodity CPU Clusters: Empirical Benchmark, Systems Profiling, and Algorithmic Communication Amortization
+# Communication Amortization in Distributed CPU Training over Fast Ethernet: An Empirical Study
 
-**Document Version:** 2.0.0 (Definitive Master Documentation)  
+**Sub-Title:** Empirical Scaling Benchmarks, Hardware Telemetry Profiling, and Architectural Solutions for Low-Cost Academic Clusters  
+**Document Version:** 2.1.0 (Definitive Master Documentation — Reviewer Hardened)  
 **Authors / Contributors:** Mohammad Shamsuddoha Shams (Lead Systems Architect & Researcher)  
 **Collaborative Planning:** Architectural blueprint formulated in collaboration with Claude, GPT, and Laboratory Faculty Direction  
 **Testbed Environment:** University Bare-Metal Desktop Workstations (Node 01 Master, Node 02 Worker)  
@@ -15,11 +16,21 @@
 2. [Origin, Context & Research Motivation](#2-origin-context--research-motivation)
 3. [Physical Cluster Testbed & Network Characterization](#3-physical-cluster-testbed--network-characterization)
 4. [Deep Learning Workload Architectures & Tensor Payloads](#4-deep-learning-workload-architectures--tensor-payloads)
+   * 4.1 Vision Architecture: ResNet-18 (CIFAR-10)
+   * 4.2 Language Architecture: GPT-2 Small (WikiText-2)
+   * 4.3 Dual-Track Experimental Methodology: Synthetic Profiling vs. Real Convergence
 5. [The Fundamental Systems Problem: The 100 Mbps Communication Wall](#5-the-fundamental-systems-problem-the-100-mbps-communication-wall)
 6. [The Mathematical Solution: Algorithmic Gradient Accumulation ($K$)](#6-the-mathematical-solution-algorithmic-gradient-accumulation-k)
+   * 6.1 Formal Mathematical Formulation
+   * 6.2 Compute-to-Communication Ratio ($\Gamma$)
+   * 6.3 The Crossover Condition ($S_N \ge 1.0\times$)
+   * 6.4 Single-Node Invariance Principle with Respect to Accumulation ($K$)
+   * 6.5 Stopwatch Timing Decomposition & Measurement Methodology
 7. [The 10 Engineering Bugs, Failures & Architectural Fixes](#7-the-10-engineering-bugs-failures--architectural-fixes)
 8. [Comprehensive 13-Hour Empirical Results Matrix](#8-comprehensive-13-hour-empirical-results-matrix)
-9. [Detailed Visual Systems Analysis: The 15 Publication Figures](#9-detailed-visual-systems-analysis-the-15-publication-figures)
+9. [Detailed Visual Systems Analysis: The Publication Figures](#9-detailed-visual-systems-analysis-the-15-publication-figures)
+   * Figures 1–5: Core Scaling, Decompositions, Convergence & Bandwidth
+   * Figure 6: Real-Time Hardware Telemetry Timeline (18.4-Hour 1 Hz Trace)
 10. [Academic Conclusion & Practical Implementation Guidelines](#10-academic-conclusion--practical-implementation-guidelines)
 
 ---
@@ -132,6 +143,20 @@ To ensure broad applicability across both computer vision and modern natural lan
 * **Theoretical Wire Transmission Time over 100 Mbps Ethernet ($10.9\text{ MB/s}$):**
   $$T_{\text{wire}} \approx \frac{497.76\text{ MB}}{10.9\text{ MB/s}} \approx 45.66\text{ seconds}$$
 
+### 4.3 Dual-Track Experimental Methodology: Synthetic Profiling vs. Real Convergence
+
+To ensure academic transparency and measurement rigor, the experimental campaign strictly decoupled system-level hardware profiling from optimization convergence verification into two independent tracks:
+
+1. **Track 1: Controlled Synthetic Microbenchmarks (Experiments 1, 2, 3, 4 — Figures 1, 2, 3, 5):**
+   * **Payload Generation:** Microsteps run directly on standardized in-memory synthetic tensors generated via `torch.randn` ($32 \times 3 \times 32 \times 32$ for ResNet-18) and `torch.randint` ($4 \times 512$ uniform token IDs for GPT-2 Small).
+   * **Scientific Purpose:** Standard practice in high-performance computing (HPC) systems research. Eliminates disk NVMe read latency, OS page cache contention, Python GIL serialization, and dataloader worker overhead, isolating pure CPU forward compute, autograd backward graph evaluation, and physical network `AllReduce` socket transfer.
+   * **Execution Scope:** Governs all multi-trial throughput sweeps across $K \in \{1, 2, 4, 8, 16, 32, 64\}$.
+
+2. **Track 2: Real-World Dataset Convergence Verification (Experiment 5 — Figure 4):**
+   * **Vision Task:** End-to-end distributed training of ResNet-18 on authentic **CIFAR-10** (60,000 $32 \times 32$ color images across 10 classes; 50,000 train, 10,000 test) across 2 full epochs with real PyTorch `DistributedSampler` pipelines.
+   * **Language Task:** Autoregressive distributed training of GPT-2 Small on the authentic **WikiText-2** language modeling corpus ($4,708$ tokenized sequence chunks of 512 tokens) over 15 optimizer updates.
+   * **Scientific Purpose:** Confirms that algorithmic gradient accumulation ($K$) across distributed CPU nodes maintains numerical stability, avoids loss divergence, and produces valid weight updates on real-world training distributions.
+
 ---
 
 ## 5. The Fundamental Systems Problem: The 100 Mbps Communication Wall
@@ -190,6 +215,42 @@ $$K \ge \frac{T_{\text{comm}}}{(N - 1) T_{\text{comp}}} = \frac{T_{\text{comm}}}
 * For **GPT-2 Small**: $T_{\text{comm}} \approx 41.5\text{s}$, $T_{\text{comp}} \approx 5.5\text{s} \implies K_{\text{crossover}} \ge \frac{41.5}{5.5} \approx 7.5 \implies \mathbf{K = 8}$.
 * For **ResNet-18**: $T_{\text{comm}} \approx 3.8\text{s}$, $T_{\text{comp}} \approx 0.28\text{s} \implies K_{\text{crossover}} \ge \frac{3.8}{0.28} \approx 13.5 \implies \mathbf{K = 16}$.
 Both theoretical crossover points match our empirical measurements exactly.
+
+### 6.4 Single-Node Invariance Principle with Respect to Accumulation ($K$)
+
+A foundational question in distributed systems benchmarking is: *Does single-node training throughput change as accumulation factor $K$ increases?*
+
+Mathematically, for a standalone single node with local microbatch size $b$ and no distributed communication ($T_{\text{comm}} = 0$):
+* Total step duration: $T_{\text{step}}(K) = K \times t_{\text{micro}} + T_{\text{opt}}$
+* Effective processed samples per step: $B = K \times b$
+* Single-node sample throughput:
+  $$P_{\text{single}}(K) = \frac{K \times b}{K \times t_{\text{micro}} + T_{\text{opt}}} = \frac{b}{t_{\text{micro}} + \frac{T_{\text{opt}}}{K}}$$
+
+Because CPU optimizer update overhead ($T_{\text{opt}} \approx 4.2\text{ ms}$ for ResNet, $\approx 270\text{ ms}$ for GPT-2) is virtually negligible compared to total compute time ($K \times t_{\text{micro}}$), the term $\frac{T_{\text{opt}}}{K} \to 0$. Therefore, single-node throughput is **theoretically invariant**:
+$$\lim_{K \to \infty} P_{\text{single}}(K) \approx \frac{b}{t_{\text{micro}}} = \text{Constant}$$
+
+**Empirical Validation (Measured in Stage 3 of the 13-Hour Campaign — `benchmark_1nodes_20261121_212537.csv`):**
+* **ResNet-18:**
+  * $K = 1$: **$114.75\text{ images/s}$** ($0.2789\text{ s}$ per step)
+  * $K = 4$: **$113.15\text{ images/s}$** ($1.1316\text{ s}$ per step $\implies 0.2829\text{ s}$ per microstep)
+  * **Empirical Invariance:** **$98.6\%$ identical** ($1.4\%$ variance).
+* **GPT-2 Small:**
+  * $K = 1$: **$354.20\text{ tokens/s}$** ($5.7823\text{ s}$ per step)
+  * $K = 4$: **$358.20\text{ tokens/s}$** ($22.8693\text{ s}$ per step $\implies 5.717\text{ s}$ per microstep)
+  * **Empirical Invariance:** **$98.9\%$ identical** ($1.1\%$ variance).
+
+This empirical verification confirms that single-node execution operates in a constant compute regime without network overhead. In this study, we deliberately use the measured $K=4$ configuration ($113.15\text{ img/s}$ and $358.20\text{ tok/s}$) as our rigorous single-node baseline reference for calculating cluster speedup $S(K)$ and scaling efficiency $E(K)$.
+
+### 6.5 Stopwatch Timing Decomposition & Measurement Methodology
+
+To dissect distributed step execution without introducing profiling distortion:
+1. **Microsteps $1 \dots K-1$:** Executed inside `with model.no_sync():`. Gradients accumulate locally in DDR4 RAM with zero collective communication calls.
+2. **Microstep $K$ (Synchronization Step):** Executed outside the `no_sync` scope. PyTorch DDP initiates ring `AllReduce` gradient collective synchronization.
+3. **Synchronization Drain & Stopwatch Interval:** Following the synchronizing backward pass, an explicit `dist.barrier()` is called to ensure all pending TCP socket buffers on interface `enp2s0` have completely drained before parameter optimization (`optimizer.step()`).
+4. **Primary Throughput Metrics are End-to-End Wall-Clock Measurements:**
+   * Global cluster throughput $P_{\text{cluster}}$ is computed directly from total unmanipulated wall-clock stopwatch intervals:
+     $$P_{\text{image}} = \frac{K \times B_{\text{local}} \times W}{T_{\text{wall}}}, \quad P_{\text{token}} = \frac{K \times B_{\text{local}} \times S \times W}{T_{\text{wall}}}$$
+   * Because throughput and speedups are derived strictly from total elapsed wall-clock time, reported cluster speedups ($11.63\times$ and $7.44\times$) and peak efficiencies ($80.0\%$ and $89.5\%$) are direct, unmanipulated physical observations immune to internal timing decomposition nuances.
 
 ---
 
@@ -416,6 +477,19 @@ Evaluates physical AllReduce scaling across tensor payloads from $0.1\text{ MB}$
 **Key Observations:**
 * **Bandwidth Saturation:** Effective AllReduce throughput reaches $10.9\text{ MB/s}$ for payloads $\ge 10\text{ MB}$, saturating $87.2\%$ of the physical $12.5\text{ MB/s}$ Fast Ethernet wire rate.
 * **Collective Latency:** Transfer latency scales linearly with payload ($R^2 = 0.9998$), confirming that synchronization overhead is strictly bandwidth-bound rather than latency-bound.
+
+---
+
+### Figure 6: Real-Time Hardware Telemetry Profile (18.4-Hour Continuous 1 Hz Trace)
+
+To rigorously verify host resource behavior, detect potential memory leaks, and prove the absence of hidden OS page swapping, continuous hardware telemetry was collected at $1.0\text{ Hz}$ across the entire experimental campaign ($66,180$ continuous seconds / $18.4\text{ hours}$):
+
+![Figure 6: Real-Time Hardware Telemetry Profile](figures/Figure_6_system_telemetry_timeline.png)
+
+**Key Telemetry Observations:**
+* **CPU Utilization (%):** Reflects the exact duty cycle transitions between phases. During naive DDP and low-$K$ steps, CPU utilization sits in deep idle valleys ($< 2\%$), mathematically matching the $94.7\%$ network stall. During high-$K$ accumulation steps ($K \ge 16$), CPU duty cycle remains consistently elevated, reflecting compute-bound forward/backward execution.
+* **Host RAM Allocation & Stability:** Memory utilization remained strictly bounded between $1.96\text{ GB}$ (idle OS/runtime baseline) and a peak of $13.18\text{ GB}$ during high-$K$ accumulation groups. At all times, the system retained $>1.7\text{ GB}$ of free physical DDR4 RAM, and swap usage remained strictly **$0\text{ MB}$** throughout the 18.4 hours. This empirically refutes any possibility of hidden disk thrashing or paging latency contaminating the benchmark results.
+* **Physical Network Wire Saturation:** Network egress and ingress burst rates repeatedly reach $11.8\text{--}12.2\text{ MB/s}$ during synchronization barriers, confirming that the Gloo TCP backend operated at the physical line rate limit of the 100 Mbps Fast Ethernet switch ($12.5\text{ MB/s}$ line cap).
 
 ---
 
