@@ -265,7 +265,8 @@ def main():
         test_acc = 0.0
         if rank == 0:
             print(f"  [Evaluating Epoch {epoch} Test Accuracy...]", flush=True)
-            test_acc = evaluate(model, test_loader, criterion)
+            raw_model = model.module if hasattr(model, "module") else model
+            test_acc = evaluate(raw_model, test_loader, criterion)
             print(f"  ================================================================")
             print(f"  ✓ Epoch {epoch}/{EPOCHS} Finished: Loss: {train_loss:.4f} | "
                   f"Test Acc: {test_acc:.2f}% | Time: {epoch_time:.1f}s | Speed: {imgs_per_sec:.1f} imgs/s")

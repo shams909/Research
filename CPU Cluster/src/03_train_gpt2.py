@@ -261,8 +261,7 @@ def main():
         print(f"  Results saved    : {csv_f}")
         print("=" * 65)
         print()
-        if writer:
-            writer.close()
+        # Finished training summary
 
     dist.destroy_process_group()
 
