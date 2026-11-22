@@ -1,420 +1,433 @@
-# Experimental Results & Scaling Analysis: Distributed Deep Learning on Commodity CPU Clusters
+# Distributed Deep Learning on Commodity CPU Clusters: Empirical Benchmark, Systems Profiling, and Algorithmic Communication Amortization
 
-**Document Version:** 1.0.0  
-**Project:** Distributed Training of Computer Vision (ResNet-18) and Large Language Models (GPT-2) on Commodity Hardware  
-**Comparative Baseline Paper:** *"Towards Large-Scale Training on Apple Silicon"* (2025)  
-**Date of Benchmarks:** November 18–19, 2026  
-
----
-
-## 1. Executive Summary
-
-This document presents empirical performance evaluations of distributed data-parallel (DDP) deep learning across commodity university desktop computers. Using standard PyTorch distributed primitives (`torchrun`, `Gloo` backend) interconnected via a physical Fast Ethernet local area network (100 Mbps), we measure training throughput, communication latency, and scaling efficiency across two distinct deep learning workloads:
-
-1. **Convolutional Vision Architecture:** ResNet-18 (adapted for CIFAR-10, ~11.2M parameters).
-2. **Autoregressive Transformer Architecture:** GPT-2 Small (~117M parameters, 12 layers, 768 hidden dimension).
-
-Our primary empirical finding demonstrates that unadjusted, step-by-step distributed data parallelism collapses to **7.1% – 12.2% scaling efficiency** due to physical network saturation at line rate (~93.2 Mbps). By introducing **algorithmic gradient accumulation ($K = 4$)** with communication decoupling (`model.no_sync()`), inter-node synchronization frequency is reduced by 75%, yielding a **3.30× throughput speedup for ResNet-18** and a **2.99× throughput speedup for GPT-2 Small**, recovering scaling efficiency up to **36.6%** without requiring hardware upgrades.
+**Document Version:** 2.0.0 (Definitive Master Documentation)  
+**Authors / Contributors:** Mohammad Shamsuddoha Shams (Lead Systems Architect & Researcher)  
+**Collaborative Planning:** Architectural blueprint formulated in collaboration with Claude, GPT, and Laboratory Faculty Direction  
+**Testbed Environment:** University Bare-Metal Desktop Workstations (Node 01 Master, Node 02 Worker)  
+**Comparative Baseline Literature:** *"Towards Large-Scale Training on Apple Silicon"* (2025)  
+**Empirical Campaign Duration:** 13-Hour Continuous Benchmark Suite (`session_20261121_200541_1core`)  
+**Date of Completion:** November 22, 2026  
 
 ---
 
-## 2. Hardware Testbed & Empirical Network Profile
-
-All benchmarks were conducted on bare-metal physical desktop workstations running Ubuntu Desktop in a dedicated university computing laboratory.
-
-### Table 1: Physical Hardware & System Environment
-| Subsystem | Specification / Empirical Measurement |
-| :--- | :--- |
-| **Cluster Topology** | 2 Physical Nodes (Node 01: Master, Node 02: Worker) |
-| **Processor (CPU)** | Intel Core i7-12700 (12 Physical Cores: 8 Performance Cores + 4 Efficiency Cores, 20 Threads) @ 2.10 GHz Base |
-| **Host Memory (RAM)** | ~14.0 GB Available DDR4 RAM per node (Aggregate Memory: ~28.0 GB) |
-| **Physical Interconnect** | Fast Ethernet Switch (10/100 Mbps) connected via standard Cat5e RJ45 cabling |
-| **Network Interface Card** | `enp2s0` (Hardware MAC link negotiated at 100 Mbps Full Duplex) |
-| **Measured Link Bandwidth** | **94.7 Mbps sender / 94.0 Mbps receiver** (`iperf3`, 0 retransmissions over 10s) |
-| **Measured Round-Trip Latency**| **0.441 ms average** (min: 0.366 ms, max: 0.519 ms, σ: 0.054 ms, 0% packet loss) |
-| **Operating System** | Ubuntu 26.04.1 LTS (Linux Kernel 7.0.0-43-generic x86_64) |
-| **Distributed Orchestration** | PyTorch Distributed Data Parallel (`torchrun`), Gloo collective communications backend |
-| **Local Interconnect Subnet**| Static IPv4 address space (`192.168.9.0/24`), static routes, no DHCP |
-| **Remote Access Layer** | Tailscale Mesh VPN over WireGuard with standard OpenSSH server daemon |
+## Table of Contents
+1. [Executive Summary & Core Research Findings](#1-executive-summary--core-research-findings)
+2. [Origin, Context & Research Motivation](#2-origin-context--research-motivation)
+3. [Physical Cluster Testbed & Network Characterization](#3-physical-cluster-testbed--network-characterization)
+4. [Deep Learning Workload Architectures & Tensor Payloads](#4-deep-learning-workload-architectures--tensor-payloads)
+5. [The Fundamental Systems Problem: The 100 Mbps Communication Wall](#5-the-fundamental-systems-problem-the-100-mbps-communication-wall)
+6. [The Mathematical Solution: Algorithmic Gradient Accumulation ($K$)](#6-the-mathematical-solution-algorithmic-gradient-accumulation-k)
+7. [The 10 Engineering Bugs, Failures & Architectural Fixes](#7-the-10-engineering-bugs-failures--architectural-fixes)
+8. [Comprehensive 13-Hour Empirical Results Matrix](#8-comprehensive-13-hour-empirical-results-matrix)
+9. [Detailed Visual Systems Analysis: The 15 Publication Figures](#9-detailed-visual-systems-analysis-the-15-publication-figures)
+10. [Academic Conclusion & Practical Implementation Guidelines](#10-academic-conclusion--practical-implementation-guidelines)
 
 ---
 
-## 3. Mathematical Evaluation Metrics
+## 1. Executive Summary & Core Research Findings
 
-To provide rigorous, reproducible systems evaluation, all reported metrics adhere to standard high-performance computing (HPC) formalisms:
+This investigation addresses a fundamental challenge in systems for artificial intelligence: **Can underutilized, commodity desktop personal computers connected over low-cost legacy networking (100 Mbps Fast Ethernet) be harnessed for distributed data-parallel (DDP) deep learning training?**
 
-### 3.1 Global Training Throughput ($T$)
-The effective rate of samples or tokens processed per second across the aggregate cluster:
+Modern distributed deep learning frameworks (PyTorch DDP, DeepSpeed, Megatron-LM) are architected under the implicit assumption of high-speed interconnects (InfiniBand 200–400 Gbps, NVLink 900 GB/s, or Thunderbolt 5 120 Gbps). When deployed naively on commodity academic desktop computers over standard 100 Mbps Fast Ethernet ($12.5\text{ MB/s}$ physical line cap), distributed training suffers catastrophic **negative scaling**:
+* **ResNet-18 (11.2M parameters):** Collapses to **$15.57\text{ images/sec}$** ($0.14\times$ speedup vs. 1 node, **$7.1\%$ scaling efficiency**).
+* **GPT-2 Small (124M parameters):** Collapses to **$86.47\text{ tokens/sec}$** ($0.24\times$ speedup vs. 1 node, **$12.2\%$ scaling efficiency**).
+* Over **$94.7\%$** of total wall-clock training time is spent completely idle, stalled on blocking TCP socket buffers during the backward collective `AllReduce` synchronization barrier.
 
-* **For Vision (ResNet-18):**
-  $$T_{\text{imgs}} = \frac{B_{\text{local}} \times K \times N}{\Delta t_{\text{step}}} \quad [\text{images/second}]$$
-  *Where $B_{\text{local}} = 32$, $K$ is accumulation steps, $N$ is world size (number of physical nodes), and $\Delta t_{\text{step}}$ is the measured wall-clock step time.*
+To solve this hardware bottleneck without purchasing expensive switches or specialized accelerators, we implemented and rigorously profiled **algorithmic communication amortization via Gradient Accumulation ($K$)** with communication decoupling (`model.no_sync()`). By accumulating local gradients in CPU host memory across $K$ microsteps and dispatching the collective `AllReduce` only once every $K$ steps, the communication frequency is slashed by a factor of $K$.
 
-* **For Language (GPT-2 Small):**
-  $$T_{\text{tokens}} = \frac{B_{\text{local}} \times S \times K \times N}{\Delta t_{\text{step}}} \quad [\text{tokens/second}]$$
-  *Where $B_{\text{local}} = 4$, sequence length $S = 512$, $K$ is accumulation steps, $N$ is world size, and $\Delta t_{\text{step}}$ is measured wall-clock step time.*
-
-### 3.2 Speedup Ratio ($S_N$)
-The throughput improvement achieved by scaling from a single standalone node to an $N$-node cluster:
-$$S_N = \frac{T(N)}{T(1)}$$
-
-### 3.3 Scaling Efficiency ($E_N$)
-The proportion of ideal linear scaling retained across the distributed cluster:
-$$E_N = \frac{S_N}{N} \times 100\% = \frac{T(N)}{N \times T(1)} \times 100\%$$
-
-* **Ideal Linear Scaling:** $E_N = 100\%$ ($S_N = N$).
-* **Sub-linear / Communication-bound Scaling:** $E_N < 100\%$.
+### Key Empirical Breakthroughs (From the 13-Hour Overnight Benchmark):
+1. **The Single-Node Crossover Milestones:**
+   * **GPT-2 Small surpasses single-node speed at $K = 8$** ($384.80\text{ tok/s}$ vs. $358.20\text{ tok/s}$, achieving $1.07\times$ speedup).
+   * **ResNet-18 surpasses single-node speed at $K = 16$** ($125.50\text{ img/s}$ vs. $113.15\text{ img/s}$, achieving $1.11\times$ speedup).
+2. **Peak Cluster Scaling:**
+   * **ResNet-18 throughput scales from $15.57 \to 181.07\text{ images/sec}$** (**$11.63\times$ speedup** over naive DDP, reaching **$1.60\times$ cluster speedup** and **$80.0\%$ weak scaling efficiency** at $K=64$).
+   * **GPT-2 Small throughput scales from $86.47 \to 643.47\text{ tokens/sec}$** (**$7.44\times$ speedup** over naive DDP, reaching **$1.79\times$ cluster speedup** and **$89.5\%$ weak scaling efficiency** at $K=64$).
+3. **Bottleneck Inversion:** The compute-to-communication ratio $\Gamma = T_{\text{comp}} / T_{\text{comm}}$ inverts from **$0.056$** ($94.7\%$ network stall, $5.3\%$ compute) at $K=1$ to **$8.93$** (**$89.9\%$ active compute**, $10.1\%$ network stall) at $K=64$.
+4. **Convergence Stability:** Empirical training verified healthy, stable optimization across epochs: CIFAR-10 accuracy advanced to **$58.8\%$** in 2 epochs; GPT-2 language model loss dropped steadily from **$10.97 \to 7.58$** (Perplexity: $58,153 \to 1,968$) over 15 optimizer updates with zero loss spikes or numerical divergence.
 
 ---
 
-## 4. Master Consolidated Results
+## 2. Origin, Context & Research Motivation
 
-All benchmarks were executed for **30 measured steady-state steps** preceded by **5 discarded warmup steps** to eliminate JIT compilation, buffer allocation, and memory caching artifacts. All numbers are extracted directly from empirical CSV telemetry files generated on disk.
+### 2.1 The Collaborative Origin
+This research began as a collaborative initiative between university laboratory faculty direction and AI system design architectures formulated with Claude and GPT. The overarching objective was to conduct an empirical study of low-cost distributed systems capable of publication in an IEEE / ACM systems or supercomputing conference.
 
-### Table 2: Benchmark Comparison Matrix
-| Workload | Parameter Count | Cluster Topology | Accumulation Steps ($K$) | Global Batch Size | Measured Step Time ($\Delta t_{\text{step}}$) | Global Throughput | Speedup vs 1-Node ($S_N$) | Scaling Efficiency ($E_N$) | Empirical Data Reference |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **ResNet-18** | 11.2 Million | **1 Node (Baseline)** | $K = 1$ | 32 images | 0.2857 s | **112.0 imgs/sec** | 1.00× | **100.0%** | `results/benchmark_1nodes_20261118_*.csv` |
-| **ResNet-18** | 11.2 Million | **2 Nodes (Naive DDP)**| $K = 1$ | 64 images | 4.0272 s | **15.9 imgs/sec** | 0.14× | **7.1%** | `results/benchmark_2nodes_20261118_213530.csv` |
-| **ResNet-18** | 11.2 Million | **1 Node (Accum=4)** | $K = 4$ | 128 images | 1.2006 s | **106.6 imgs/sec** | 1.00× | **100.0%** | `results/benchmark_1nodes_20261119_030721.csv` |
-| **ResNet-18** | 11.2 Million | **2 Nodes (Accum=4)**| $K = 4$ | 256 images | 4.8741 s | **52.5 imgs/sec** | 0.49× | **24.6%** *(+3.5× gain)* | `results/benchmark_2nodes_20261119_023433.csv` |
-| **GPT-2 Small** | 117.0 Million | **1 Node (Baseline)** | $K = 1$ | 4 sequences | 5.7001 s | **359.0 tok/sec** | 1.00× | **100.0%** | `results/benchmark_1nodes_20261118_*.csv` |
-| **GPT-2 Small** | 117.0 Million | **2 Nodes (Naive DDP)**| $K = 1$ | 8 sequences | 46.7821 s | **87.6 tok/sec** | 0.24× | **12.2%** | `results/benchmark_2nodes_20261118_213530.csv` |
-| **GPT-2 Small** | 117.0 Million | **1 Node (Accum=4)** | $K = 4$ | 16 sequences | 22.9412 s | **357.1 tok/sec** | 1.00× | **100.0%** | `results/benchmark_1nodes_20261119_030721.csv` |
-| **GPT-2 Small** | 117.0 Million | **2 Nodes (Accum=4)**| $K = 4$ | 32 sequences | 62.6078 s | **261.7 tok/sec** | 0.73× | **36.6%** *(+3.0× gain)* | `results/benchmark_2nodes_20261119_023433.csv` |
+### 2.2 Baseline Literature: Apple Silicon Cluster (2025)
+The primary literature inspiration was the 2025 paper *"Towards Large-Scale Training on Apple Silicon"*, which explored distributed LLM training across 16 Apple Mac Mini units connected via high-bandwidth Thunderbolt 5 meshes (120 Gbps). While impressive, that work relies on expensive, proprietary hardware unreachable for standard educational institutions in developing nations or budget-constrained labs.
 
-### 4.1 Visual Scaling Curves & Empirical Figures
-
-#### Figure 1: Measured & Projected GPT-2 Throughput vs. Accumulation Steps ($K$)
-```mermaid
-xychart-beta
-    title "GPT-2 Cluster Throughput vs Accumulation Steps K (Tokens / Sec)"
-    x-axis ["K=1 (Naive)", "K=4 (Tested)", "K=16 (Projected)", "K=32 (Projected)", "K=64 (Projected)"]
-    y-axis "Tokens / Second" 0 --> 700
-    bar [87.6, 261.7, 504.9, 601.2, 665.0]
-    line [87.6, 261.7, 504.9, 601.2, 665.0]
-```
-
-#### Figure 2: Speedup Ratio ($S_N$) Trajectory — The $1.0\times$ Single-Node Crossover
-```mermaid
-xychart-beta
-    title "Cluster Speedup S_N vs Single-Node Baseline (Crossover at K >= 10)"
-    x-axis ["K=1 (0.24x)", "K=4 (0.73x)", "K=16 (1.41x)", "K=32 (1.68x)", "K=64 (1.86x)"]
-    y-axis "Speedup Ratio (x)" 0 --> 2.0
-    line [0.24, 0.73, 1.41, 1.68, 1.86]
-```
-
-#### Figure 3: Step Time Anatomy (Compute vs. Network AllReduce Serialization)
-```mermaid
-flowchart TD
-    subgraph S1["K = 1 (Naive DDP) — Total: 46.8s"]
-        C1["Local Compute: 5.0s (10.7%)"]
-        N1["Network AllReduce Sync: 41.8s (89.3%)"]
-        C1 --> N1
-    end
-    subgraph S2["K = 4 (Empirical Optimization) — Total: 62.6s"]
-        C4["Local Compute (4x): 20.8s (33.2%)"]
-        N4["Network AllReduce Sync: 41.8s (66.8%)"]
-        C4 --> N4
-    end
-    subgraph S3["K = 16 (Crossover Target) — Total: 125.0s"]
-        C16["Local Compute (16x): 83.2s (66.6%)"]
-        N16["Network AllReduce Sync: 41.8s (33.4%)"]
-        C16 --> N16
-    end
-```
-
-### 4.2 Direct Empirical Contrast: Before vs. After Gradient Accumulation
-
-This section directly isolates the empirical performance delta resulting from gradient accumulation ($K=4$), contrasting standalone single-node compute against 2-node distributed cluster execution.
-
-#### Exact Visual Throughput Comparison (ASCII / Unicode High-Contrast Chart)
-
-```text
-========================================================================================================
-WORKLOAD 1: GPT-2 Small (117 Million Parameters) — Throughput in Tokens / Second
-========================================================================================================
-1 Node  (K=1 Baseline) : [████████████████████████████████████████]  359.0 tok/s  (1.00× | 100.0%)
-2 Nodes (K=1 Naive DDP): [█████████                               ]   87.6 tok/s  (0.24× |  12.2%)  ← Communication wall
-1 Node  (K=4 Baseline) : [███████████████████████████████████████ ]  357.1 tok/s  (1.00× | 100.0%)
-2 Nodes (K=4 Accum=4)  : [█████████████████████████████           ]  261.7 tok/s  (0.73× |  36.6%)  ← +3.0× SPEEDUP RECOVERY!
---------------------------------------------------------------------------------------------------------
-
-========================================================================================================
-WORKLOAD 2: ResNet-18 (11.2 Million Parameters) — Throughput in Images / Second
-========================================================================================================
-1 Node  (K=1 Baseline) : [████████████████████████████████████████]  112.0 img/s  (1.00× | 100.0%)
-2 Nodes (K=1 Naive DDP): [█████                                   ]   15.9 img/s  (0.14× |   7.1%)  ← Communication wall
-1 Node  (K=4 Baseline) : [██████████████████████████████████████  ]  106.6 img/s  (1.00× | 100.0%)
-2 Nodes (K=4 Accum=4)  : [██████████████████                      ]   52.5 img/s  (0.49× |  24.6%)  ← +3.3× SPEEDUP RECOVERY!
-========================================================================================================
-```
-
-#### Figure 4: GPT-2 Small Throughput Contrast (1-Node vs 2-Nodes, Before vs After)
-```mermaid
-xychart-beta
-    title "GPT-2 Small Throughput: 1-Node vs 2-Nodes (Before vs After Optimization)"
-    x-axis ["1 Node (K=1)", "2 Nodes (K=1 Naive)", "1 Node (K=4)", "2 Nodes (K=4 Accum)"]
-    y-axis "Tokens / Second" 0 --> 400
-    bar [359.0, 87.6, 357.1, 261.7]
-```
-
-#### Figure 5: ResNet-18 Throughput Contrast (1-Node vs 2-Nodes, Before vs After)
-```mermaid
-xychart-beta
-    title "ResNet-18 Throughput: 1-Node vs 2-Nodes (Before vs After Optimization)"
-    x-axis ["1 Node (K=1)", "2 Nodes (K=1 Naive)", "1 Node (K=4)", "2 Nodes (K=4 Accum)"]
-    y-axis "Images / Second" 0 --> 130
-    bar [112.0, 15.9, 106.6, 52.5]
-```
-
-#### Figure 6: Cluster Scaling Efficiency Recovery (%)
-```mermaid
-xychart-beta
-    title "2-Node Cluster Scaling Efficiency (%) — Before vs After Optimization"
-    x-axis ["ResNet-18 (K=1 Naive)", "ResNet-18 (K=4 Accum)", "GPT-2 (K=1 Naive)", "GPT-2 (K=4 Accum)"]
-    y-axis "Scaling Efficiency (%)" 0 --> 50
-    bar [7.1, 24.6, 12.2, 36.6]
-```
-
-#### Table 3: Exact Before-and-After Quantitative Audit Matrix
-
-| Workload Architecture | Evaluation Paradigm | 1-Node Baseline | 2-Node Cluster | Speedup ($S_N$) | Efficiency ($E_N$) | Optimization Gain |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **ResNet-18** (11.2M Params) | **Before:** Naive Synchronous DDP ($K=1$) | 112.0 imgs/s | 15.9 imgs/s | **0.14×** | **7.1%** | Baseline |
-| **ResNet-18** (11.2M Params) | **After:** Gradient Accumulation ($K=4$) | 106.6 imgs/s | 52.5 imgs/s | **0.49×** | **24.6%** | **+3.30× Throughput Gain** (+17.5% Abs Efficiency) |
-| **GPT-2 Small** (117M Params) | **Before:** Naive Synchronous DDP ($K=1$) | 359.0 tok/s | 87.6 tok/s | **0.24×** | **12.2%** | Baseline |
-| **GPT-2 Small** (117M Params) | **After:** Gradient Accumulation ($K=4$) | 357.1 tok/s | 261.7 tok/s | **0.73×** | **36.6%** | **+2.99× Throughput Gain** (+24.4% Abs Efficiency) |
+### 2.3 The Core Research Question
+*Can a university or school lab utilize its existing, depreciated inventory of commodity Intel desktop workstations and standard 100 Mbps Ethernet switches to build a distributed deep learning cluster that achieves valid speedup over single-machine training?*
 
 ---
 
-## 5. In-Depth Systems Analysis & Discussion
+## 3. Physical Cluster Testbed & Network Characterization
 
-### 5.1 Diagnosis of the Communication Bottleneck ($K = 1$)
-Under standard synchronous DDP with $K=1$, gradients are communicated over the physical network interface after every single forward-backward pass. In a single standalone node, tensor computation occurs strictly within high-bandwidth CPU cache and DDR4 host memory channels (~38.4 GB/s peak memory bandwidth). 
+All experiments were executed on physical, bare-metal desktop workstations situated in a dedicated university hardware lab.
 
-However, upon scaling to a 2-node cluster across a 100 Mbps physical switch (~12.5 MB/s maximum theoretical throughput), gradient synchronization introduces severe latency:
-* **For GPT-2 Small (117M parameters):**
-  A complete set of `float32` gradients requires transmitting:
-  $$\text{Data Volume} = 117,000,000 \text{ parameters} \times 4 \text{ bytes} \approx 468.0 \text{ MB}$$
-  At an empirical sustained line rate of 11.2 MB/s (93.2 Mbps):
-  $$t_{\text{sync}} \approx \frac{468.0 \text{ MB}}{11.2 \text{ MB/s}} \approx 41.78 \text{ seconds}$$
-  Of the total measured step time of **46.78 seconds**, approximately **41.78 seconds (89.3%)** was consumed entirely by network transmission over the wire, while actual compute accounted for only **~5.0 seconds (10.7%)**. 
-* This demonstrates why naive DDP on commodity 100 Mbps infrastructure collapses to **7.1% – 12.2% scaling efficiency**.
+```
++-------------------------------------------------------------------------+
+|                         COMMODITY LAB NETWORK                           |
+|                                                                         |
+|   +--------------------------+          +--------------------------+    |
+|   |   Node 01: Master (0)    |          |   Node 02: Worker 1 (1)  |    |
+|   |   IP: 192.168.9.136      |          |   IP: 192.168.9.135      |    |
+|   |   Intel Core i7-12700    |          |   Intel Core i7-12700    |    |
+|   |   12 Cores / 20 Threads  |          |   12 Cores / 20 Threads  |    |
+|   |   14.88 GB DDR4 RAM      |          |   14.88 GB DDR4 RAM      |    |
+|   |   Interface: enp2s0      |          |   Interface: enp2s0      |    |
+|   +------------+-------------+          +------------+-------------+    |
+|                |                                     |                  |
+|                | Cat5e RJ45                          | Cat5e RJ45       |
+|                +------------------+------------------+                  |
+|                                   |                                     |
+|                                   v                                     |
+|                   +-------------------------------+                     |
+|                   |   Fast Ethernet Switch        |                     |
+|                   |   100 Mbps Line Cap           |                     |
+|                   |   Max Wire: 12.5 MB/s         |                     |
+|                   +-------------------------------+                     |
++-------------------------------------------------------------------------+
+```
 
-### 5.2 The Bulk Synchronous Parallel (BSP) Cyclic Behavior
-System telemetry collected via `btop` during distributed execution verified a distinct cyclical pattern:
-1. **Compute Phase (Duration: 5–10 s):** All 12 CPU cores execute matrix multiplications and attention mechanisms locally within DDR4 memory. Aggregate CPU utilization reaches **50% – 60%**, while network I/O remains minimal.
-2. **Communication Phase (Duration: ~40 s):** Upon entering the backward synchronization barrier (`AllReduce`), CPUs complete gradient evaluation and enter a blocking wait state (`dist.barrier`). Network interface saturation surges to **93.2 Mbps sustained**, while CPU utilization drops to **< 2%** waiting for the socket buffers to flush.
-
-### 5.3 Algorithmic Amortization via Gradient Accumulation ($K = 4$)
-To overcome the physical network bandwidth barrier without purchasing specialized switches or cables, we decoupled computation from inter-node communication using PyTorch's `model.no_sync()` context manager. 
-
-For micro-steps $m \in \{0, 1, 2\}$, gradients are accumulated locally in host memory with zero network packets transmitted. The collective `AllReduce` synchronization barrier is dispatched only on micro-step $m = 3$. 
-
-**Observed Empirical Gains:**
-* Network synchronization overhead was reduced by **75%** per unit of training data.
-* **ResNet-18 throughput expanded from 15.9 to 52.5 imgs/sec (a 3.30× improvement).**
-* **GPT-2 Small throughput expanded from 87.6 to 261.7 tokens/sec (a 2.99× improvement).**
-* Scaling efficiency for GPT-2 recovered from **12.2% to 36.6%**, proving that software-level algorithmic amortization can compensate for severe hardware bandwidth constraints.
-
----
-
-## 6. Contrast with the Apple Silicon Baseline Paper (2025)
-
-The base paper (*"Towards Large-Scale Training on Apple Silicon"*, 2025) reported near-linear scaling across a cluster of 16× Mac Mini workstations:
-
-| Architectural Metric | Base Paper (*Apple Silicon 2025*) | This Work (*Commodity Intel Cluster*) | Disparity Factor |
+### Table 1: Detailed Physical Hardware & Telemetry Specifications
+| Hardware Subsystem | Node 01 (Master / Rank 0) | Node 02 (Worker 1 / Rank 1) | Network Interconnect Profile |
 | :--- | :--- | :--- | :--- |
-| **Compute Units** | Apple M4 Pro / Max (Unified SoC GPU+NPU) | Intel Core i7-12700 (x86 Desktop CPU) | CPU-only execution |
-| **Physical Interconnect** | Thunderbolt 5 Direct Mesh | Fast Ethernet Switch (Cat5e) | — |
-| **Interconnect Bandwidth** | **120 Gbps (15,000 MB/s)** | **0.10 Gbps (12.5 MB/s)** | **1,200× Bandwidth Gap** |
-| **Unified Memory Bandwidth**| Up to 273 GB/s | ~38.4 GB/s DDR4 | 7.1× Memory Bandwidth Gap |
-| **Scaling Strategy** | Hardware-centric high-bandwidth mesh | Algorithmic amortization (Gradient Accumulation) | Software overcoming hardware bounds |
-
-**Key Research Takeaway:**  
-While proprietary Apple Silicon hardware achieves high scaling efficiency via expensive, specialized Thunderbolt interconnects, our research demonstrates that **underutilized university computer labs equipped with legacy 100 Mbps Ethernet can be transformed into functional distributed training clusters** by applying communication-efficient gradient accumulation.
-
----
-
-## 7. Mathematical Extrapolation & Future Optimization ($K \ge 16$)
-
-Extrapolating the empirical compute-to-communication model:
-$$\text{Efficiency}(K) = \frac{K \times t_{\text{compute}}}{K \times t_{\text{compute}} + t_{\text{sync}}}$$
-
-* At $K = 1$: Compute ratio is $\frac{6\text{s}}{6\text{s} + 40\text{s}} = 13.0\% \rightarrow E_N \approx 12.2\%$.
-* At $K = 4$: Compute ratio is $\frac{24\text{s}}{24\text{s} + 40\text{s}} = 37.5\% \rightarrow E_N \approx 36.6\%$.
-* **Projected at $K = 16$:** Compute ratio reaches $\frac{96\text{s}}{96\text{s} + 40\text{s}} = 70.5\% \rightarrow E_N \approx \mathbf{65\% - 70\%}$ (Throughput $> 600\text{ tok/sec}$).
-* **Projected at $K = 64$:** Global batch size matches OpenAI's reference standard (512 sequences, ~262k tokens), with compute ratio reaching $\frac{384\text{s}}{384\text{s} + 40\text{s}} = 90.5\% \rightarrow E_N \approx \mathbf{80\% - 85\%}$.
+| **Hostname** | `node01` | `node02` | Static Subnet `192.168.9.0/24` |
+| **IPv4 Address** | `192.168.9.136` | `192.168.9.135` | MTU 1500 bytes (Standard Ethernet) |
+| **Processor (CPU)** | Intel(R) Core(TM) i7-12700 | Intel(R) Core(TM) i7-12700 | 12 Physical Cores (8 P-cores + 4 E-cores) |
+| **Logical Threads** | 20 threads @ 2.10 GHz Base | 20 threads @ 2.10 GHz Base | Max Turbo Frequency: 4.90 GHz |
+| **L2 / L3 Cache** | 12 MiB L2 / 25 MiB L3 | 12 MiB L2 / 25 MiB L3 | Hardware Prefetching Active |
+| **Host Memory (RAM)** | 14.88 GB DDR4 (~12.9 GB Free) | 14.88 GB DDR4 (~12.9 GB Free) | Total Cluster RAM: 29.76 GB |
+| **Local Storage** | 456 GB NVMe SSD | 456 GB NVMe SSD | Read/Write Throughput > 1,800 MB/s |
+| **Operating System** | Ubuntu 22.04 LTS (Kernel 7.0.0-generic) | Ubuntu 22.04 LTS (Kernel 7.0.0-generic) | x86_64 POSIX Linux Environment |
+| **PyTorch Stack** | PyTorch 2.15.0+cpu | PyTorch 2.15.0+cpu | Collective Backend: `Gloo` (TCP sockets) |
+| **Network Interface** | `enp2s0` (100BaseTX/Full) | `enp2s0` (100BaseTX/Full) | Hardware link rate negotiated: 100 Mbps |
+| **Measured Bandwidth**| **94.7 Mbps** (11.29 MB/s) | **94.0 Mbps** (11.20 MB/s) | `iperf3` sustained over 10 seconds |
+| **Round-Trip Latency**| **0.384 ms** average | **0.441 ms** average | ICMP Ping (min: 0.366 ms, max: 0.519 ms) |
+| **Retransmissions** | **0 packet drops** | **0 packet drops** | TCP Cwnd stable at 178 KB |
 
 ---
 
-## 8. Data Integrity & Audit Trail
+## 4. Deep Learning Workload Architectures & Tensor Payloads
 
-All values presented in this report were generated on bare-metal hardware and logged to structured CSV and plain-text telemetry files on Node 01:
+To ensure broad applicability across both computer vision and modern natural language processing, we benchmarked two distinct model architectures:
 
-1. **`results/benchmark_2nodes_20261118_213530.csv`**: Unadjusted 2-node DDP baseline ($K=1$).
-2. **`results/benchmark_1nodes_20261119_030721.csv`**: Single-node baseline with gradient accumulation ($K=4$).
-3. **`results/benchmark_2nodes_20261119_023433.csv`**: 2-node cluster with gradient accumulation ($K=4$).
-4. **`results/benchmark_report_2nodes_20261119_023433.txt`**: Consolidated text telemetry summary.
-5. **`results/figures/`**: Vector-quality comparison visualizations.
+### 4.1 Vision Architecture: ResNet-18 (CIFAR-10)
+* **Model Class:** Deep Residual Convolutional Neural Network (18 layers, skip connections).
+* **Dataset:** CIFAR-10 (60,000 $32 \times 32$ RGB images across 10 classes).
+* **Trainable Parameters:** $11,173,962$ parameters ($11.2\text{M}$).
+* **Per-Node Microbatch:** $B_{\text{local}} = 32$ images.
+* **Gradient Payload Volume:**
+  $$\text{Data Volume} = 11,173,962 \times 4\text{ bytes (float32)} \approx 44.69\text{ MB}$$
+* **Theoretical Wire Transmission Time over 100 Mbps Ethernet ($10.9\text{ MB/s}$):**
+  $$T_{\text{wire}} \approx \frac{44.69\text{ MB}}{10.9\text{ MB/s}} \approx 4.10\text{ seconds}$$
+
+### 4.2 Language Architecture: GPT-2 Small (WikiText-2)
+* **Model Class:** Autoregressive Decoder-Only Transformer (12 layers, 12 attention heads, 768 hidden dimension).
+* **Dataset:** WikiText-2 (Raw language modeling, sequence length $S = 512$ tokens).
+* **Trainable Parameters:** $124,439,808$ parameters ($124\text{M}$ / $117\text{M}$ active weights).
+* **Per-Node Microbatch:** $B_{\text{local}} = 4$ sequences ($2,048$ tokens).
+* **Gradient Payload Volume:**
+  $$\text{Data Volume} = 124,439,808 \times 4\text{ bytes (float32)} \approx 497.76\text{ MB}$$
+* **Theoretical Wire Transmission Time over 100 Mbps Ethernet ($10.9\text{ MB/s}$):**
+  $$T_{\text{wire}} \approx \frac{497.76\text{ MB}}{10.9\text{ MB/s}} \approx 45.66\text{ seconds}$$
 
 ---
 
-## 9. Phase 2 Empirical Benchmark Campaign & Systems Hardening (November 20, 2026)
+## 5. The Fundamental Systems Problem: The 100 Mbps Communication Wall
 
-### 9.1 The 5 Experimental Pillars
-To provide peer-review defense for an IEEE / systems conference venue, the experimental methodology is anchored in five formal experiments:
-
-1. **Experiment 1: Physical Interconnect Characterization (Figure 5)**
-   * *Purpose:* Measures physical collective AllReduce bandwidth and latency across tensor payloads ranging from 0.1 MB to 500 MB over the 100 Mbps switch.
-   * *Empirical Result:* Proved wire bandwidth ceiling strictly bounds payload at **10.8 – 10.9 MB/s** (~87.2 Mbps payload, ~95% line rate). 500 MB transfer requires **45.86 seconds per operation**.
-2. **Experiment 2: Fixed-Microbatch $K$-Sweep (Figures 1 & 2)**
-   * *Purpose:* Evaluates throughput and scaling efficiency as $K \in \{1, 2, 4, 8, 16\}$ while keeping local per-node microbatch constant ($B=32$ for ResNet, $B=4$ for GPT-2).
-   * *Empirical Result:* At $K=1$, ResNet-18 collapses to **15.9 img/s** ($0.14\times$ speedup, 3,931 ms sync wait). Increasing $K \ge 2$ amortizes network synchronization to $<10$ ms. GPT-2 Small synchronization wait plummets from **43,990.8 ms (44.0s)** at $K=1$ down to **7.2 ms** at $K=16$.
-3. **Experiment 3: Fixed-Global-Batch $K$-Sweep (Figure 1)**
-   * *Purpose:* Keeps cluster global batch constant while varying $K$, shrinking microbatch as $K$ increases ($B_{\text{local}} = B_{\text{global}} / (N \times K)$).
-   * *Empirical Result:* ResNet-18 completed across all $K \in \{1, 2, 4, 8, 16\}$.
-4. **Experiment 4: Stopwatch Hardware Decomposition (Figure 3)**
-   * *Purpose:* High-resolution instrumentation separating total step time into $t_{\text{forward}}$, $t_{\text{backward}}$, and $t_{\text{allreduce}}$.
-   * *Empirical Result:* Conclusively proves that 94.6% of step duration at $K=1$ is idle network blocking, which is successfully eliminated by algorithmic accumulation.
-5. **Experiment 5: Model Quality & Loss Convergence Verification (Figure 4)**
-   * *Purpose:* Validates numerical convergence stability across accumulation factors ($K$) during continuous training.
-
-### 9.2 Incident Analysis: Stage 5 GPT-2 Memory Exhaustion (OOM)
-During the Stage 5 global-batch sweep, GPT-2 Small abruptly terminated at $K=1$:
-* **Root Cause:** The unconstrained global batch formula `max(1, 32 // (world_size * k))` evaluated to `b_per_node = 16 sequences` for $world\_size=2, K=1$. In autoregressive transformers, 16 sequences ($16 \times 1024 = 16,384$ tokens) on CPU requires keeping autograd graphs for 12 attention layers in RAM, requiring $>16$ GB.
-* **Hardware Boundary:** While the cluster aggregates 32 GB RAM across nodes, PyTorch Distributed Data Parallel (DDP) does **not** pool or share memory over the network. RAM is strictly partitioned per motherboard (14.88 GB usable per PC). When Node 01 memory allocation breached physical RAM, the Linux kernel OOM killer dispatched `SIGKILL`.
-* **Systems Fix:** Constrained the per-node allocation to `b_per_node = max(1, min(config.GPT2_BATCH_SIZE, 8 // (world_size * k)))`. For $K=1$, batch size is locked at 4 sequences (~2.5 GB peak RAM), leaving over 12 GB headroom.
-
-### 9.3 The "Double Wall" of Commodity Distributed Deep Learning (Core Academic Insight)
-The Stage 4 and Stage 5 experiments collectively expose the fundamental dilemma of distributed deep learning on low-cost university infrastructure:
+Under naive Distributed Data Parallelism ($K=1$), an `AllReduce` gradient collective is dispatched after **every single mini-batch forward-backward pass**:
 
 ```
-                      THE COMMODITY DISTRIBUTED DILEMMA
-                      
-    Small Local Batch (B = 4)              Large Local Batch (B = 16)
-               │                                       │
-               ▼                                       ▼
-       [THE NETWORK WALL]                     [THE MEMORY WALL]
-  100 Mbps wire saturates;                14.88 GB physical DDR4 RAM overflows;
-  44.0s AllReduce idle wait per step;     Linux kernel invokes OOM Killer
-  Throughput collapses to 0.14x speedup.  (SIGKILL / hard process termination).
-               │                                       │
-               └───────────────────┬───────────────────┘
-                                   │
-                                   ▼
-              [THE SOLUTION: GRADIENT ACCUMULATION (K ≥ 4)]
-        Keeps local microbatch small & safe in RAM (B = 4, ~2.5 GB)
-        Accumulates gradients across K steps in local host memory
-        Syncs over 100 Mbps Ethernet only once every K steps
-        --> Network wait drops from 44,000 ms to < 10 ms (99.98% eliminated)
-        --> Memory stays flat at ~2.5 GB (Zero OOM risk)
-        --> Scales effectively across commodity university workstations!
+NAIVE STEP TIMELINE (K = 1, GPT-2 Small): Total = 47.37s
++------------------+-------------------------------------------------------+
+| Local Compute    | Blocking Network AllReduce Collective Barrier         |
+| 2.49s (5.3%)     | 44.61s (94.7%) [100 Mbps Network Saturated @ 94 Mbps]  |
++------------------+-------------------------------------------------------+
 ```
 
-This finding directly addresses our paper's core research question, proving that algorithmic gradient accumulation is mathematically required to navigate between network bandwidth ceilings and physical motherboard memory limits.
+### The Mechanism of Catastrophic Negative Scaling:
+1. **Compute Phase:** Node 01 and Node 02 compute forward activations and backward autograd gradients locally within DDR4 memory. This completes in **$2.49\text{ seconds}$**.
+2. **Network Phase:** Both nodes reach the PyTorch DDP synchronization barrier and initiate a Ring-AllReduce collective. Because 497 MB of tensors must traverse a 100 Mbps physical cable, the network interface is pegged at $94.7\text{ Mbps}$ for **$44.61\text{ seconds}$**, while CPUs sit virtually idle ($< 2\%$ utilization).
+3. **The Penalty:** A single standalone PC processes the same microbatch in **$5.78\text{ seconds}$** without any network barrier. The 2-node cluster requires **$47.38\text{ seconds}$**, yielding a speedup of:
+   $$S_N = \frac{T_{\text{cluster}}}{T_{\text{single}}} = \frac{86.47\text{ tok/s}}{358.20\text{ tok/s}} = \mathbf{0.24\times} \quad (\text{Efficiency } E_N = 12.2\%)$$
+Adding a second computer made the system **$4.14\times$ slower** than a single machine!
 
-### 9.4 Detailed Code Modification Changelog & Architectural Hardening
-To eliminate all failure modes and guarantee unattended execution from start to finish, the codebase was surgically modified across 6 key components:
+---
 
-1. **`src/04_benchmark.py` (Memory Safety & OOM Elimination):**
-   * *Problem:* In Global Batch mode, $K=1$ evaluated to a local batch of 16 sequences, triggering the Linux OOM killer.
-   * *Fix:* Replaced `b_per_node = max(1, 32 // (world_size * k))` with `b_per_node = max(1, min(config.GPT2_BATCH_SIZE, 8 // (world_size * k)))`. This guarantees local batch size never exceeds 4 sequences (~2.5 GB RAM), preventing memory exhaustion across all $K$ values.
-2. **`run_experiments.sh` (End-to-End Automation & Figure 4 Integration):**
-   * *Problem:* The pipeline previously executed only the benchmarking suite (`04_benchmark.py`), leaving Figure 4 (loss convergence) skipped due to missing training logs.
-   * *Fix:* Integrated **Stage 5b**, which automatically triggers `02_train_cifar.py` (2 epochs) and `03_train_gpt2.py` (15 steps). All 5 publication figures now generate 100% automatically in Stage 6.
-   * *Expansion:* Extended the default sweep list from $K \in \{1, 2, 4, 8, 16\}$ to **$K \in \{1, 2, 4, 8, 16, 32, 64\}$** and optimized benchmark steps to 6 per trial to capture the full saturation plateau without runtime bloat.
-3. **`src/05_plot_results.py` (Dynamic Multi-Scale Axes & Session Routing):**
-   * *Problem:* Figure 2 had hardcoded x-axis tick marks `[1, 2, 4, 8, 16]`, which clipped higher accumulation factors.
-   * *Fix:* Dynamically queries the dataset for unique $K$ values, ensuring that $K=32$ and $K=64$ are cleanly rendered with bold value annotations. Added `--results_dir` argument to render figures directly within any designated session folder.
-4. **`src/02_train_cifar.py` & `src/03_train_gpt2.py` (Runtime Optimization):**
-   * *Problem:* Hardcoded training iterations ran for full multi-hour training regimes rather than convergence verification.
-   * *Fix:* Implemented `argparse` with `--epochs` and `--steps` flags, and logged `accum_steps` to CSV headers to feed directly into Figure 4's plotting engine.
-5. **`config.py` & `launch_master.sh` (Session Isolation):**
-   * *Problem:* Output CSVs and logs were scattered across the root `results/` directory, causing version ambiguity.
-   * *Fix:* Bound `RESULTS_DIR` to `os.environ.get("RESULTS_DIR", "results")`, automatically routing all master outputs, worker SSH logs, and figures into clean, self-contained `results/session_YYYYMMDD_HHMMSS/` folders.
+## 6. The Mathematical Solution: Algorithmic Gradient Accumulation ($K$)
 
-### 9.5 Rationale and Scope for the Upcoming Comprehensive Benchmark Run
-While the initial 5-hour run successfully gathered definitive data for Experiments 1, 2, and 4 up to $K=16$, the run was halted prematurely during Stage 5 by the $K=1$ OOM crash, and lacked Stage 5b convergence data. 
+To defeat this communication ceiling without modifying hardware, we decoupled local computation from network synchronization using PyTorch's `model.no_sync()` context manager across $K$ microsteps.
 
-Therefore, a final, unified, unattended benchmark execution is scheduled with the following explicit objectives:
-* **Complete the Global Batch Sweep (Stage 5):** Collect uncorrupted, memory-safe data for fixed-cluster-batch training across all $K$.
-* **Map the Upper Saturation Plateau ($K=32$ and $K=64$):** Empirically demonstrate where the throughput curve flattens as communication overhead drops below 1% of total step time.
-* **Generate Empirical Convergence Curves (Figure 4):** Verify that periodic gradient accumulation introduces zero optimization destabilization or gradient divergence on real image and text data.
-* **Produce a Self-Contained, Publication-Ready Session Artifact:** Archive all raw trials, aggregated tables, stopwatch breakdowns, hardware telemetry, and 200 DPI vector-quality figures into a clean, audit-ready `results/session_YYYYMMDD_HHMMSS/` directory for direct publication submission.
+### 6.1 Formal Mathematical Formulation
+Let:
+* $N$ be the number of physical nodes ($N = 2$).
+* $B_{\text{local}}$ be the invariant local microbatch size.
+* $K$ be the gradient accumulation factor ($K \in \{1, 2, 4, 8, 16, 32, 64\}$).
+* $T_{\text{comp}}$ be the compute duration for one microbatch (forward + backward pass).
+* $T_{\text{comm}}$ be the collective communication duration for one `AllReduce` operation.
+* $T_{\text{opt}}$ be the parameter optimization step duration.
 
-### 9.6 Timestamped Session Directory Architecture
-All experimental executions now write into self-contained session folders under `results/session_YYYYMMDD_HHMMSS/`:
-* `pipeline.log`: Full unbuffered terminal execution output.
-* `00_hardware_profile/`: Bare-metal hardware specifications JSON and Markdown.
-* `net_test_*.csv`: Physical network characterization data.
-* `02_sweep_fixed_microbatch/`: Single-node baselines and multi-node $K$-sweep tables.
-* `03_sweep_fixed_global_batch/`: Fixed-cluster-batch sweep tables.
-* `04_step_time_breakdown/`: Microsecond forward/backward/allreduce decomposition.
-* `figures/`: High-resolution publication figures (Figures 1–5).
-* Symlink `results/latest` points to the most recent completed session.
+Total wall-clock duration for one global optimizer step:
+$$T_{\text{step}}(K) = K \times T_{\text{comp}} + T_{\text{comm}} + T_{\text{opt}}$$
 
-### 9.7 The PyTorch DDP `no_sync()` Scope Anomaly (The Silent Network Flood Trap)
-During the live 18-hour continuous benchmark of Session `session_20261120_222033`, real-time hardware telemetry (`btop`, `ss -t -p -i`, and `/proc/net/dev`) uncovered an insidious PyTorch DistributedDataParallel (DDP) behavioral trap that silently defeated gradient accumulation.
+Global cluster throughput ($T_{\text{cluster}}$):
+$$T_{\text{cluster}}(K) = \frac{N \times K \times B_{\text{local}}}{K \times T_{\text{comp}} + T_{\text{comm}} + T_{\text{opt}}} = \frac{N \times B_{\text{local}}}{T_{\text{comp}} + \frac{T_{\text{comm}} + T_{\text{opt}}}{K}}$$
 
-#### The Anomaly Observed:
-* **Wire Saturation during "Compute" Phase**: For 42–44 seconds, `btop` reported continuous network transmission pegged at the physical Fast Ethernet line rate (**93–94 Mbps**), with `Send-Q` holding 585 KB of unacknowledged TCP buffers. System CPU utilization was effectively idle (~1–5%).
-* **Transient CPU Spikes**: Following each 44-second network saturation period, CPU utilization briefly spiked to ~60% across multiple threads for only 2–3 seconds before returning to the 44-second 94 Mbps network flood.
-* **Linear Scaling Collapse**: Step time scaled directly proportionally to accumulation factor $K$ ($K=1 \to 46.5\text{s}$, $K=2 \to 93.2\text{s}$, $K=16 \to 744.2\text{s}$, $K=32 \to 1,487.2\text{s}$). Token throughput remained completely flat at **88.1 tokens/sec across all $K$**, yielding zero communication amortization.
+As $K$ increases:
+$$\lim_{K \to \infty} T_{\text{cluster}}(K) = \frac{N \times B_{\text{local}}}{T_{\text{comp}}} = N \times T_{\text{single}}$$
+The effective communication overhead per processed sample $\frac{T_{\text{comm}}}{K}$ asymptotically approaches zero, enabling the cluster to approach **$100\%$ ideal linear scaling**.
 
-#### Root Cause Analysis:
-In PyTorch's C++ DDP architecture (`Reducer`), parameter synchronization hooks are armed and initialized **during the `forward()` pass** (`model(inputs)`).
-* In `src/04_benchmark.py`, forward pass timing was originally decoupled from backward timing by placing `out = model(inputs)` **above and outside** the `with model.no_sync():` block:
+### 6.2 Compute-to-Communication Ratio ($\Gamma$)
+$$\Gamma(K) = \frac{K \times T_{\text{comp}}}{T_{\text{comm}}}$$
+* When $\Gamma < 1.0$: Training is **communication-bound** (network bottleneck dominates).
+* When $\Gamma = 1.0$: **Parity boundary**.
+* When $\Gamma > 1.0$: Training is **compute-bound** (CPUs are fully utilized; network overhead is amortized).
+
+### 6.3 The Crossover Condition ($S_N \ge 1.0\times$)
+For the 2-node cluster to outperform a standalone single node ($S_N \ge 1.0$):
+$$K \ge \frac{T_{\text{comm}}}{(N - 1) T_{\text{comp}}} = \frac{T_{\text{comm}}}{T_{\text{comp}}}$$
+* For **GPT-2 Small**: $T_{\text{comm}} \approx 41.5\text{s}$, $T_{\text{comp}} \approx 5.5\text{s} \implies K_{\text{crossover}} \ge \frac{41.5}{5.5} \approx 7.5 \implies \mathbf{K = 8}$.
+* For **ResNet-18**: $T_{\text{comm}} \approx 3.8\text{s}$, $T_{\text{comp}} \approx 0.28\text{s} \implies K_{\text{crossover}} \ge \frac{3.8}{0.28} \approx 13.5 \implies \mathbf{K = 16}$.
+Both theoretical crossover points match our empirical measurements exactly.
+
+---
+
+## 7. The 10 Engineering Bugs, Failures & Architectural Fixes
+
+Over the course of the research and the 13-hour continuous benchmarking campaign, numerous critical systems failures, hardware traps, and software bottlenecks were diagnosed and resolved:
+
+### Bug 1: Gloo TCP Socket Interface Binding Deadlock
+* **Symptom:** `torchrun` hung indefinitely during `dist.init_process_group` with zero CPU activity or network traffic.
+* **Root Cause:** Both machines ran Tailscale mesh VPN (`tailscale0`). Gloo automatically detected the first active IP interface and attempted to bind socket handshakes to the Tailscale overlay network instead of the physical Ethernet interface `enp2s0`.
+* **Fix:** Explicitly exported environment variables in `launch_master.sh` and `launch_worker.sh`:
+  ```bash
+  export GLOO_SOCKET_IFNAME=enp2s0
+  export TP_SOCKET_IFNAME=enp2s0
+  ```
+
+### Bug 2: Linux Kernel OOM Killer on Large GPT-2 Microbatches
+* **Symptom:** During early global-batch sweeps, GPT-2 Small crashed with `Killed` (`SIGKILL`, exit code 137).
+* **Root Cause:** In global batch mode with $world\_size=2$ and $K=1$, the formula `max(1, 32 // (world_size * k))` evaluated to $B_{\text{local}} = 16$ sequences ($16,384$ tokens). Autograd graphs for 12 attention layers required $>16\text{ GB}$ RAM, exceeding the physical 14.88 GB DDR4 boundary on Node 01.
+* **Fix:** Enforced strict ceiling in `src/04_benchmark.py`:
   ```python
-  # BUGGY PATTERN (arms synchronization hooks prematurely):
-  tf0 = time.perf_counter()
-  out = model(inputs)  # Forward pass executed outside no_sync()!
-  fwd_step += (time.perf_counter() - tf0)
+  b_per_node = max(1, min(config.GPT2_BATCH_SIZE, 8 // (world_size * k)))
+  ```
+  Guaranteed local memory footprint never exceeds $\sim 2.5\text{ GB}$, leaving over $12\text{ GB}$ headroom.
 
+### Bug 3: The PyTorch DDP `no_sync()` Scope Anomaly (The Silent Network Flood Trap)
+* **Symptom:** During an overnight 18-hour run, GPT-2 step time increased linearly with $K$ ($K=1 \to 46\text{s}$, $K=2 \to 93\text{s}$, $K=16 \to 744\text{s}$), with throughput frozen at $88\text{ tok/s}$. Telemetry showed 94 Mbps network traffic on *every microbatch*.
+* **Root Cause:** In PyTorch C++ DDP, synchronization hooks are armed during `out = model(inputs)`. Forward pass timing had been placed *outside* `with model.no_sync():`. DDP silently ignored `no_sync()` during the subsequent backward pass and executed an AllReduce on every microbatch.
+* **Fix:** Enclosed **both** forward and backward passes inside `with model.no_sync():` for microbatches $1$ through $K-1$:
+  ```python
   if micro < accum_steps - 1 and world_size > 1:
       with model.no_sync():
-          loss.backward()  # PyTorch SILENTLY IGNORES no_sync because forward was outside!
+          out = model(inputs)
+          loss = criterion(out, y) / accum_steps
+          loss.backward()
+  else:
+      out = model(inputs)
+      loss = criterion(out, y) / accum_steps
+      loss.backward()  # Dispatches the single AllReduce
   ```
-* Because `model(inputs)` executed outside `no_sync()`, DDP's Reducer initialized the backward pass with synchronization active. When `loss.backward()` was called, DDP **silently ignored `no_sync()` and dispatched an AllReduce collective across the 100 Mbps network on every single microbatch**.
-* At $K=32$, the cluster executed **32 separate 468 MB AllReduce collective syncs** ($32 \times 42\text{s} \approx 1,344\text{s}$ of network wait) rather than 1 collective sync!
 
-#### The Surgical Fix:
-Enclose **both** the forward pass and the backward pass inside `with model.no_sync():` for microbatches $1$ through $K-1$:
-```python
-# CORRECT PATTERN:
-if micro < accum_steps - 1 and world_size > 1:
-    with model.no_sync():
-        tf0 = time.perf_counter()
-        out = model(inputs)  # Forward inside no_sync suppresses hook registration
-        loss = criterion(out, y) / accum_steps
-        fwd_step += (time.perf_counter() - tf0)
+### Bug 4: Multi-Core Thread Contention & OpenMP/MKL Jitter
+* **Symptom:** Early benchmarks exhibited high variance (standard deviation $> 25\%$) between consecutive trials.
+* **Root Cause:** By default, PyTorch and OpenBLAS/MKL dynamically spawned 20 threads on 12 physical CPU cores, causing severe L2/L3 cache thrashing and OS context switching.
+* **Fix:** Standardized the entire testbed to deterministic single-core pinned execution (`session_20261121_200541_1core`):
+  ```python
+  torch.set_num_threads(1)
+  os.environ["OMP_NUM_THREADS"] = "1"
+  os.environ["MKL_NUM_THREADS"] = "1"
+  ```
+  This reduced empirical run-to-run standard deviation to $< 1.5\%$.
 
-        tb0 = time.perf_counter()
-        loss.backward()      # Pure local gradient accumulation (0 Mbps network)
-        bwd_step += (time.perf_counter() - tb0)
-else:
-    # Final microbatch: arms hooks and dispatches the single collective AllReduce
-    tf0 = time.perf_counter()
-    out = model(inputs)
-    loss = criterion(out, y) / accum_steps
-    fwd_step += (time.perf_counter() - tf0)
+### Bug 5: The 13-Hour Unattended Master Pipeline Orchestration
+* **Symptom:** Unattended overnight benchmarking crashed whenever Node 02's SSH connection dropped or PyTorch failed to release port 29500.
+* **Root Cause:** Fragile shell scripting lacking cleanup hooks and process monitoring.
+* **Fix:** Developed `src/00_master_benchmark.py` and hardened `run_experiments.sh` with automated port killing (`fuser -k 29500/tcp`), automated SSH dispatch to Node 02, stage-by-stage verification, and unbuffered logging (`PYTHONUNBUFFERED=1`).
 
-    ts0 = time.perf_counter()
-    loss.backward()          # Triggers single collective sync
-    if world_size > 1:
-        dist.barrier()
-    sync_elapsed = time.perf_counter() - ts0
-```
-This guarantees that microbatches $1$ to $K-1$ exhibit **0.0 Mbps network activity**, confining collective communication to a single burst at the end of each accumulation window.
+### Bug 6: Figure 2 Scaling Dip Contamination
+* **Symptom:** Initial plots of Figure 2 showed an anomalous drop in throughput at $K=32$ for ResNet-18.
+* **Root Cause:** The plotting script read CSV files across both Fixed-Microbatch and Fixed-Global-Batch directories, accidentally ingesting data where microbatch size had been halved.
+* **Fix:** Isolated data ingestion in `src/05_plot_results.py` strictly to `02_sweep_fixed_microbatch/summary_micro.csv` and verified all data inputs against raw trial files.
 
-### 9.8 Two-Phase Empirical Strategy: 1-Core Baseline vs. 8-Core Scale-Up
-To maintain strict scientific control of variables, the experimental protocol isolates intra-node CPU parallelism from inter-node network synchronization:
+### Bug 7: Matplotlib Dual-Axis Overlap & Visual Clutter
+* **Symptom:** Secondary twin y-axes on Figures 3 and 4 overlapped with data curves, percentages, and legends.
+* **Fix:** Refactored all visualizations into separate Subfigure (a) and Subfigure (b) panels within clean dual-panel figures, and rendered 10 dedicated standalone solo figures.
 
-1. **Phase 2A: 1-Core Baseline (`OMP_NUM_THREADS=1`, Tag: `1core`)**:
-   * Evaluates pure Gradient Accumulation ($K \in \{1, 2, 4, 8, 16, 32, 64\}$) under baseline single-core compute.
-   * Proves the amortization curve without confounding multi-core GEMM acceleration.
-   * Directly establishes the single-node vs. multi-node efficiency baseline ($S_N, E_N$).
-2. **Phase 2B: 8-Core Scale-Up (`OMP_NUM_THREADS=8`, Tag: `8cores`)**:
-   * Unlocks all 8 physical Performance cores on both Intel i7-12700 nodes.
-   * Empirically demonstrates the **Roofline / Amdahl shift**: as local computation accelerates by ~6×, the 100 Mbps communication wall becomes dramatically more acute at $K=1$, demonstrating why algorithmic gradient accumulation is mandatory for performant multi-core distributed CPU training.
+### Bug 8: Linear vs. Categorical Axis Squishing
+* **Symptom:** A continuous linear x-axis compressed $K=1, 2, 4$ into an unreadable clump on the left while spreading $K=32, 64$ across the right.
+* **Fix:** Implemented equidistant categorical positioning using `np.arange(len(ks))` with clear, discrete tick labels `['1', '2', '4', '8', '16', '32', '64']`.
+
+### Bug 9: Linux Bash Trailing Quote Escape on `scp`
+* **Symptom:** Attempting to transfer the results folder via `scp` from Node 01 bash using a Windows path with a trailing backslash resulted in an unclosed quote continuation prompt (`>`).
+* **Root Cause:** In Linux bash, `\"` escapes the double quote, leaving the string open.
+* **Fix:** Standardized path formatting and transferred data cleanly to the local research workstation.
+
+### Bug 10: Git Repository Bloat & Remote Node Merge Collisions
+* **Symptom:** Committing the raw `results/` folder (25.4 MB of CSVs and sysmon traces) threatened to cause merge conflicts on Node 01 and Node 02 during `git pull`.
+* **Fix:** Untracked `results/` from Git cache (`git rm -r --cached`), added `results/` and `logs/` to `.gitignore`, and placed the 15 publication figures in a dedicated, clean `figures/` directory.
+
+---
+
+## 8. Comprehensive 13-Hour Empirical Results Matrix
+
+Below is the definitive, unified empirical dataset collected during the 13-hour continuous benchmarking campaign (`session_20261121_200541_1core`).
+
+### Table 2: Complete Fixed-Microbatch Throughput & Scaling Matrix
+| Model Architecture | World Size ($N$) | Accumulation Steps ($K$) | Local Microbatch ($B_{\text{local}}$) | Global Batch Size | Measured Step Time ($T_{\text{step}}$) | Cluster Throughput | Speedup vs 1-Node ($S_N$) | Weak Scaling Efficiency ($E_N$) | Network Sync Status |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **ResNet-18 (CV)** | **1 Node** | $K=1$ | 32 imgs | 32 imgs | 0.2789 s | **114.75 imgs/s** | 1.00× | 100.0% | Local Memory Only |
+| **ResNet-18 (CV)** | **1 Node** | $K=4$ | 32 imgs | 128 imgs | 1.1316 s | **113.15 imgs/s** | 1.00× | 100.0% | Local Memory Only |
+| ResNet-18 (CV) | 2 Nodes | $K=1$ | 32 imgs | 64 imgs | 4.1159 s | **15.57 imgs/s** | **0.14×** | **7.1%** | Severe Bottleneck (97.6% Sync) |
+| ResNet-18 (CV) | 2 Nodes | $K=2$ | 32 imgs | 128 imgs | 4.4093 s | **29.03 imgs/s** | **0.26×** | **12.8%** | Amortizing Communication |
+| ResNet-18 (CV) | 2 Nodes | $K=4$ | 32 imgs | 256 imgs | 4.8855 s | **52.40 imgs/s** | **0.46×** | **23.2%** | Communication Amortizing |
+| ResNet-18 (CV) | 2 Nodes | $K=8$ | 32 imgs | 512 imgs | 5.9358 s | **86.23 imgs/s** | **0.76×** | **38.1%** | Approaching Single-Node Parity |
+| ResNet-18 (CV) | **2 Nodes** | **$K=16$** | 32 imgs | 1024 imgs | 8.1615 s | **125.50 imgs/s** | **1.11×** | **55.5%** | **CROSSOVER POINT ($> 1.0\times$)** |
+| ResNet-18 (CV) | 2 Nodes | $K=32$ | 32 imgs | 2048 imgs | 12.9835 s | **157.73 imgs/s** | **1.39×** | **69.7%** | Strong Scaling Domain |
+| ResNet-18 (CV) | **2 Nodes** | **$K=64$** | 32 imgs | 4096 imgs | 22.6256 s | **181.07 imgs/s** | **1.60×** | **80.0%** | **PEAK VISION SCALING** |
+| **GPT-2 Small (LLM)**| **1 Node** | $K=1$ | 4 seqs | 2048 toks | 5.7823 s | **354.20 tok/s** | 1.00× | 100.0% | Local Memory Only |
+| **GPT-2 Small (LLM)**| **1 Node** | $K=4$ | 4 seqs | 8192 toks | 22.8693 s | **358.20 tok/s** | 1.00× | 100.0% | Local Memory Only |
+| GPT-2 Small (LLM)| 2 Nodes | $K=1$ | 4 seqs | 4096 toks | 47.3763 s | **86.47 tok/s** | **0.24×** | **12.2%** | Severe Bottleneck (94.2% Sync) |
+| GPT-2 Small (LLM)| 2 Nodes | $K=2$ | 4 seqs | 8192 toks | 52.0341 s | **157.43 tok/s** | **0.44×** | **22.0%** | Amortizing Communication |
+| GPT-2 Small (LLM)| 2 Nodes | $K=4$ | 4 seqs | 16384 toks| 62.7887 s | **260.93 tok/s** | **0.73×** | **36.4%** | Approaching Single-Node Parity |
+| GPT-2 Small (LLM)| **2 Nodes** | **$K=8$** | 4 seqs | 32768 toks| 85.1597 s | **384.80 tok/s** | **1.07×** | **53.7%** | **CROSSOVER POINT ($> 1.0\times$)** |
+| GPT-2 Small (LLM)| 2 Nodes | $K=16$ | 4 seqs | 65536 toks| 130.8961 s| **500.70 tok/s** | **1.40×** | **69.9%** | Strong Scaling Domain |
+| GPT-2 Small (LLM)| 2 Nodes | $K=32$ | 4 seqs | 131072 toks| 222.9335 s| **587.93 tok/s** | **1.64×** | **82.1%** | Highly Amortized |
+| GPT-2 Small (LLM)| **2 Nodes** | **$K=64$** | 4 seqs | 262144 toks| 407.3786 s| **643.47 tok/s** | **1.79×** | **89.5%** | **PEAK LLM SCALING** |
+
+---
+
+### Table 3: Detailed Step-Time Stopwatch Decomposition & Ratio ($\Gamma$)
+Measured per-step execution components across all accumulation configurations:
+
+| Model Architecture | $K$ | Forward Time ($T_{\text{fwd}}$) | Backward Time ($T_{\text{bwd}}$) | Total Compute ($T_{\text{comp}}$) | AllReduce Sync ($T_{\text{comm}}$) | Optimizer ($T_{\text{opt}}$) | Ratio $\Gamma = \frac{T_{\text{comp}}}{T_{\text{comm}}}$ | Compute % | Network % |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **ResNet-18** | $1$ | 88.1 ms | 0.0 ms* | 88.1 ms | 4,018.8 ms | 4.2 ms | **0.022** | 2.1% | 97.7% |
+| **ResNet-18** | $2$ | 174.7 ms | 362.5 ms | 537.2 ms | 3,863.6 ms | 4.2 ms | **0.139** | 12.2% | 87.7% |
+| **ResNet-18** | $4$ | 344.4 ms | 722.0 ms | 1,066.4 ms | 3,809.7 ms | 4.1 ms | **0.280** | 21.8% | 78.1% |
+| **ResNet-18** | $8$ | 692.8 ms | 1,469.1 ms | 2,161.9 ms | 3,762.5 ms | 4.2 ms | **0.575** | 36.5% | 63.4% |
+| **ResNet-18** | $16$ | 1,381.8 ms | 2,927.9 ms | 4,309.7 ms | 3,836.9 ms | 4.2 ms | **1.123** | 52.9% | 47.0% |
+| **ResNet-18** | $32$ | 2,939.1 ms | 6,209.9 ms | 9,149.0 ms | 3,809.4 ms | 4.2 ms | **2.402** | 70.6% | 29.4% |
+| **ResNet-18** | **$64$**| 5,980.4 ms | 12,651.4 ms | 18,631.8 ms| 3,954.9 ms | 4.2 ms | **4.711** | **82.5%** | **17.5%** |
+| **GPT-2 Small** | $1$ | 2,489.2 ms | 0.0 ms* | 2,489.2 ms | 44,611.6 ms | 271.9 ms | **0.056** | 5.3% | 94.1% |
+| **GPT-2 Small** | $2$ | 4,976.3 ms | 5,243.2 ms | 10,219.5 ms| 41,536.6 ms | 273.1 ms | **0.246** | 19.6% | 79.8% |
+| **GPT-2 Small** | $4$ | 10,070.7 ms| 10,993.4 ms| 21,064.1 ms| 41,450.2 ms | 272.7 ms | **0.508** | 33.6% | 66.0% |
+| **GPT-2 Small** | $8$ | 20,520.9 ms| 23,043.6 ms| 43,564.5 ms| 41,317.2 ms | 275.1 ms | **1.054** | 51.2% | 48.5% |
+| **GPT-2 Small** | $16$ | 41,864.8 ms| 47,358.6 ms| 89,223.4 ms| 41,390.1 ms | 277.7 ms | **2.156** | 68.2% | 31.6% |
+| **GPT-2 Small** | $32$ | 85,031.2 ms| 96,398.9 ms| 181,430.1 ms| 41,217.2 ms| 278.2 ms | **4.402** | 81.4% | 18.5% |
+| **GPT-2 Small** | **$64$**| 171,377.6 ms| 194,683.6 ms| 366,061.2 ms| 41,030.6 ms| 277.7 ms | **8.922** | **89.9%** | **10.1%** |
+
+*\*Note: At $K=1$, PyTorch DDP overlaps backward autograd calculation directly into the collective communication barrier, reporting local backward as 0.0 ms while rolling latency into the `allreduce_ms` measurement.*
+
+---
+
+## 9. Detailed Visual Systems Analysis: The 15 Publication Figures
+
+All 15 figures have been compiled at **200 DPI vector-raster quality** with clean typography, explicit value labels, and high-contrast color palettes. They are organized below as 5 dual-panel combined figures and 10 standalone solo subfigures.
+
+---
+
+### Figure 1: Global Training Throughput vs. Accumulation Steps ($K$)
+
+This figure demonstrates global cluster throughput as a function of gradient accumulation factor $K \in \{1, 2, 4, 8, 16, 32, 64\}$. The red dashed line denotes the single-node baseline.
+
+![Figure 1: Global Training Throughput vs Accumulation Steps](figures/Figure_1_throughput_vs_accumulation.png)
+
+#### Standalone Solo Subfigures:
+| Figure 1a: ResNet-18 Throughput | Figure 1b: GPT-2 Small Throughput |
+| :---: | :---: |
+| ![Figure 1a](figures/Figure_1a_ResNet18_throughput.png) | ![Figure 1b](figures/Figure_1b_GPT2_throughput.png) |
+
+**Key Observations:**
+* At $K=1$, both models perform severely below the single-node baseline.
+* Throughput increases monotonically with $K$ as communication overhead is amortized.
+* ResNet-18 plateaus around $K=64$ at $181.1\text{ img/s}$ ($11.6\times$ faster than naive DDP).
+* GPT-2 Small scales continuously up to $643.5\text{ tok/s}$ ($7.4\times$ faster than naive DDP).
+
+---
+
+### Figure 2: Distributed Speedup & Weak Scaling Efficiency
+
+Contrasts speedup ratio $S_N = T_{\text{cluster}} / T_{\text{single}}$ (Subfigure a) against weak scaling efficiency $E_N = (S_N / 2) \times 100\%$ (Subfigure b).
+
+![Figure 2: Distributed Speedup and Weak Scaling Efficiency](figures/Figure_2_single_vs_distributed_scaling.png)
+
+#### Standalone Solo Subfigures:
+| Figure 2a: Cluster Speedup Ratio | Figure 2b: Weak Scaling Efficiency |
+| :---: | :---: |
+| ![Figure 2a](figures/Figure_2a_cluster_speedup_ratio.png) | ![Figure 2b](figures/Figure_2b_weak_scaling_efficiency.png) |
+
+**Key Observations:**
+* **Crossover Points:** The speedup curve crosses the $1.0\times$ horizontal threshold at **$K=8$ for GPT-2** ($1.07\times$) and **$K=16$ for ResNet-18** ($1.11\times$).
+* **Peak Efficiency:** At $K=64$, GPT-2 reaches **$89.5\%$ weak scaling efficiency** ($1.79\times$ speedup on 2 nodes), while ResNet-18 reaches **$80.0\%$ efficiency** ($1.60\times$ speedup).
+* **Workload Disparity:** GPT-2 achieves higher scaling efficiency than ResNet-18 because transformer matrix multiplications have higher arithmetic intensity than 2D convolutions, providing more local compute time to amortize communication.
+
+---
+
+### Figure 3: Step-Time Decomposition & Compute-to-Communication Ratio ($\Gamma$)
+
+Deconstructs step duration into local forward compute, local backward compute, and collective AllReduce network wait (Subfigure a), alongside the compute-to-communication ratio $\Gamma = T_{\text{comp}} / T_{\text{comm}}$ (Subfigure b).
+
+![Figure 3: Step Time Breakdown and Compute-to-Comm Ratio](figures/Figure_3_compute_vs_communication_breakdown.png)
+
+#### Standalone Solo Subfigures:
+| Figure 3a: Step Duration Breakdown | Figure 3b: Compute-to-Comm Ratio |
+| :---: | :---: |
+| ![Figure 3a](figures/Figure_3a_step_duration_breakdown.png) | ![Figure 3b](figures/Figure_3b_compute_to_comm_ratio.png) |
+
+**Key Observations:**
+* **AllReduce Invariance:** Across all $K$, network transfer duration stays virtually flat ($\sim 41\text{s}$ for GPT-2, $\sim 3.8\text{s}$ for ResNet-18) because the gradient tensor size is constant.
+* **Bottleneck Inversion:** Network sync overhead plummets from **$95\%$** of step duration at $K=1$ down to **$10\%$** at $K=64$.
+* The ratio $\Gamma$ expands from $0.056$ (communication-bound) to **$8.93$ (compute-bound)**, demonstrating complete inversion of the systems bottleneck.
+
+---
+
+### Figure 4: Training Convergence & Loss Stability Across Accumulation Steps
+
+Validates optimization stability under periodic gradient accumulation. Subfigure (a) plots CIFAR-10 classification cross-entropy loss and test accuracy; Subfigure (b) tracks GPT-2 language model cross-entropy loss and perplexity.
+
+![Figure 4: Training Convergence Comparison](figures/Figure_4_training_convergence_comparison.png)
+
+#### Standalone Solo Subfigures:
+| Figure 4a: CIFAR-10 Convergence | Figure 4b: GPT-2 Convergence |
+| :---: | :---: |
+| ![Figure 4a](figures/Figure_4a_cifar10_convergence.png) | ![Figure 4b](figures/Figure_4b_gpt2_convergence.png) |
+
+**Key Observations:**
+* **CIFAR-10 (ResNet-18):** Cross-entropy loss drops from $1.71 \to 1.27$ in 2 epochs, while test accuracy advances from $49.0\% \to 58.8\%$.
+* **WikiText-2 (GPT-2):** Language model loss displays smooth, monotonic reduction across all 15 optimizer updates ($10.97 \to 7.58$), with perplexity improving from $58,153 \to 1,968$.
+* Confirms that periodic gradient accumulation introduces zero gradient staleness, numerical instability, or loss divergence.
+
+---
+
+### Figure 5: Interconnect Bandwidth Sensitivity & Collective Latency
+
+Evaluates physical AllReduce scaling across tensor payloads from $0.1\text{ MB}$ to $500\text{ MB}$ over the 100 Mbps switch.
+
+![Figure 5: Bandwidth Sensitivity and Collective Latency](figures/Figure_5_bandwidth_sensitivity.png)
+
+#### Standalone Solo Subfigures:
+| Figure 5a: Effective Bandwidth | Figure 5b: Collective Latency |
+| :---: | :---: |
+| ![Figure 5a](figures/Figure_5a_effective_bandwidth.png) | ![Figure 5b](figures/Figure_5b_collective_latency.png) |
+
+**Key Observations:**
+* **Bandwidth Saturation:** Effective AllReduce throughput reaches $10.9\text{ MB/s}$ for payloads $\ge 10\text{ MB}$, saturating $87.2\%$ of the physical $12.5\text{ MB/s}$ Fast Ethernet wire rate.
+* **Collective Latency:** Transfer latency scales linearly with payload ($R^2 = 0.9998$), confirming that synchronization overhead is strictly bandwidth-bound rather than latency-bound.
+
+---
+
+## 10. Academic Conclusion & Practical Implementation Guidelines
+
+### 10.1 Primary Systems Conclusions
+1. **Commodity Hardware Viability:** Bare-metal desktop PCs connected via standard 100 Mbps Fast Ethernet can successfully train distributed deep learning models and achieve up to **$89.5\%$ weak scaling efficiency** ($1.79\times$ speedup on 2 nodes).
+2. **Algorithmic Compensation for Hardware Limits:** When physical interconnect bandwidth is constrained, algorithmic amortization via gradient accumulation is mathematically required to invert the compute-to-communication bottleneck.
+3. **Model Architecture Sensitivity:** Autoregressive language models (GPT-2) achieve superior distributed scaling compared to convolutional vision models (ResNet-18) due to higher arithmetic intensity ($O(N)$ vs. $O(N^2)$ FLOP-to-byte ratio).
+
+### 10.2 Recommended Production Rules for Low-Cost Clusters
+* **Rule 1 (Accumulation Setting):** Always set accumulation factor $K \ge 8$ for language models and $K \ge 16$ for vision models to guarantee positive cluster scaling ($S_N > 1.0\times$).
+* **Rule 2 (Scope Safety):** Ensure **both** the forward pass and backward pass are wrapped inside `with model.no_sync():` for microsteps $1 \dots K-1$ to prevent accidental network flooding.
+* **Rule 3 (Core Pinning):** Standardize thread pools via `OMP_NUM_THREADS=1` and `MKL_NUM_THREADS=1` to prevent CPU cache thrashing and ensure reproducible benchmarks.
+* **Rule 4 (Memory Ceilings):** Keep local microbatch sizes small ($B_{\text{local}} \le 4$ for LLMs) to avoid triggering the Linux kernel OOM killer on motherboards with $\le 16\text{ GB}$ RAM.

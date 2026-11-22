@@ -1,8 +1,29 @@
-# CPU Cluster Lab
+# CPU Cluster Lab: Distributed Deep Learning on Commodity Intel Hardware
 
-> **Research Project** — Distributed LLM/ML Training on Commodity Intel CPU Hardware
-> **Base Paper**: *Towards Large-Scale Training on Apple Silicon* (2025)
-> **Novel Contribution**: Replicating distributed training on x86/Intel CPU clusters via Gigabit Ethernet
+> **Research Project** — Distributed LLM/ML Training on Commodity Intel CPU Hardware  
+> **Comparative Baseline**: *"Towards Large-Scale Training on Apple Silicon"* (2025)  
+> **Master Report**: See [EXPERIMENTAL_RESULTS.md](EXPERIMENTAL_RESULTS.md) for full A-to-Z empirical data, 13-hour benchmark tables, and systems profiling.  
+> **Publication Figures**: 15 high-resolution figures available in [figures/](figures/).
+
+---
+
+## 🚀 Key Research Milestones & Empirical Results
+
+We benchmarked distributed data-parallel (DDP) training of **ResNet-18 (11.2M params)** and **GPT-2 Small (124M params)** across a 2-node bare-metal Intel desktop cluster interconnected via **100 Mbps Fast Ethernet** ($10.9\text{ MB/s}$ line rate).
+
+* **The Communication Bottleneck:** At $K=1$, naive DDP collapses to **$0.14\times - 0.24\times$ speedup** ($94.7\%$ network stall).
+* **The Solution (Gradient Accumulation):** Decoupling communication via `model.no_sync()` amortizes network wait across $K$ microsteps.
+* **Single-Node Crossover Milestones:**
+  * **GPT-2 Small beats single-node CPU at $K = 8$** ($384.8\text{ tok/s}$, achieving $1.07\times$ speedup).
+  * **ResNet-18 beats single-node CPU at $K = 16$** ($125.5\text{ img/s}$, achieving $1.11\times$ speedup).
+* **Peak Scaling Performance ($K=64$):**
+  * **GPT-2 Small reaches $643.5\text{ tokens/sec}$** ($1.79\times$ cluster speedup, **$89.5\%$ weak scaling efficiency**).
+  * **ResNet-18 reaches $181.1\text{ images/sec}$** ($1.60\times$ cluster speedup, **$80.0\%$ weak scaling efficiency**).
+* **Bottleneck Inversion:** Network synchronization overhead plummets from **$95\%$ down to $10\%$**, shifting compute-to-communication ratio $\Gamma$ from $0.05 \to 8.93$.
+
+| Figure 1: Global Training Throughput vs Accumulation Steps | Figure 2: Speedup Ratio & Weak Scaling Efficiency |
+| :---: | :---: |
+| ![Figure 1](figures/Figure_1_throughput_vs_accumulation.png) | ![Figure 2](figures/Figure_2_single_vs_distributed_scaling.png) |
 
 ---
 
