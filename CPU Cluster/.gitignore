@@ -13,9 +13,10 @@ models/
 *.bin
 *.safetensors
 
-# Results & Logs (optional: commit these for reproducibility)
-# results/
-# logs/
+# Results & Logs (ignored so experimental runs don't bloat git or conflict on cluster pull)
+results/
+logs/
+*.log
 
 # Jupyter
 .ipynb_checkpoints/

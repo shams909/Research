@@ -1,2 +1,0 @@
-model,task,accum_steps,batch_per_node,effective_node_b,global_batch,trial_id,avg_step_time_s,throughput,unit,world_size,forward_ms,backward_ms,allreduce_ms,optimizer_ms,mode,trials_count,throughput_mean,throughput_std,step_time_mean_s,step_time_std_s,forward_ms_mean,backward_ms_mean,allreduce_ms_mean,optimizer_ms_mean
-ResNet-18,ResNet-18 / CIFAR-10,4,32,128,256,1,5.073,50.5,images/sec,2,393.38,746.51,3926.32,4.36,single,1,50.5,0.0,5.073,0.0,393.38,746.51,3926.32,4.36
