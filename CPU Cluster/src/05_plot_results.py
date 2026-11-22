@@ -80,9 +80,17 @@ def save_fig(fig, name, show=False):
 def plot_figure_1_throughput_vs_k(show=False):
     """
     Figure 1: Saturation curve of training throughput vs K with error bars.
+    Includes the 1-Node Baseline to explicitly show the crossover point where
+    distributed multi-node training out-scales single-node execution.
     Reads strictly from fixed-microbatch sweep CSVs.
-    Uses equidistant categorical x-axis spacing so K=1, 2, 4 are not crammed against the margin.
+    Uses equidistant categorical x-axis spacing for publication clarity.
     """
+    # 1. Load 1-node baseline files
+    single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "01_single_node_baseline", "summary_*.csv")))
+    if not single_files:
+        single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_1nodes_*.csv")))
+
+    # 2. Load 2-node cluster results (strictly from fixed-microbatch sweep)
     files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
     if not files:
         files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "*.csv")))
@@ -93,8 +101,8 @@ def plot_figure_1_throughput_vs_k(show=False):
         print("  [skip Fig 1] No benchmark or sweep CSVs found")
         return
 
-    dfs = [pd.read_csv(f) for f in files]
-    df_all = pd.concat(dfs, ignore_index=True)
+    df_single = pd.concat([pd.read_csv(f) for f in single_files], ignore_index=True) if single_files else pd.DataFrame()
+    df_all = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
 
     # Filter mode == micro if column present to prevent any fixed-global-batch mixing
     if "mode" in df_all.columns:
@@ -103,6 +111,13 @@ def plot_figure_1_throughput_vs_k(show=False):
     tasks = df_all["task"].unique() if "task" in df_all.columns else []
     if not len(tasks):
         return
+
+    fallback_single_tput = {
+        "ResNet-18": 113.2,
+        "ResNet-18 / CIFAR-10": 113.2,
+        "GPT-2 Small": 359.5,
+        "GPT-2 Small (117M)": 359.5,
+    }
 
     fig, axes = plt.subplots(1, len(tasks), figsize=(7.5 * len(tasks), 5.5))
     if len(tasks) == 1:
@@ -122,9 +137,26 @@ def plot_figure_1_throughput_vs_k(show=False):
         x_indices = np.arange(len(ks))
         unit = sub["unit"].iloc[0]
 
+        # Determine 1-node baseline
+        base_tput = fallback_single_tput.get(task, 113.2)
+        if not df_single.empty and "task" in df_single.columns:
+            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
+            if not sub1.empty:
+                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
+
         tput = sub["throughput_mean"].values if "throughput_mean" in sub.columns else sub["throughput"].values
         yerr = sub["throughput_std"].values if "throughput_std" in sub.columns else None
 
+        # Background visual regimes: Speedup Zone vs Communication-Bound Zone
+        max_y = max(max(tput), base_tput) * 1.25
+        ax.axhspan(base_tput, max_y, color="#2CA02C", alpha=0.06, label="_nolegend_")
+        ax.axhspan(0, base_tput, color="#D95F02", alpha=0.04, label="_nolegend_")
+
+        # 1-Node Baseline horizontal line
+        ax.axhline(base_tput, color="#D95F02", linestyle="--", linewidth=2.0,
+                   label=f"1-Node Baseline ({base_tput:.1f} {unit})")
+
+        # 2-Node Cluster curve
         ax.errorbar(x_indices, tput, yerr=yerr, marker="o", markersize=8, linewidth=2.2,
                     capsize=5, capthick=1.5, color=COLORS[0], label="2-Node Cluster")
 
@@ -132,14 +164,27 @@ def plot_figure_1_throughput_vs_k(show=False):
             ax.annotate(f"{y_val:.1f}", (xi, y_val), textcoords="offset points",
                         xytext=(0, 9), ha="center", fontweight="bold", fontsize=10)
 
+        # Annotate Crossover Point
+        crossover_idx = np.where(tput > base_tput)[0]
+        if len(crossover_idx) > 0:
+            c_idx = crossover_idx[0]
+            c_k = ks[c_idx]
+            c_val = tput[c_idx]
+            ax.scatter([c_idx], [c_val], color="crimson", s=110, zorder=5)
+            ax.annotate(f"Crossover (K={c_k})\nCluster beats 1-Node",
+                        (c_idx, c_val), textcoords="offset points",
+                        xytext=(-25, 24), ha="center", fontsize=8.5, fontweight="bold",
+                        color="darkred",
+                        arrowprops=dict(arrowstyle="->", color="darkred", lw=1.2))
+
         ax.set_title(task, fontsize=12, fontweight="bold")
         ax.set_xlabel("Accumulation Steps (K)", fontsize=11)
         ax.set_ylabel(f"Throughput ({unit})", fontsize=11)
         ax.set_xticks(x_indices)
         ax.set_xticklabels([str(k) for k in ks])
         ax.set_xlim(-0.4, len(ks) - 0.6)
-        ax.set_ylim(0, max(tput) * 1.20)
-        ax.legend(loc="lower right")
+        ax.set_ylim(0, max_y)
+        ax.legend(loc="lower right", framealpha=0.92)
 
     save_fig(fig, "Figure_1_throughput_vs_accumulation.png", show)
 
@@ -200,7 +245,13 @@ def plot_figure_2_scaling_efficiency(show=False):
 
     # Left: Speedup Ratio S_N
     ax1 = axes[0]
+    ax1.axhspan(1.0, 2.15, color="#2CA02C", alpha=0.06, label="_nolegend_")
+    ax1.axhspan(0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
     ax1.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="1-Node Baseline (1.0×)")
+    ax1.text(0.04, 0.92, "▲ Distributed Speedup (S₂ > 1.0×)", transform=ax1.transAxes,
+             fontsize=9.5, fontweight="bold", color="#1B7837", alpha=0.9)
+    ax1.text(0.04, 0.06, "▼ Network Bottleneck Slowdown (S₂ < 1.0×)", transform=ax1.transAxes,
+             fontsize=9.5, fontweight="bold", color="#B2182B", alpha=0.85)
 
     for i, task in enumerate(tasks):
         base_tput = fallback_single_tput.get(task, 150.0)
@@ -233,10 +284,12 @@ def plot_figure_2_scaling_efficiency(show=False):
     ax1.set_xticks(x_ticks)
     ax1.set_xticklabels([str(k) for k in all_k_vals])
     ax1.set_xlim(-0.4, len(all_k_vals) - 0.6)
-    ax1.legend(loc="lower right")
+    ax1.set_ylim(0, 2.15)
+    ax1.legend(loc="lower right", framealpha=0.92)
 
     # Right: Scaling Efficiency E_N (%)
     ax2 = axes[1]
+    ax2.axhspan(0, 100.0, color="#4C72B0", alpha=0.03, label="_nolegend_")
     ax2.axhline(100.0, color="gray", linestyle=":", linewidth=1.5, label="Ideal Linear Scaling (100%)")
 
     for i, task in enumerate(tasks):
@@ -271,7 +324,7 @@ def plot_figure_2_scaling_efficiency(show=False):
     ax2.set_xticklabels([str(k) for k in all_k_vals])
     ax2.set_xlim(-0.4, len(all_k_vals) - 0.6)
     ax2.set_ylim(0, 115)
-    ax2.legend(loc="lower right")
+    ax2.legend(loc="lower right", framealpha=0.92)
 
     save_fig(fig, "Figure_2_single_vs_distributed_scaling.png", show)
 
