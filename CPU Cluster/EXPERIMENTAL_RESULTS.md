@@ -299,16 +299,9 @@ Over the course of the research and the 13-hour continuous benchmarking campaign
       loss.backward()  # Dispatches the single AllReduce
   ```
 
-### Bug 4: Multi-Core Thread Contention & OpenMP/MKL Jitter
-* **Symptom:** Early benchmarks exhibited high variance (standard deviation $> 25\%$) between consecutive trials.
-* **Root Cause:** By default, PyTorch and OpenBLAS/MKL dynamically spawned 20 threads on 12 physical CPU cores, causing severe L2/L3 cache thrashing and OS context switching.
-* **Fix:** Standardized the entire testbed to deterministic single-core pinned execution (`session_20261121_200541_1core`):
-  ```python
-  torch.set_num_threads(1)
-  os.environ["OMP_NUM_THREADS"] = "1"
-  os.environ["MKL_NUM_THREADS"] = "1"
-  ```
-  This reduced empirical run-to-run standard deviation to $< 1.5\%$.
+### Bug 4: Inter-Trial Variance, Warmup Effects & Multi-Node Launch Thread Forwarding
+* **Symptom:** Early un-warmed benchmarks exhibited higher trial-to-trial jitter before CPU caches, PyTorch ATen thread pools, and Gloo TCP buffers stabilized. Additionally, `launch_master.sh` did not forward environment thread variables over SSH to Node 02 workers.
+* **Fix:** Added explicit warmup exclusions (`warmup_steps=2` excluded from timing), inter-trial `dist.barrier()` synchronization in `src/04_benchmark.py`, and conditional `OMP_NUM_THREADS`/`MKL_NUM_THREADS` SSH forwarding in `launch_master.sh`. During `session_20261121_200541_1core` (tagged `_1core` via `SESSION_TAG`), `src/*.py` ran with PyTorch's default 12-physical-core thread pool (~55%–62% across 20 logical threads in Figure 6), achieving tight trial-to-trial standard deviation ($\le 1.8\%$).
 
 ### Bug 5: The 13-Hour Unattended Master Pipeline Orchestration
 * **Symptom:** Unattended overnight benchmarking crashed whenever Node 02's SSH connection dropped or PyTorch failed to release port 29500.
@@ -418,7 +411,7 @@ Executed continuously for **3 hours 41 minutes** (3 independent trials per confi
 ### 8.1 Methodological Scope, Validation & Experimental Boundaries
 1. **End-to-End Throughput vs. Timing Decomposition:** Primary scaling metrics (Tables 2 & 4) rely purely on total wall-clock step time across 3 independent repetitions ($\text{CV} < 2\%$), while Table 3's internal phase split is qualified in Section 6.5 and independently corroborated by Stage 2's raw collective measurement (`45.96 s` for `500 MB`).
 2. **Scope of Convergence Tests:** Stage 5b (2 epochs CIFAR-10, 15 updates GPT-2) proves gradient stability and optimization descent under $K=4$ `no_sync()`, rather than claiming final accuracy equivalence across $K=1 \dots 64$ after multi-day full training.
-3. **CPU Thread Control:** All timings in this campaign isolate single-thread deterministic compute (`torch.set_num_threads(1)`). Multi-threaded intra-node execution shrinks $T_{\text{comp}}$ while wire transfer $T_{\text{comm}}$ remains fixed — mathematically increasing (rather than reducing) the accumulation factor $K$ needed for positive speedup.
+3. **CPU Thread Configuration (12-Core Execution Verification):** Although the session directory carries the label `_1core` (set via `SESSION_TAG`), `src/*.py` contains no `torch.set_num_threads(1)` call and `run_experiments.sh` did not force `OMP_NUM_THREADS=1` inside `torchrun`. Continuous `sysmon` telemetry confirms `54%–62.3%` total utilization across the 20 logical threads (`~12` active physical cores in Figure 6), and forward-pass times (`84.9 ms` ResNet-18, `2,613 ms` GPT-2) match earlier unpinned multi-core runs (`85–87 ms`, `2,512–2,563 ms`). Thus, all reported benchmark results reflect realistic **12-physical-core workstation execution**, while controlled `1 vs 4 vs 12`-thread ablation remains future work.
 
 ---
 
@@ -541,5 +534,5 @@ To rigorously verify host resource behavior, detect potential memory leaks, and 
 ### 10.2 Recommended Production Rules for Low-Cost Clusters
 * **Rule 1 (Accumulation Setting):** Always set accumulation factor $K \ge 8$ for language models and $K \ge 16$ for vision models to guarantee positive cluster scaling ($S_N > 1.0\times$).
 * **Rule 2 (Scope Safety):** Ensure **both** the forward pass and backward pass are wrapped inside `with model.no_sync():` for microsteps $1 \dots K-1$ to prevent accidental network flooding.
-* **Rule 3 (Core Pinning):** Standardize thread pools via `OMP_NUM_THREADS=1` and `MKL_NUM_THREADS=1` to prevent CPU cache thrashing and ensure reproducible benchmarks.
+* **Rule 3 (Warmup & Thread Hygiene):** Always discard initial JIT/cache warmup steps (`--warmup 2`), synchronize ranks cleanly before timing trials, and explicitly configure and verify intra-node thread settings (`OMP_NUM_THREADS`, `torch.set_num_threads`) across all nodes whenever running thread-scaling comparisons.
 * **Rule 4 (Memory Ceilings):** Keep local microbatch sizes small ($B_{\text{local}} \le 4$ for LLMs) to avoid triggering the Linux kernel OOM killer on motherboards with $\le 16\text{ GB}$ RAM.
