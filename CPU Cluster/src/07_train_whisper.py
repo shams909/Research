@@ -88,7 +88,8 @@ class SpeechCommandsWhisperDataset(Dataset):
             ds = torchaudio.datasets.SPEECHCOMMANDS(
                 root=config.DATA_DIR, subset="training", download=True
             )
-            dist.barrier()
+            if dist.is_available() and dist.is_initialized():
+                dist.barrier()
 
             tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-tiny")
             walker = ds._walker

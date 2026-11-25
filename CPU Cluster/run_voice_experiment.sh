@@ -93,7 +93,7 @@ ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no cluster@"$WORKER_IP" \
 echo "  [data] Verifying SpeechCommands & Whisper-Tiny cache on Master (Node 01)..." | tee -a "$LOG_FILE"
 if [ ! -d "data/SpeechCommands/speech_commands_v0.02" ] || ! python3 -c "from transformers import WhisperTokenizer; WhisperTokenizer.from_pretrained('openai/whisper-tiny', local_files_only=True)" >/dev/null 2>&1; then
     echo "  [data] Downloading Voice dataset/tokenizer on Master (Node 01)..." | tee -a "$LOG_FILE"
-    bash prepare_data.sh 2>&1 | tee -a "$LOG_FILE" || { echo "  ❌ prepare_data.sh failed on Master"; exit 1; }
+    bash prepare_data.sh --voice 2>&1 | tee -a "$LOG_FILE" || { echo "  ❌ prepare_data.sh --voice failed on Master"; exit 1; }
 fi
 
 echo "  [data] Verifying SpeechCommands & Whisper-Tiny cache on Worker (Node 02)..." | tee -a "$LOG_FILE"
@@ -102,9 +102,9 @@ ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no cluster@"$WORKER_IP" "
     source .venv/bin/activate
     if [ ! -d 'data/SpeechCommands/speech_commands_v0.02' ] || ! python3 -c \"from transformers import WhisperTokenizer; WhisperTokenizer.from_pretrained('openai/whisper-tiny', local_files_only=True)\" >/dev/null 2>&1; then
         echo '  [data] Downloading Voice dataset/tokenizer on Worker (Node 02)...'
-        bash prepare_data.sh
+        bash prepare_data.sh --voice
     fi
-" 2>&1 | tee -a "$LOG_FILE" || { echo "  ❌ prepare_data.sh failed on Worker ($WORKER_IP)"; exit 1; }
+" 2>&1 | tee -a "$LOG_FILE" || { echo "  ❌ prepare_data.sh --voice failed on Worker ($WORKER_IP)"; exit 1; }
 
 python3 src/00_hardware_probe.py 2>&1 | tee -a "$LOG_FILE" || true
 
@@ -116,7 +116,7 @@ if ! bash launch_master.sh 04_benchmark.py 2 --model whisper --mode micro --k_li
     echo "  ❌ ERROR: Stage 1 Whisper-Tiny distributed smoke test failed! Check worker logs in ${SESSION_DIR}/worker_logs/." | tee -a "$LOG_FILE"
     exit 1
 fi
-if ! python3 -c "import sys; sys.path.insert(0, 'src'); import importlib.util; spec = importlib.util.spec_from_file_location('w', 'src/07_train_whisper.py'); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); ds = m.SpeechCommandsWhisperDataset(dec_len=32, rank=0); x, y = ds[0]; print('    ✓ Verified SpeechCommands sample:', tuple(x.shape), tuple(y.shape))" 2>&1 | tee -a "$LOG_FILE"; then
+if ! python3 -c "import sys; sys.path.insert(0, 'src'); import importlib.util; spec = importlib.util.spec_from_file_location('w', 'src/07_train_whisper.py'); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); ds = m.SpeechCommandsWhisperDataset(dec_len=32, rank=0); assert ds.loaded, 'SpeechCommands fell back to synthetic tensors'; x, y = ds[0]; print('    ✓ Verified real SpeechCommands sample:', tuple(x.shape), tuple(y.shape))" 2>&1 | tee -a "$LOG_FILE"; then
     echo "  ❌ ERROR: SpeechCommands audio loader check failed on Master!" | tee -a "$LOG_FILE"
     exit 1
 fi
