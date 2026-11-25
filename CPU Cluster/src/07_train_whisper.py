@@ -97,8 +97,11 @@ class SpeechCommandsWhisperDataset(Dataset):
             selected = walker[::step][:max_samples]
 
             for rel_path in selected:
-                full_path = os.path.join(ds._path, rel_path)
-                label_word = os.path.basename(os.path.dirname(rel_path)).replace("_", " ")
+                rel_str = str(rel_path)
+                full_path = rel_str if os.path.exists(rel_str) else os.path.join(ds._path, rel_str)
+                if not os.path.exists(full_path):
+                    raise FileNotFoundError(f"SpeechCommands audio clip missing: {full_path}")
+                label_word = os.path.basename(os.path.dirname(full_path)).replace("_", " ")
                 tok_ids = tokenizer.encode(label_word, add_special_tokens=True)
                 # Pad or truncate decoder label sequence to fixed dec_len
                 if len(tok_ids) < dec_len:
