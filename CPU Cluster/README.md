@@ -3,24 +3,27 @@
 > **Research Project** — Distributed LLM/ML Training on Commodity Intel CPU Hardware  
 > **Working Paper Title**: *"Communication Amortization in Distributed CPU Training over Fast Ethernet: An Empirical Study"*  
 > **Comparative Baseline**: *"Towards Large-Scale Training on Apple Silicon"* (2025)  
-> **Master Report**: See [EXPERIMENTAL_RESULTS.md](EXPERIMENTAL_RESULTS.md) for full A-to-Z empirical data, 13-hour benchmark tables, and systems profiling.  
-> **Publication Figures**: 16 high-resolution publication figures available in [figures/](figures/).
+> **Master Report**: See [EXPERIMENTAL_RESULTS.md](EXPERIMENTAL_RESULTS.md) for full A-to-Z empirical data, tri-modal benchmark tables, and systems profiling.  
+> **Publication Figures**: 18 high-resolution publication figures available in [figures/](figures/).  
+> **Interactive Dashboard**: Open [dashboard.html](dashboard.html) in a browser for interactive exploration of all 18 figures.
 
 ---
 
 ## 🚀 Key Research Milestones & Empirical Results
 
-We benchmarked distributed data-parallel (DDP) training of **ResNet-18 (11.2M params)** and **GPT-2 Small (124M params)** across a 2-node bare-metal Intel desktop cluster interconnected via **100 Mbps Fast Ethernet** ($10.9\text{ MB/s}$ line rate).
+We benchmarked distributed data-parallel (DDP) training across three modalities — **ResNet-18 (11.2M Vision)**, **Whisper-Tiny (37.8M Voice/Speech)**, and **GPT-2 Small (124M LLM)** — on a 2-node bare-metal Intel i7-12700 desktop cluster interconnected via **100 Mbps Fast Ethernet** ($10.8\text{--}10.9\text{ MB/s}$ sustained `AllReduce`).
 
-* **The Communication Bottleneck:** At $K=1$, naive DDP collapses to **$0.14\times - 0.24\times$ speedup** ($94.2\%$ synchronizing/network stall on GPT-2).
+* **The Communication Bottleneck ($K=1$):** Naive DDP collapses to **$0.14\times$ (ResNet-18)**, **$0.21\times$ (Whisper-Tiny)**, and **$0.24\times$ (GPT-2 Small)** vs. single-node training ($94.1\%\text{--}97.7\%$ network/sync stall).
 * **The Solution (Gradient Accumulation):** Decoupling communication via `model.no_sync()` amortizes network wait across $K$ microsteps.
 * **Single-Node Crossover Milestones:**
-  * **GPT-2 Small beats single-node CPU at $K = 8$** ($384.8\text{ tok/s}$, achieving $1.07\times$ speedup).
-  * **ResNet-18 beats single-node CPU at $K = 16$** ($125.5\text{ img/s}$, achieving $1.11\times$ speedup).
+  * **GPT-2 Small beats 1-Node at $K = 8$** ($384.8\text{ tok/s}$, $1.07\times$ speedup).
+  * **Whisper-Tiny reaches parity at $K = 8$ ($0.99\times$) and beats 1-Node at $K = 16$** ($3.67\text{ clips/s}$, $1.33\times$ speedup).
+  * **ResNet-18 beats 1-Node at $K = 16$** ($125.5\text{ img/s}$, $1.11\times$ speedup).
 * **Peak Scaling Performance ($K=64$):**
-  * **GPT-2 Small reaches $643.5\text{ tokens/sec}$** ($1.80\times$ cluster speedup, **$89.8\%$ weak scaling efficiency**).
-  * **ResNet-18 reaches $181.1\text{ images/sec}$** ($1.60\times$ cluster speedup, **$80.0\%$ weak scaling efficiency**).
-* **Bottleneck Inversion:** Network synchronization overhead plummets from **$94.1\%$ down to $10.1\%$**, shifting compute-to-communication ratio $\Gamma$ from $0.056 \to 8.922$.
+  * **GPT-2 Small:** **$643.5\text{ tokens/sec}$** (**$1.80\times$** speedup, **$89.8\%$** weak scaling efficiency).
+  * **Whisper-Tiny:** **$4.81\text{ clips/sec}$** (**$1.75\times$** speedup, **$87.5\%$** weak scaling efficiency).
+  * **ResNet-18:** **$181.1\text{ images/sec}$** (**$1.60\times$** speedup, **$80.0\%$** weak scaling efficiency).
+* **Bottleneck Inversion ($\Gamma = T_{\text{comp}} / T_{\text{comm}}$):** Shifts from communication-bound to compute-bound across all three architectures: **$0.056 \to 8.922$** (GPT-2), **$0.033 \to 7.706$** (Whisper-Tiny), and **$0.022 \to 4.711$** (ResNet-18).
 
 | Figure 1: Global Training Throughput vs Accumulation Steps | Figure 2: Speedup Ratio & Weak Scaling Efficiency |
 | :---: | :---: |
@@ -86,8 +89,11 @@ Lab Cluster/
 | `00_net_test.py` | Measures raw network bandwidth (MB/s) between nodes | First, before training | For paper: documents interconnect speed |
 | `01_smoke_test.py` | Verifies cluster communication with AllReduce tests | After network test | ✅ **Day 1 milestone** |
 | `02_train_cifar.py` | Trains ResNet-18 on CIFAR-10 across all nodes | After smoke test passes | ✅ **Training demo** |
-| `03_train_gpt2.py` | Trains GPT-2 Small (117M params) across all nodes | After CIFAR demo | ✅ **LLM demo** |
-| `04_benchmark.py` | Automated throughput measurement for paper results | For research data | ✅ **Paper figures** |
+| `03_train_gpt2.py` | Trains GPT-2 Small (124M params) on WikiText-2 across all nodes | After CIFAR demo | ✅ **LLM demo** |
+| `04_benchmark.py` | Tri-modal throughput & step-time profiler (`--model all/tri/whisper`) | For research data | ✅ **Paper figures** |
+| `05_plot_results.py` | Generates combined & solo PNGs (`--extra_results_dir` merges modalities) | After benchmarks | ✅ **18 Figures** |
+| `07_train_whisper.py` | Trains Whisper-Tiny (37.8M params) on SpeechCommands across all nodes | Voice modality | ✅ **Voice demo** |
+| `run_voice_experiment.sh` | One-tap end-to-end Voice pipeline + auto-plotting (Stages 0–6) | Overnight Voice run | ✅ **Tri-modal suite** |
 
 ---
 

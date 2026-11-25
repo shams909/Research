@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CPU Cluster Lab — Interactive 16-Figure Research Dashboard</title>
+    <title>CPU Cluster Lab — Interactive 18-Figure Tri-Modal Dashboard</title>
     <!-- Plotly.js for interactive academic charts -->
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <!-- Tailwind CSS for sleek UI -->
@@ -28,11 +28,11 @@
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="bg-blue-600 text-xs uppercase tracking-wider font-bold px-2 py-0.5 rounded text-white">Full Research Suite</span>
-                    <span class="text-xs text-slate-400">All 16 Publication Figures (Interactive)</span>
+                    <span class="bg-blue-600 text-xs uppercase tracking-wider font-bold px-2 py-0.5 rounded text-white">Tri-Modal Research Suite</span>
+                    <span class="text-xs text-slate-400">All 18 Publication Figures (Vision + LLM + Voice)</span>
                 </div>
                 <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight mt-1">Communication Amortization in Distributed CPU Training over Fast Ethernet</h1>
-                <p class="text-sm text-slate-400 mt-1">Interactive Systems Benchmarking, Timing Decomposition &amp; 18.4h Telemetry Dashboard</p>
+                <p class="text-sm text-slate-400 mt-1">Interactive Tri-Modal Systems Benchmarking (ResNet-18, GPT-2 Small, Whisper-Tiny), Timing &amp; Telemetry Dashboard</p>
             </div>
             <div class="flex items-center gap-3">
                 <span class="text-xs bg-emerald-900/60 text-emerald-300 border border-emerald-700 px-3 py-1.5 rounded-full font-medium">✓ 2 Nodes (100 Mbps Fast Ethernet)</span>
@@ -44,24 +44,24 @@
     <main class="max-w-7xl mx-auto px-6 py-8">
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">GPT-2 Peak Speedup</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">GPT-2 (LLM) Peak</p>
                 <p class="text-2xl font-black text-blue-600 mt-1">1.80×</p>
-                <p class="text-xs text-slate-500 mt-1">89.8% weak scaling efficiency (K=64)</p>
+                <p class="text-xs text-slate-500 mt-1">89.8% efficiency (643.5 tok/s, K=64)</p>
             </div>
             <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">ResNet-18 Peak Speedup</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Whisper-Tiny (Voice)</p>
+                <p class="text-2xl font-black text-emerald-600 mt-1">1.75×</p>
+                <p class="text-xs text-slate-500 mt-1">87.5% efficiency (4.81 clips/s, K=64)</p>
+            </div>
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">ResNet-18 (Vision)</p>
                 <p class="text-2xl font-black text-indigo-600 mt-1">1.60×</p>
-                <p class="text-xs text-slate-500 mt-1">80.0% weak scaling efficiency (K=64)</p>
-            </div>
-            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Crossover Points</p>
-                <p class="text-2xl font-black text-emerald-600 mt-1">K=8 / K=16</p>
-                <p class="text-xs text-slate-500 mt-1">GPT-2 (K=8) &amp; ResNet (K=16) beat 1 Node</p>
+                <p class="text-xs text-slate-500 mt-1">80.0% efficiency (181.1 img/s, K=64)</p>
             </div>
             <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                 <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bottleneck Inversion</p>
-                <p class="text-2xl font-black text-purple-600 mt-1">Γ: 0.056 → 8.922</p>
-                <p class="text-xs text-slate-500 mt-1">Network share drops from 94.1% to 10.1%</p>
+                <p class="text-2xl font-black text-purple-600 mt-1">Γ → 7.71–8.92×</p>
+                <p class="text-xs text-slate-500 mt-1">Crossover at K=8 (LLM) &amp; K=16 (CV/Voice)</p>
             </div>
         </div>
 
@@ -70,8 +70,8 @@
             <div class="flex items-center gap-2">
                 <span class="text-xs font-bold uppercase text-slate-500 tracking-wider">Figure View Mode:</span>
                 <div class="inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-                    <button onclick="setViewMode('combined')" id="btn-mode-combined" class="mode-btn active px-3 py-1.5 rounded-md text-xs font-semibold transition">6 Primary Figures (Combined &amp; Telemetry)</button>
-                    <button onclick="setViewMode('solo')" id="btn-mode-solo" class="mode-btn px-3 py-1.5 rounded-md text-xs font-semibold text-slate-600 transition hover:text-slate-900">10 Standalone Solo Subfigures</button>
+                    <button onclick="setViewMode('combined')" id="btn-mode-combined" class="mode-btn active px-3 py-1.5 rounded-md text-xs font-semibold transition">6 Primary Figures (Tri-Modal &amp; Telemetry)</button>
+                    <button onclick="setViewMode('solo')" id="btn-mode-solo" class="mode-btn px-3 py-1.5 rounded-md text-xs font-semibold text-slate-600 transition hover:text-slate-900">12 Standalone Solo Subfigures</button>
                 </div>
             </div>
             <span class="text-xs text-slate-500 italic">Click 📷 in chart corner to export publication-ready PNG</span>
@@ -79,10 +79,10 @@
 
         <!-- Combined Navigation Buttons -->
         <div id="nav-combined" class="flex flex-wrap gap-2 border-b border-slate-200 mb-6 pb-2">
-            <button onclick="switchTab('fig1')" id="btn-fig1" class="nav-btn active px-3.5 py-2 rounded-lg text-xs font-semibold border transition">Figure 1: Dual Throughput</button>
+            <button onclick="switchTab('fig1')" id="btn-fig1" class="nav-btn active px-3.5 py-2 rounded-lg text-xs font-semibold border transition">Figure 1: Tri-Modal Throughput</button>
             <button onclick="switchTab('fig2')" id="btn-fig2" class="nav-btn bg-slate-100 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Figure 2: Speedup &amp; Efficiency</button>
             <button onclick="switchTab('fig3')" id="btn-fig3" class="nav-btn bg-slate-100 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Figure 3: Step Breakdown &amp; Γ</button>
-            <button onclick="switchTab('fig4')" id="btn-fig4" class="nav-btn bg-slate-100 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Figure 4: Training Convergence</button>
+            <button onclick="switchTab('fig4')" id="btn-fig4" class="nav-btn bg-slate-100 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Figure 4: Tri-Modal Convergence</button>
             <button onclick="switchTab('fig5')" id="btn-fig5" class="nav-btn bg-slate-100 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Figure 5: Network Sensitivity</button>
             <button onclick="switchTab('fig6')" id="btn-fig6" class="nav-btn bg-slate-100 text-slate-700 px-3.5 py-2 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Figure 6: 18.4h System Telemetry</button>
         </div>
@@ -91,12 +91,14 @@
         <div id="nav-solo" class="hidden flex flex-wrap gap-2 border-b border-slate-200 mb-6 pb-2">
             <button onclick="switchTab('fig1a')" id="btn-fig1a" class="nav-btn active px-3 py-1.5 rounded-lg text-xs font-semibold border transition">Fig 1a: ResNet Throughput</button>
             <button onclick="switchTab('fig1b')" id="btn-fig1b" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 1b: GPT-2 Throughput</button>
+            <button onclick="switchTab('fig1c')" id="btn-fig1c" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 1c: Whisper-Tiny Throughput</button>
             <button onclick="switchTab('fig2a')" id="btn-fig2a" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 2a: Speedup Ratio (S₂)</button>
             <button onclick="switchTab('fig2b')" id="btn-fig2b" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 2b: Weak Scaling Eff (E₂)</button>
             <button onclick="switchTab('fig3a')" id="btn-fig3a" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 3a: Step Breakdown Stack</button>
             <button onclick="switchTab('fig3b')" id="btn-fig3b" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 3b: Ratio Γ (Compute/Comm)</button>
             <button onclick="switchTab('fig4a')" id="btn-fig4a" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 4a: CIFAR-10 Loss &amp; Acc</button>
             <button onclick="switchTab('fig4b')" id="btn-fig4b" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 4b: GPT-2 LM Loss &amp; PPL</button>
+            <button onclick="switchTab('fig4c')" id="btn-fig4c" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 4c: Whisper Speech Loss</button>
             <button onclick="switchTab('fig5a')" id="btn-fig5a" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 5a: Effective Bandwidth</button>
             <button onclick="switchTab('fig5b')" id="btn-fig5b" class="nav-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-transparent transition hover:bg-slate-200">Fig 5b: Collective Latency</button>
         </div>
@@ -119,7 +121,7 @@
                 <span>💡</span> Academic Systems Summary
             </h3>
             <p class="text-xs leading-relaxed text-slate-600">
-                Every value plotted above is synchronized directly against the bare-metal CSV outputs recorded during the overnight experimental campaign (<code class="bg-blue-100 px-1 py-0.5 rounded text-blue-800">session_20261121_200541_1core</code>). Single-node baselines are mathematically invariant to accumulation factor <i>K</i> because standalone compute has zero network communication overhead (<i>T</i><sub>comm</sub> = 0), validated empirically in Stage 3 (98.6%–98.9% agreement between <i>K</i>=1 and <i>K</i>=4).
+                Every value plotted above is synchronized directly against the bare-metal CSV outputs recorded across our two controlled experimental campaigns (<code class="bg-blue-100 px-1 py-0.5 rounded text-blue-800">session_20261121_200541_1core</code> for ResNet-18 + GPT-2 Small and <code class="bg-emerald-100 px-1 py-0.5 rounded text-emerald-800">session_20261125_224612_voice</code> for Whisper-Tiny). Single-node baselines are mathematically invariant to accumulation factor <i>K</i> because standalone compute has zero network communication overhead (<i>T</i><sub>comm</sub> = 0), validated empirically in Stage 3 (98.6%–98.9% agreement on CV/LLM; 95.2% on Voice).
             </p>
         </div>
     </main>
@@ -128,23 +130,28 @@
         CPU Cluster Lab — Distributed Deep Learning Systems Research | Mohammad Shamsuddoha Shams
     </footer>
 
-    <!-- Plotly Data & Render Logic for ALL 16 Figures -->
+    <!-- Plotly Data & Render Logic for ALL 18 Figures -->
     <script>
         const ks = ['1', '2', '4', '8', '16', '32', '64'];
         const resnet_2nodes = [15.57, 29.03, 52.40, 86.23, 125.50, 157.73, 181.07];
         const gpt2_2nodes = [86.47, 157.43, 260.93, 384.80, 500.70, 587.93, 643.47];
+        const whisper_2nodes = [0.58, 1.06, 1.82, 2.73, 3.67, 4.38, 4.81];
         const resnet_baseline = 113.15;
         const gpt2_baseline = 358.20;
+        const whisper_baseline = 2.75;
 
         const resnet_speedup = [0.14, 0.26, 0.46, 0.76, 1.11, 1.39, 1.60];
         const gpt2_speedup = [0.24, 0.44, 0.73, 1.07, 1.40, 1.64, 1.80];
+        const whisper_speedup = [0.21, 0.39, 0.66, 0.99, 1.33, 1.59, 1.75];
         const resnet_eff = [6.9, 12.8, 23.2, 38.1, 55.5, 69.7, 80.0];
         const gpt2_eff = [12.1, 22.0, 36.4, 53.7, 69.9, 82.1, 89.8];
+        const whisper_eff = [10.5, 19.3, 33.1, 49.6, 66.7, 79.6, 87.5];
 
         const fwd_gpt2 = [2.49, 4.98, 10.07, 20.52, 41.86, 85.03, 171.38];
         const bwd_gpt2 = [0.0, 5.24, 10.99, 23.04, 47.36, 96.40, 194.68];
         const comm_gpt2 = [44.61, 41.54, 41.45, 41.32, 41.39, 41.22, 41.03];
         const gammas_gpt2 = [0.056, 0.246, 0.508, 1.054, 2.156, 4.402, 8.922];
+        const gammas_whisper = [0.033, 0.204, 0.416, 0.882, 1.833, 3.778, 7.706];
 
         const cifar_loss = [1.7149, 1.2741];
         const cifar_acc = [49.02, 58.79];
@@ -152,6 +159,8 @@
         const gpt2_steps = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         const gpt2_loss = [10.9708, 10.0670, 9.6336, 9.4167, 9.2021, 8.9910, 8.7975, 8.5673, 8.4765, 8.2603, 8.1465, 7.9132, 7.8804, 7.6664, 7.5850];
         const gpt2_ppl = [58153.18, 23552.02, 15269.63, 12292.11, 9917.63, 8030.84, 6617.85, 5256.76, 4800.43, 3867.43, 3451.23, 2733.20, 2644.91, 2135.42, 1968.37];
+        const whisper_loss = [10.9154, 9.3656, 8.7722, 8.3364, 7.9722, 7.9176, 7.5906, 7.3835, 7.3726, 7.1507, 6.9787, 6.9078, 6.8158, 6.5808, 6.5793];
+        const whisper_ppl = [55016.14, 11679.62, 6452.18, 4173.19, 2899.32, 2745.16, 1979.59, 1609.24, 1591.76, 1275.05, 1073.48, 1000.02, 912.15, 721.10, 720.01];
 
         const payloads = [0.1, 1.0, 10.0, 50.0, 100.0, 250.0, 500.0];
         const bandwidth = [9.71, 10.73, 10.90, 10.90, 10.87, 10.75, 10.88];
@@ -200,20 +209,23 @@
 
             // --- RENDER ROUTING ---
             if (tabId === 'fig1') {
-                title.innerText = 'Figure 1: Global Training Throughput vs. Accumulation Steps (K)';
-                desc.innerText = 'Dual-panel comparison of ResNet-18 (Vision) and GPT-2 Small (LLM) scaling past single-node ceilings.';
-                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Dual Panel</span>';
+                title.innerText = 'Figure 1: Tri-Modal Global Training Throughput vs. Accumulation Steps (K)';
+                desc.innerText = 'Tri-panel comparison across Vision (ResNet-18), LLM (GPT-2 Small), and Voice (Whisper-Tiny) scaling past single-node ceilings.';
+                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Tri-Panel</span>';
 
-                const t1 = { x: ks, y: resnet_2nodes, name: 'ResNet-18 (2 Nodes)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#2563eb' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
-                const t1_b = { x: ks, y: Array(7).fill(resnet_baseline), name: '1-Node Base (113.2 img/s)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2 }, xaxis: 'x1', yaxis: 'y1' };
-                const t2 = { x: ks, y: gpt2_2nodes, name: 'GPT-2 Small (2 Nodes)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#059669' }, line: { width: 3 }, xaxis: 'x2', yaxis: 'y2' };
-                const t2_b = { x: ks, y: Array(7).fill(gpt2_baseline), name: '1-Node Base (358.2 tok/s)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2 }, xaxis: 'x2', yaxis: 'y2' };
+                const t1 = { x: ks, y: resnet_2nodes, name: 'ResNet-18 (2 Nodes)', type: 'scatter', mode: 'lines+markers', marker: { size: 8, color: '#2563eb' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
+                const t1_b = { x: ks, y: Array(7).fill(resnet_baseline), name: 'ResNet 1-Node (113.2)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2 }, xaxis: 'x1', yaxis: 'y1' };
+                const t2 = { x: ks, y: gpt2_2nodes, name: 'GPT-2 (2 Nodes)', type: 'scatter', mode: 'lines+markers', marker: { size: 8, color: '#d97706' }, line: { width: 3 }, xaxis: 'x2', yaxis: 'y2' };
+                const t2_b = { x: ks, y: Array(7).fill(gpt2_baseline), name: 'GPT-2 1-Node (358.2)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2 }, xaxis: 'x2', yaxis: 'y2' };
+                const t3 = { x: ks, y: whisper_2nodes, name: 'Whisper-Tiny (2 Nodes)', type: 'scatter', mode: 'lines+markers', marker: { size: 8, color: '#059669' }, line: { width: 3 }, xaxis: 'x3', yaxis: 'y3' };
+                const t3_b = { x: ks, y: Array(7).fill(whisper_baseline), name: 'Whisper 1-Node (2.75)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2 }, xaxis: 'x3', yaxis: 'y3' };
 
-                Plotly.newPlot('main-chart', [t1, t1_b, t2, t2_b], {
-                    grid: { rows: 1, columns: 2, pattern: 'independent' },
-                    xaxis1: { title: 'Accumulation Steps (K)' }, yaxis1: { title: 'ResNet-18 Throughput (img/s)' },
-                    xaxis2: { title: 'Accumulation Steps (K)' }, yaxis2: { title: 'GPT-2 Small Throughput (tok/s)' },
-                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: -0.2 }
+                Plotly.newPlot('main-chart', [t1, t1_b, t2, t2_b, t3, t3_b], {
+                    grid: { rows: 1, columns: 3, pattern: 'independent' },
+                    xaxis1: { title: 'K' }, yaxis1: { title: 'ResNet-18 (img/s)' },
+                    xaxis2: { title: 'K' }, yaxis2: { title: 'GPT-2 (tok/s)' },
+                    xaxis3: { title: 'K' }, yaxis3: { title: 'Whisper (clips/s)' },
+                    margin: { t: 40, b: 60, l: 55, r: 25 }, legend: { orientation: 'h', y: -0.22 }
                 }, {responsive: true});
             }
 
@@ -233,9 +245,9 @@
             else if (tabId === 'fig1b') {
                 title.innerText = 'Figure 1b: GPT-2 Small / WikiText-2 Training Throughput vs. K';
                 desc.innerText = 'Autoregressive transformer scaling from 86.47 to 643.47 tok/s (7.44× gain). Crossover at K=8.';
-                badge.innerHTML = '<span class="text-xs bg-emerald-50 text-emerald-700 font-medium px-2.5 py-1 rounded-md border border-emerald-200">Solo Subfigure 1b</span>';
+                badge.innerHTML = '<span class="text-xs bg-amber-50 text-amber-700 font-medium px-2.5 py-1 rounded-md border border-amber-200">Solo Subfigure 1b</span>';
 
-                const t2 = { x: ks, y: gpt2_2nodes, name: '2-Node Cluster', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#059669' }, line: { width: 3.5 } };
+                const t2 = { x: ks, y: gpt2_2nodes, name: '2-Node Cluster', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#d97706' }, line: { width: 3.5 } };
                 const t2_b = { x: ks, y: Array(7).fill(gpt2_baseline), name: '1-Node Baseline (358.2 tok/s)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2.5 } };
                 Plotly.newPlot('main-chart', [t2, t2_b], {
                     xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Throughput (tokens/second)' },
@@ -243,68 +255,86 @@
                 }, {responsive: true});
             }
 
+            else if (tabId === 'fig1c') {
+                title.innerText = 'Figure 1c: Whisper-Tiny (Speech) Training Throughput vs. K';
+                desc.innerText = 'Encoder-decoder speech model (~37.8M) scaling from 0.58 to 4.81 clips/s (8.29× gain). Crossover at K=16.';
+                badge.innerHTML = '<span class="text-xs bg-emerald-50 text-emerald-700 font-medium px-2.5 py-1 rounded-md border border-emerald-200">Solo Subfigure 1c</span>';
+
+                const t3 = { x: ks, y: whisper_2nodes, name: '2-Node Cluster', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#059669' }, line: { width: 3.5 } };
+                const t3_b = { x: ks, y: Array(7).fill(whisper_baseline), name: '1-Node Baseline (2.75 clips/s)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2.5 } };
+                Plotly.newPlot('main-chart', [t3, t3_b], {
+                    xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Throughput (clips/second)' },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
+
             else if (tabId === 'fig2') {
-                title.innerText = 'Figure 2: Distributed Speedup Ratio & Weak Scaling Efficiency';
-                desc.innerText = 'Dual-panel comparison of Speedup Ratio S₂ crossing 1.0× and Scaling Efficiency E₂ recovering to 89.8%.';
-                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Dual Panel</span>';
+                title.innerText = 'Figure 2: Tri-Modal Distributed Speedup Ratio & Weak Scaling Efficiency';
+                desc.innerText = 'Comparing Speedup S₂ crossing 1.0× and Efficiency E₂ reaching 89.8% (GPT-2), 87.5% (Whisper-Tiny), and 80.0% (ResNet-18).';
+                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Dual Panel (3 Models)</span>';
 
-                const t1 = { x: ks, y: resnet_speedup, name: 'ResNet-18 (S₂)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#2563eb' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
-                const t2 = { x: ks, y: gpt2_speedup, name: 'GPT-2 (S₂)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#059669' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
+                const t1 = { x: ks, y: resnet_speedup, name: 'ResNet-18 (S₂)', type: 'scatter', mode: 'lines+markers', marker: { size: 8, color: '#2563eb' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
+                const t2 = { x: ks, y: gpt2_speedup, name: 'GPT-2 (S₂)', type: 'scatter', mode: 'lines+markers', marker: { size: 8, color: '#d97706' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
+                const t3s = { x: ks, y: whisper_speedup, name: 'Whisper-Tiny (S₂)', type: 'scatter', mode: 'lines+markers', marker: { size: 8, color: '#059669' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
                 const t_b = { x: ks, y: Array(7).fill(1.0), name: '1.0× Parity Threshold', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2 }, xaxis: 'x1', yaxis: 'y1' };
-                const t3 = { x: ks, y: resnet_eff, name: 'ResNet-18 Eff (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#2563eb' }, line: { width: 3, dash: 'dot' }, xaxis: 'x2', yaxis: 'y2' };
-                const t4 = { x: ks, y: gpt2_eff, name: 'GPT-2 Eff (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#059669' }, line: { width: 3, dash: 'dot' }, xaxis: 'x2', yaxis: 'y2' };
+                const t4 = { x: ks, y: resnet_eff, name: 'ResNet-18 Eff (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 8, color: '#2563eb' }, line: { width: 2.5, dash: 'dot' }, xaxis: 'x2', yaxis: 'y2' };
+                const t5 = { x: ks, y: gpt2_eff, name: 'GPT-2 Eff (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 8, color: '#d97706' }, line: { width: 2.5, dash: 'dot' }, xaxis: 'x2', yaxis: 'y2' };
+                const t6 = { x: ks, y: whisper_eff, name: 'Whisper Eff (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 8, color: '#059669' }, line: { width: 2.5, dash: 'dot' }, xaxis: 'x2', yaxis: 'y2' };
 
-                Plotly.newPlot('main-chart', [t1, t2, t_b, t3, t4], {
+                Plotly.newPlot('main-chart', [t1, t2, t3s, t_b, t4, t5, t6], {
                     grid: { rows: 1, columns: 2, pattern: 'independent' },
-                    xaxis1: { title: 'Accumulation Steps (K)' }, yaxis1: { title: 'Speedup Ratio (×)', range: [0, 2.0] },
-                    xaxis2: { title: 'Accumulation Steps (K)' }, yaxis2: { title: 'Scaling Efficiency (%)', range: [0, 100] },
-                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: -0.2 }
+                    xaxis1: { title: 'Accumulation Steps (K)' }, yaxis1: { title: 'Speedup Ratio (×)', range: [0, 2.05] },
+                    xaxis2: { title: 'Accumulation Steps (K)' }, yaxis2: { title: 'Scaling Efficiency (%)', range: [0, 105] },
+                    margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: -0.22 }
                 }, {responsive: true});
             }
 
             else if (tabId === 'fig2a') {
-                title.innerText = 'Figure 2a: Cluster Speedup Ratio (S₂) vs. Single-Node Baseline';
-                desc.innerText = 'Tracking speedup recovery past the 1.0× threshold to 1.60× (ResNet) and 1.80× (GPT-2).';
+                title.innerText = 'Figure 2a: Tri-Modal Cluster Speedup Ratio (S₂) vs. Single-Node Baseline';
+                desc.innerText = 'Tracking speedup recovery past 1.0× to 1.80× (GPT-2), 1.75× (Whisper-Tiny), and 1.60× (ResNet-18).';
                 badge.innerHTML = '<span class="text-xs bg-emerald-50 text-emerald-700 font-medium px-2.5 py-1 rounded-md border border-emerald-200">Solo Subfigure 2a</span>';
 
                 const t1 = { x: ks, y: resnet_speedup, name: 'ResNet-18 Speedup', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#2563eb' }, line: { width: 3.5 } };
-                const t2 = { x: ks, y: gpt2_speedup, name: 'GPT-2 Speedup', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#059669' }, line: { width: 3.5 } };
+                const t2 = { x: ks, y: gpt2_speedup, name: 'GPT-2 Speedup', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#d97706' }, line: { width: 3.5 } };
+                const t3 = { x: ks, y: whisper_speedup, name: 'Whisper-Tiny Speedup', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#059669' }, line: { width: 3.5 } };
                 const t_b = { x: ks, y: Array(7).fill(1.0), name: '1.0× Baseline Threshold', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2.5 } };
 
-                Plotly.newPlot('main-chart', [t1, t2, t_b], {
-                    xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Speedup Ratio (S₂)', range: [0, 2.0] },
+                Plotly.newPlot('main-chart', [t1, t2, t3, t_b], {
+                    xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Speedup Ratio (S₂)', range: [0, 2.05] },
                     margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
                 }, {responsive: true});
             }
 
             else if (tabId === 'fig2b') {
                 title.innerText = 'Figure 2b: Weak Scaling Efficiency (E₂) Across Accumulation Factors';
-                desc.innerText = 'Proportion of ideal linear 2.0× scaling achieved, rising from 6.9% up to 89.8%.';
+                desc.innerText = 'Proportion of ideal linear 2.0× scaling achieved across Vision (80.0%), Voice (87.5%), and LLM (89.8%).';
                 badge.innerHTML = '<span class="text-xs bg-emerald-50 text-emerald-700 font-medium px-2.5 py-1 rounded-md border border-emerald-200">Solo Subfigure 2b</span>';
 
                 const t3 = { x: ks, y: resnet_eff, name: 'ResNet-18 Efficiency (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#2563eb' }, line: { width: 3.5 } };
-                const t4 = { x: ks, y: gpt2_eff, name: 'GPT-2 Efficiency (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#059669' }, line: { width: 3.5 } };
-                Plotly.newPlot('main-chart', [t3, t4], {
-                    xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Scaling Efficiency (%)', range: [0, 100] },
+                const t4 = { x: ks, y: gpt2_eff, name: 'GPT-2 Efficiency (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#d97706' }, line: { width: 3.5 } };
+                const t5 = { x: ks, y: whisper_eff, name: 'Whisper-Tiny Efficiency (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#059669' }, line: { width: 3.5 } };
+                Plotly.newPlot('main-chart', [t3, t4, t5], {
+                    xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Scaling Efficiency (%)', range: [0, 105] },
                     margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
                 }, {responsive: true});
             }
 
             else if (tabId === 'fig3') {
                 title.innerText = 'Figure 3: Step Time Breakdown & Ratio Γ (Compute vs Network)';
-                desc.innerText = 'Stacked time decomposition and compute-to-comm ratio Γ inverting the bottleneck from 0.056 to 8.922.';
+                desc.innerText = 'Stacked time decomposition (GPT-2 Small) and compute-to-comm ratio Γ inverting from 0.056→8.922 (GPT-2) and 0.033→7.706 (Whisper).';
                 badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Dual Panel</span>';
 
-                const trace_fwd = { x: ks, y: fwd_gpt2, name: 'Forward Compute (s)', type: 'bar', marker: { color: '#3b82f6' } };
-                const trace_bwd = { x: ks, y: bwd_gpt2, name: 'Backward Compute (s)', type: 'bar', marker: { color: '#10b981' } };
-                const trace_comm = { x: ks, y: comm_gpt2, name: 'AllReduce / Sync Barrier (s)', type: 'bar', marker: { color: '#ef4444' } };
-                const trace_gamma = { x: ks, y: gammas_gpt2, name: 'Ratio Γ = Tcomp / Tcomm', type: 'scatter', mode: 'lines+markers', yaxis: 'y2', marker: { size: 9, color: '#8b5cf6' }, line: { width: 3 } };
+                const trace_fwd = { x: ks, y: fwd_gpt2, name: 'GPT-2 Forward (s)', type: 'bar', marker: { color: '#3b82f6' } };
+                const trace_bwd = { x: ks, y: bwd_gpt2, name: 'GPT-2 Backward (s)', type: 'bar', marker: { color: '#10b981' } };
+                const trace_comm = { x: ks, y: comm_gpt2, name: 'GPT-2 AllReduce (s)', type: 'bar', marker: { color: '#ef4444' } };
+                const trace_gamma = { x: ks, y: gammas_gpt2, name: 'GPT-2 Γ', type: 'scatter', mode: 'lines+markers', yaxis: 'y2', marker: { size: 9, color: '#8b5cf6' }, line: { width: 3 } };
+                const trace_gamma_w = { x: ks, y: gammas_whisper, name: 'Whisper-Tiny Γ', type: 'scatter', mode: 'lines+markers', yaxis: 'y2', marker: { size: 8, color: '#059669' }, line: { width: 2.5, dash: 'dot' } };
 
-                Plotly.newPlot('main-chart', [trace_fwd, trace_bwd, trace_comm, trace_gamma], {
+                Plotly.newPlot('main-chart', [trace_fwd, trace_bwd, trace_comm, trace_gamma, trace_gamma_w], {
                     barmode: 'stack',
                     xaxis: { title: 'Accumulation Steps (K)' }, yaxis: { title: 'Step Duration (seconds)' },
                     yaxis2: { title: 'Compute-to-Comm Ratio (Γ)', overlaying: 'y', side: 'right', range: [0, 10] },
-                    margin: { t: 40, b: 60, l: 60, r: 60 }, legend: { orientation: 'h', y: -0.2 }
+                    margin: { t: 40, b: 60, l: 60, r: 60 }, legend: { orientation: 'h', y: -0.22 }
                 }, {responsive: true});
             }
 
@@ -325,32 +355,33 @@
 
             else if (tabId === 'fig3b') {
                 title.innerText = 'Figure 3b: Compute-to-Communication Ratio (Γ = Tcomp / Tcomm)';
-                desc.innerText = 'Bottleneck inversion: Γ moves from 0.056 (network-bound) to 8.922 (fully compute-bound).';
+                desc.innerText = 'Bottleneck inversion across transformers: GPT-2 moves 0.056 → 8.922, Whisper-Tiny moves 0.033 → 7.706.';
                 badge.innerHTML = '<span class="text-xs bg-purple-50 text-purple-700 font-medium px-2.5 py-1 rounded-md border border-purple-200">Solo Subfigure 3b</span>';
 
-                const t_g = { x: ks, y: gammas_gpt2, name: 'Ratio Γ', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#8b5cf6' }, line: { width: 3.5 } };
+                const t_g = { x: ks, y: gammas_gpt2, name: 'GPT-2 Ratio Γ', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#8b5cf6' }, line: { width: 3.5 } };
+                const t_w = { x: ks, y: gammas_whisper, name: 'Whisper-Tiny Ratio Γ', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#059669' }, line: { width: 3.0, dash: 'dot' } };
                 const t_p = { x: ks, y: Array(7).fill(1.0), name: 'Parity Boundary (Γ = 1.0)', type: 'scatter', mode: 'lines', line: { dash: 'dash', color: '#dc2626', width: 2 } };
-                Plotly.newPlot('main-chart', [t_g, t_p], {
+                Plotly.newPlot('main-chart', [t_g, t_w, t_p], {
                     xaxis: { title: 'Gradient Accumulation Steps (K)' }, yaxis: { title: 'Ratio Γ = Tcomp / Tcomm' },
                     margin: { t: 40, b: 60, l: 60, r: 40 }, legend: { orientation: 'h', y: 1.1 }
                 }, {responsive: true});
             }
 
             else if (tabId === 'fig4') {
-                title.innerText = 'Figure 4: Training Convergence & Loss Stability Across Accumulation Steps';
-                desc.innerText = 'Dual panel: CIFAR-10 classification loss & accuracy vs. GPT-2 language model cross-entropy loss.';
-                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Dual Panel</span>';
+                title.innerText = 'Figure 4: Tri-Modal Training Convergence & Loss Stability (K=4)';
+                desc.innerText = 'CIFAR-10 accuracy (58.8%), GPT-2 LM loss (10.97→7.58), and Whisper-Tiny SpeechCommands loss (10.92→6.58).';
+                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Tri-Panel</span>';
 
-                const t_c1 = { x: [1, 2], y: cifar_loss, name: 'CIFAR-10 Loss', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#2563eb' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
-                const t_c2 = { x: [1, 2], y: cifar_acc, name: 'Test Accuracy (%)', type: 'scatter', mode: 'lines+markers', marker: { size: 10, color: '#10b981' }, line: { width: 3, dash: 'dash' }, xaxis: 'x1', yaxis: 'y2' };
-                const t_g = { x: gpt2_steps, y: gpt2_loss, name: 'GPT-2 LM Loss', type: 'scatter', mode: 'lines+markers', marker: { size: 8, color: '#2563eb' }, line: { width: 3 }, xaxis: 'x2', yaxis: 'y3' };
+                const t_c1 = { x: [1, 2], y: cifar_loss, name: 'CIFAR-10 Loss', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#2563eb' }, line: { width: 3 }, xaxis: 'x1', yaxis: 'y1' };
+                const t_g = { x: gpt2_steps, y: gpt2_loss, name: 'GPT-2 LM Loss', type: 'scatter', mode: 'lines+markers', marker: { size: 7, color: '#d97706' }, line: { width: 3 }, xaxis: 'x2', yaxis: 'y2' };
+                const t_w = { x: gpt2_steps, y: whisper_loss, name: 'Whisper-Tiny Loss', type: 'scatter', mode: 'lines+markers', marker: { size: 7, color: '#059669' }, line: { width: 3 }, xaxis: 'x3', yaxis: 'y3' };
 
-                Plotly.newPlot('main-chart', [t_c1, t_c2, t_g], {
-                    grid: { rows: 1, columns: 2, pattern: 'independent' },
-                    xaxis1: { title: 'Training Epoch', dtick: 1 }, yaxis1: { title: 'Cross-Entropy Loss' },
-                    yaxis2: { title: 'Test Accuracy (%)', overlaying: 'y1', side: 'right', range: [40, 70] },
-                    xaxis2: { title: 'Optimizer Step (K=4)' }, yaxis3: { title: 'LM Loss' },
-                    margin: { t: 40, b: 60, l: 60, r: 60 }, legend: { orientation: 'h', y: -0.2 }
+                Plotly.newPlot('main-chart', [t_c1, t_g, t_w], {
+                    grid: { rows: 1, columns: 3, pattern: 'independent' },
+                    xaxis1: { title: 'Epoch', dtick: 1 }, yaxis1: { title: 'CIFAR-10 Loss' },
+                    xaxis2: { title: 'Step (K=4)' }, yaxis2: { title: 'GPT-2 LM Loss' },
+                    xaxis3: { title: 'Step (K=4)' }, yaxis3: { title: 'Whisper Loss' },
+                    margin: { t: 40, b: 60, l: 55, r: 25 }, legend: { orientation: 'h', y: -0.22 }
                 }, {responsive: true});
             }
 
@@ -371,12 +402,26 @@
             else if (tabId === 'fig4b') {
                 title.innerText = 'Figure 4b: GPT-2 Small / WikiText-2 Language Model Loss & Perplexity';
                 desc.innerText = 'Smooth monotonic descent: Loss drops from 10.9708 to 7.5850 (Perplexity: 58,153 to 1,968) over 15 steps.';
-                badge.innerHTML = '<span class="text-xs bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-md border border-blue-200">Solo Subfigure 4b</span>';
+                badge.innerHTML = '<span class="text-xs bg-amber-50 text-amber-700 font-medium px-2.5 py-1 rounded-md border border-amber-200">Solo Subfigure 4b</span>';
 
                 const t_g_loss = { x: gpt2_steps, y: gpt2_loss, name: 'Cross-Entropy Loss', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#2563eb' }, line: { width: 3.5 } };
                 const t_g_ppl = { x: gpt2_steps, y: gpt2_ppl, name: 'Perplexity (PPL)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#d97706' }, line: { width: 3.5, dash: 'dot' }, yaxis: 'y2' };
                 Plotly.newPlot('main-chart', [t_g_loss, t_g_ppl], {
                     xaxis: { title: 'Optimizer Step (K=4 Accumulation)' }, yaxis: { title: 'Cross-Entropy Loss' },
+                    yaxis2: { title: 'Perplexity (log scale)', overlaying: 'y', side: 'right', type: 'log' },
+                    margin: { t: 40, b: 60, l: 60, r: 60 }, legend: { orientation: 'h', y: 1.1 }
+                }, {responsive: true});
+            }
+
+            else if (tabId === 'fig4c') {
+                title.innerText = 'Figure 4c: Whisper-Tiny / SpeechCommands Sequence Loss & Perplexity';
+                desc.innerText = 'Monotonic speech training convergence on 4,096 .wav utterances: Loss drops from 10.9154 to 6.5793 (PPL: 55,016 to 720) in 15 steps.';
+                badge.innerHTML = '<span class="text-xs bg-emerald-50 text-emerald-700 font-medium px-2.5 py-1 rounded-md border border-emerald-200">Solo Subfigure 4c</span>';
+
+                const t_w_loss = { x: gpt2_steps, y: whisper_loss, name: 'Sequence Cross-Entropy Loss', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#059669' }, line: { width: 3.5 } };
+                const t_w_ppl = { x: gpt2_steps, y: whisper_ppl, name: 'Perplexity (PPL)', type: 'scatter', mode: 'lines+markers', marker: { size: 9, color: '#d97706' }, line: { width: 3.5, dash: 'dot' }, yaxis: 'y2' };
+                Plotly.newPlot('main-chart', [t_w_loss, t_w_ppl], {
+                    xaxis: { title: 'Optimizer Step (K=4 Accumulation)' }, yaxis: { title: 'Sequence Cross-Entropy Loss' },
                     yaxis2: { title: 'Perplexity (log scale)', overlaying: 'y', side: 'right', type: 'log' },
                     margin: { t: 40, b: 60, l: 60, r: 60 }, legend: { orientation: 'h', y: 1.1 }
                 }, {responsive: true});

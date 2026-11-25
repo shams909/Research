@@ -287,6 +287,24 @@ def plot_figure_1_throughput_vs_k(show=False):
 
 # ── Figure 2: Single-Node vs. Distributed Scaling (Speedup & Crossover) ────────
 
+def _pick_multi_curve_offset(plotted, i, pt_idx, y_val, close_gap):
+    """Place non-overlapping point annotations across 1, 2, or 3 stacked scaling curves."""
+    if len(plotted) <= 1:
+        return (0, 9), "center"
+    col_vals = sorted(
+        (float(p_vals[pt_idx]), p_i)
+        for p_i, _, _, p_vals in plotted
+        if pt_idx < len(p_vals)
+    )
+    rank_pos = [p_i for _, p_i in col_vals].index(i)
+    if rank_pos == len(col_vals) - 1:
+        return (0, 9), "center"
+    if rank_pos == 0:
+        return (0, -14), "center"
+    gap_below = y_val - col_vals[0][0]
+    return ((10, -11), "left") if gap_below < close_gap else ((0, -13), "center")
+
+
 def _render_fig2a_speedup(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, title_prefix=""):
     max_speedup = 1.0
     plotted = []
@@ -317,9 +335,10 @@ def _render_fig2a_speedup(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx
         ax.plot(x_pos, speedup, marker="s", markersize=8, linewidth=2.2,
                 color=COLORS[i % len(COLORS)], label=f"{task} (2 Nodes)")
 
-        for xp, y_val in zip(x_pos, speedup):
+        for pt_idx, (xp, y_val) in enumerate(zip(x_pos, speedup)):
+            xyoff, ha = _pick_multi_curve_offset(plotted, i, pt_idx, y_val, close_gap=0.14)
             ax.annotate(f"{y_val:.2f}×", (xp, y_val), textcoords="offset points",
-                        xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
+                        xytext=xyoff, ha=ha, fontsize=8.8, fontweight="bold")
 
     prefix = f"({title_prefix}) " if title_prefix else ""
     ax.set_title(f"{prefix}Cluster Speedup Ratio ($S_2$)", fontsize=12, fontweight="bold")
@@ -337,6 +356,7 @@ def _render_fig2b_efficiency(ax, df_cluster, df_single, tasks, all_k_vals, k_to_
     ax.axhline(100.0, color="gray", linestyle=":", linewidth=1.5, label="Ideal Linear Scaling (100%)")
 
     max_eff = 100.0
+    plotted = []
     for i, task in enumerate(tasks):
         base_tput = _resolve_base_tput(task, df_single)
         sub2 = _dedup_task_rows(df_cluster[df_cluster["task"] == task])
@@ -349,13 +369,16 @@ def _render_fig2b_efficiency(ax, df_cluster, df_single, tasks, all_k_vals, k_to_
         efficiency = (tput2 / (2.0 * base_tput)) * 100.0
         if len(efficiency):
             max_eff = max(max_eff, float(np.max(efficiency)))
+        plotted.append((i, task, x_pos, efficiency))
 
+    for i, task, x_pos, efficiency in plotted:
         ax.plot(x_pos, efficiency, marker="o", markersize=8, linewidth=2.2,
                 color=COLORS[i % len(COLORS)], label=f"{task} (2 Nodes)")
 
-        for xp, y_val in zip(x_pos, efficiency):
+        for pt_idx, (xp, y_val) in enumerate(zip(x_pos, efficiency)):
+            xyoff, ha = _pick_multi_curve_offset(plotted, i, pt_idx, y_val, close_gap=7.0)
             ax.annotate(f"{y_val:.1f}%", (xp, y_val), textcoords="offset points",
-                         xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
+                        xytext=xyoff, ha=ha, fontsize=8.8, fontweight="bold")
 
     prefix = f"({title_prefix}) " if title_prefix else ""
     ax.set_title(f"{prefix}Weak-Scaling Efficiency ($E_2$ %)", fontsize=12, fontweight="bold")
