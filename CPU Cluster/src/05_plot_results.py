@@ -46,19 +46,73 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
 # ── Style & Configuration ─────────────────────────────────────────────────────
-RESULTS_DIR = config.RESULTS_DIR
-FIG_DIR     = os.path.join(RESULTS_DIR, "figures")
-RUN_TS      = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-RUN_DIR     = os.path.join(FIG_DIR, f"run_{RUN_TS}")
-DPI         = 200
+RESULTS_DIR        = config.RESULTS_DIR
+EXTRA_RESULTS_DIRS = []
+FIG_DIR            = os.path.join(RESULTS_DIR, "figures")
+RUN_TS             = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+RUN_DIR            = os.path.join(FIG_DIR, f"run_{RUN_TS}")
+NO_MIRROR          = False
+GENERATED_FIGS     = []
+DPI                = 200
+
+FALLBACK_SINGLE_TPUT = {
+    "ResNet-18": 113.15,
+    "ResNet-18 / CIFAR-10": 113.15,
+    "GPT-2 Small": 358.20,
+    "GPT-2 Small (117M)": 358.20,
+    "Whisper-Tiny": 12.0,
+    "Whisper-Tiny (Speech)": 12.0,
+}
 
 
-def configure_paths(results_dir=None):
-    global RESULTS_DIR, FIG_DIR, RUN_DIR
+def configure_paths(results_dir=None, extra_results_dirs=None, out_dir=None, no_mirror=False):
+    global RESULTS_DIR, EXTRA_RESULTS_DIRS, FIG_DIR, RUN_DIR, NO_MIRROR, GENERATED_FIGS
     if results_dir:
         RESULTS_DIR = results_dir
-    FIG_DIR = os.path.join(RESULTS_DIR, "figures")
+    EXTRA_RESULTS_DIRS = list(extra_results_dirs or [])
+    FIG_DIR = out_dir if out_dir else os.path.join(RESULTS_DIR, "figures")
     RUN_DIR = os.path.join(FIG_DIR, f"run_{RUN_TS}")
+    NO_MIRROR = bool(no_mirror)
+    GENERATED_FIGS = []
+
+
+def _all_results_dirs():
+    dirs = [RESULTS_DIR]
+    seen = {os.path.abspath(RESULTS_DIR)}
+    for d in EXTRA_RESULTS_DIRS:
+        if d:
+            ad = os.path.abspath(d)
+            if ad not in seen:
+                seen.add(ad)
+                dirs.append(d)
+    return dirs
+
+
+def _glob_results(*rel_parts, include_extra=True):
+    """Collect matching CSV paths from primary RESULTS_DIR (and optional extra session dirs)."""
+    dirs = _all_results_dirs() if include_extra else [RESULTS_DIR]
+    matched = []
+    for d in dirs:
+        matched.extend(sorted(glob.glob(os.path.join(d, *rel_parts))))
+    return matched
+
+
+def _task_slug(task):
+    if "ResNet" in task:
+        return "ResNet18"
+    if "Whisper" in task:
+        return "WhisperTiny"
+    return "GPT2"
+
+
+def _resolve_base_tput(task, df_single):
+    base_tput = FALLBACK_SINGLE_TPUT.get(task, 113.15)
+    if not df_single.empty and "task" in df_single.columns:
+        sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
+        if not sub1.empty:
+            sub1 = _dedup_task_rows(sub1)
+            base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
+    return base_tput
 
 
 def save_fig(fig, name, show=False):
@@ -74,11 +128,13 @@ def save_fig(fig, name, show=False):
     fig.savefig(latest_path, dpi=DPI, bbox_inches="tight")
 
     # 3. Also mirror to top-level results/figures for easy global browsing
-    top_fig_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", "figures")
-    if os.path.abspath(FIG_DIR) != os.path.abspath(top_fig_dir):
-        os.makedirs(top_fig_dir, exist_ok=True)
-        fig.savefig(os.path.join(top_fig_dir, name), dpi=DPI, bbox_inches="tight")
+    if not NO_MIRROR:
+        top_fig_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", "figures")
+        if os.path.abspath(FIG_DIR) != os.path.abspath(top_fig_dir):
+            os.makedirs(top_fig_dir, exist_ok=True)
+            fig.savefig(os.path.join(top_fig_dir, name), dpi=DPI, bbox_inches="tight")
 
+    GENERATED_FIGS.append(name)
     print(f"  ✓ Saved   → {latest_path}")
     print(f"    Archive → {archive_path}")
     if show:
@@ -132,17 +188,31 @@ def _render_fig1_axis(ax, sub, base_tput, task, title_prefix, unit, color_idx=0)
     ax.legend(loc="lower right", framealpha=0.92)
 
 
+def _load_single_node_df():
+    """Load single-node baseline rows across configured results directories."""
+    files = []
+    for d in _all_results_dirs():
+        s_files = sorted(glob.glob(os.path.join(d, "01_single_node_baseline", "summary_*.csv")))
+        if not s_files:
+            s_files = sorted(glob.glob(os.path.join(d, "benchmark_1nodes_*.csv")))
+        files.extend(s_files)
+    return pd.concat([pd.read_csv(f) for f in files], ignore_index=True) if files else pd.DataFrame()
+
+
 def _load_micro_sweep_df():
     """Load the primary fixed-microbatch 2-node sweep without sanity-check overrides."""
-    summary_main = os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_micro.csv")
-    if os.path.exists(summary_main):
-        files = [summary_main]
-    else:
-        files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
-        if not files:
-            files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "*.csv")))
-        if not files:
-            files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_2nodes_*.csv")))
+    files = []
+    for d in _all_results_dirs():
+        summary_main = os.path.join(d, "02_sweep_fixed_microbatch", "summary_micro.csv")
+        if os.path.exists(summary_main):
+            d_files = [summary_main]
+        else:
+            d_files = sorted(glob.glob(os.path.join(d, "02_sweep_fixed_microbatch", "summary_*.csv")))
+            if not d_files:
+                d_files = sorted(glob.glob(os.path.join(d, "02_sweep_fixed_microbatch", "*.csv")))
+            if not d_files:
+                d_files = sorted(glob.glob(os.path.join(d, "benchmark_2nodes_*.csv")))
+        files.extend(d_files)
     if not files:
         return pd.DataFrame()
 
@@ -170,33 +240,21 @@ def plot_figure_1_throughput_vs_k(show=False):
     """
     Figure 1: Saturation curve of training throughput vs K with error bars.
     Generates:
-      - Figure_1_throughput_vs_accumulation.png (Combined dual-panel)
-      - Figure_1a_ResNet18_throughput.png (Standalone solo)
-      - Figure_1b_GPT2_throughput.png (Standalone solo)
+      - Figure_1_throughput_vs_accumulation.png (Combined multi-panel)
+      - Figure_1<a/b/c>_<Task>_throughput.png (Standalone solo)
     """
-    single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "01_single_node_baseline", "summary_*.csv")))
-    if not single_files:
-        single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_1nodes_*.csv")))
-
     df_all = _load_micro_sweep_df()
     if df_all.empty:
         print("  [skip Fig 1] No benchmark or sweep CSVs found")
         return
 
-    df_single = pd.concat([pd.read_csv(f) for f in single_files], ignore_index=True) if single_files else pd.DataFrame()
+    df_single = _load_single_node_df()
 
     tasks = df_all["task"].unique() if "task" in df_all.columns else []
     if not len(tasks):
         return
 
-    fallback_single_tput = {
-        "ResNet-18": 113.15,
-        "ResNet-18 / CIFAR-10": 113.15,
-        "GPT-2 Small": 358.20,
-        "GPT-2 Small (117M)": 358.20,
-    }
-
-    # 1. Combined Dual-Panel Figure
+    # 1. Combined Multi-Panel Figure
     fig, axes = plt.subplots(1, len(tasks), figsize=(7.5 * len(tasks), 5.5))
     if len(tasks) == 1:
         axes = [axes]
@@ -206,14 +264,7 @@ def plot_figure_1_throughput_vs_k(show=False):
 
     for i, (ax, task) in enumerate(zip(axes, tasks)):
         sub = _dedup_task_rows(df_all[df_all["task"] == task])
-
-        base_tput = fallback_single_tput.get(task, 113.15)
-        if not df_single.empty and "task" in df_single.columns:
-            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
-            if not sub1.empty:
-                sub1 = _dedup_task_rows(sub1)
-                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
-
+        base_tput = _resolve_base_tput(task, df_single)
         unit = sub["unit"].iloc[0]
         panel_letter = chr(97 + i)
         _render_fig1_axis(ax, sub, base_tput, task, panel_letter, unit, color_idx=i)
@@ -223,17 +274,10 @@ def plot_figure_1_throughput_vs_k(show=False):
     # 2. Standalone Solo Figures
     for i, task in enumerate(tasks):
         sub = _dedup_task_rows(df_all[df_all["task"] == task])
-
-        base_tput = fallback_single_tput.get(task, 113.15)
-        if not df_single.empty and "task" in df_single.columns:
-            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
-            if not sub1.empty:
-                sub1 = _dedup_task_rows(sub1)
-                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
-
+        base_tput = _resolve_base_tput(task, df_single)
         unit = sub["unit"].iloc[0]
         panel_letter = chr(97 + i)
-        task_slug = "ResNet18" if "ResNet" in task else "GPT2"
+        task_slug = _task_slug(task)
 
         fig_solo, ax_solo = plt.subplots(figsize=(8.0, 5.5))
         _render_fig1_axis(ax_solo, sub, base_tput, task, "", unit, color_idx=i)
@@ -243,23 +287,11 @@ def plot_figure_1_throughput_vs_k(show=False):
 
 # ── Figure 2: Single-Node vs. Distributed Scaling (Speedup & Crossover) ────────
 
-def _render_fig2a_speedup(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, title_prefix=""):
-    ax.axhspan(1.0, 2.15, color="#2CA02C", alpha=0.06, label="_nolegend_")
-    ax.axhspan(0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
-    ax.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="1-Node Baseline (1.0×)")
-    ax.text(0.03, 0.92, "▲ Distributed Speedup ($S_2$ > 1.0×)", transform=ax.transAxes,
-            fontsize=9.5, fontweight="bold", color="#1B7837", alpha=0.9)
-    ax.text(0.02, 0.415, "▼ Bottleneck ($S_2$ < 1.0×)", transform=ax.transAxes,
-            fontsize=9.2, fontweight="bold", color="#B2182B", alpha=0.85)
-
+def _render_fig2a_speedup(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, title_prefix=""):
+    max_speedup = 1.0
+    plotted = []
     for i, task in enumerate(tasks):
-        base_tput = fallback_single_tput.get(task, 150.0)
-        if not df_single.empty and "task" in df_single.columns:
-            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
-            if not sub1.empty:
-                sub1 = _dedup_task_rows(sub1)
-                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
-
+        base_tput = _resolve_base_tput(task, df_single)
         sub2 = _dedup_task_rows(df_cluster[df_cluster["task"] == task])
         if sub2.empty:
             continue
@@ -268,7 +300,20 @@ def _render_fig2a_speedup(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx
         x_pos = [k_to_idx[k] for k in ks if k in k_to_idx]
         tput2 = sub2["throughput_mean"].values if "throughput_mean" in sub2.columns else sub2["throughput"].values
         speedup = tput2 / base_tput
+        if len(speedup):
+            max_speedup = max(max_speedup, float(np.max(speedup)))
+        plotted.append((i, task, x_pos, speedup))
 
+    y_max = max(2.15, max_speedup * 1.15)
+    ax.axhspan(1.0, y_max, color="#2CA02C", alpha=0.06, label="_nolegend_")
+    ax.axhspan(0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
+    ax.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="1-Node Baseline (1.0×)")
+    ax.text(0.03, 0.92, "▲ Distributed Speedup ($S_2$ > 1.0×)", transform=ax.transAxes,
+            fontsize=9.5, fontweight="bold", color="#1B7837", alpha=0.9)
+    ax.text(0.02, 0.415, "▼ Bottleneck ($S_2$ < 1.0×)", transform=ax.transAxes,
+            fontsize=9.2, fontweight="bold", color="#B2182B", alpha=0.85)
+
+    for i, task, x_pos, speedup in plotted:
         ax.plot(x_pos, speedup, marker="s", markersize=8, linewidth=2.2,
                 color=COLORS[i % len(COLORS)], label=f"{task} (2 Nodes)")
 
@@ -283,22 +328,17 @@ def _render_fig2a_speedup(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx
     ax.set_xticks(x_ticks)
     ax.set_xticklabels([str(k) for k in all_k_vals])
     ax.set_xlim(-0.4, len(all_k_vals) - 0.6)
-    ax.set_ylim(0, 2.15)
+    ax.set_ylim(0, y_max)
     ax.legend(loc="lower right", framealpha=0.92)
 
 
-def _render_fig2b_efficiency(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, title_prefix=""):
+def _render_fig2b_efficiency(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, title_prefix=""):
     ax.axhspan(0, 100.0, color="#4C72B0", alpha=0.03, label="_nolegend_")
     ax.axhline(100.0, color="gray", linestyle=":", linewidth=1.5, label="Ideal Linear Scaling (100%)")
 
+    max_eff = 100.0
     for i, task in enumerate(tasks):
-        base_tput = fallback_single_tput.get(task, 150.0)
-        if not df_single.empty and "task" in df_single.columns:
-            sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
-            if not sub1.empty:
-                sub1 = _dedup_task_rows(sub1)
-                base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
-
+        base_tput = _resolve_base_tput(task, df_single)
         sub2 = _dedup_task_rows(df_cluster[df_cluster["task"] == task])
         if sub2.empty:
             continue
@@ -307,6 +347,8 @@ def _render_fig2b_efficiency(ax, df_cluster, df_single, tasks, all_k_vals, k_to_
         x_pos = [k_to_idx[k] for k in ks if k in k_to_idx]
         tput2 = sub2["throughput_mean"].values if "throughput_mean" in sub2.columns else sub2["throughput"].values
         efficiency = (tput2 / (2.0 * base_tput)) * 100.0
+        if len(efficiency):
+            max_eff = max(max_eff, float(np.max(efficiency)))
 
         ax.plot(x_pos, efficiency, marker="o", markersize=8, linewidth=2.2,
                 color=COLORS[i % len(COLORS)], label=f"{task} (2 Nodes)")
@@ -322,7 +364,7 @@ def _render_fig2b_efficiency(ax, df_cluster, df_single, tasks, all_k_vals, k_to_
     ax.set_xticks(x_ticks)
     ax.set_xticklabels([str(k) for k in all_k_vals])
     ax.set_xlim(-0.4, len(all_k_vals) - 0.6)
-    ax.set_ylim(0, 115)
+    ax.set_ylim(0, max(115.0, max_eff * 1.15))
     ax.legend(loc="lower right", framealpha=0.92)
 
 
@@ -334,27 +376,16 @@ def plot_figure_2_scaling_efficiency(show=False):
       - Figure_2a_cluster_speedup_ratio.png (Standalone solo)
       - Figure_2b_weak_scaling_efficiency.png (Standalone solo)
     """
-    single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "01_single_node_baseline", "summary_*.csv")))
-    if not single_files:
-        single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_1nodes_*.csv")))
-
     df_cluster = _load_micro_sweep_df()
     if df_cluster.empty:
         print("  [skip Fig 2] No data for scaling comparison")
         return
 
-    df_single = pd.concat([pd.read_csv(f) for f in single_files], ignore_index=True) if single_files else pd.DataFrame()
+    df_single = _load_single_node_df()
 
     tasks = df_cluster["task"].unique() if "task" in df_cluster.columns else []
     if not len(tasks):
         return
-
-    fallback_single_tput = {
-        "ResNet-18": 113.15,
-        "ResNet-18 / CIFAR-10": 113.15,
-        "GPT-2 Small": 358.20,
-        "GPT-2 Small (117M)": 358.20,
-    }
 
     all_k_vals = sorted(df_cluster["accum_steps"].dropna().unique())
     if not len(all_k_vals):
@@ -368,18 +399,18 @@ def plot_figure_2_scaling_efficiency(show=False):
     fig.suptitle("Figure 2: Distributed Speedup & Scaling Efficiency vs. Single-Node Baseline",
                  fontsize=14, fontweight="bold", y=1.02)
 
-    _render_fig2a_speedup(axes[0], df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, "a")
-    _render_fig2b_efficiency(axes[1], df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, "b")
+    _render_fig2a_speedup(axes[0], df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, "a")
+    _render_fig2b_efficiency(axes[1], df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, "b")
     save_fig(fig, "Figure_2_single_vs_distributed_scaling.png", show)
 
     # 2. Standalone Solo Figures
     fig_solo_a, ax_solo_a = plt.subplots(figsize=(8.0, 5.5))
-    _render_fig2a_speedup(ax_solo_a, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, "")
+    _render_fig2a_speedup(ax_solo_a, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, "")
     ax_solo_a.set_title("Cluster Speedup Ratio ($S_2$) vs. Single-Node Baseline", fontsize=13, fontweight="bold")
     save_fig(fig_solo_a, "Figure_2a_cluster_speedup_ratio.png", show)
 
     fig_solo_b, ax_solo_b = plt.subplots(figsize=(8.0, 5.5))
-    _render_fig2b_efficiency(ax_solo_b, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, "")
+    _render_fig2b_efficiency(ax_solo_b, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, "")
     ax_solo_b.set_title("Weak-Scaling Efficiency ($E_2$ %) vs. Accumulation Steps (K)", fontsize=13, fontweight="bold")
     save_fig(fig_solo_b, "Figure_2b_weak_scaling_efficiency.png", show)
 
@@ -407,7 +438,8 @@ def _render_fig3a_breakdown(ax, x_indices, ks, fwd, bwd, ar, totals, title_prefi
 
 
 def _render_fig3b_gamma(ax, x_indices, ks, gamma_ratio, title_prefix=""):
-    ax.axhspan(1.0, 10.5, color="#2CA02C", alpha=0.06, label="_nolegend_")
+    y_max = max(10.5, float(np.max(gamma_ratio)) * 1.15) if len(gamma_ratio) else 10.5
+    ax.axhspan(1.0, y_max, color="#2CA02C", alpha=0.06, label="_nolegend_")
     ax.axhspan(0.0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
     ax.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="Balanced Threshold (Γ = 1.0)")
 
@@ -431,7 +463,7 @@ def _render_fig3b_gamma(ax, x_indices, ks, gamma_ratio, title_prefix=""):
     ax.set_xticks(x_indices)
     ax.set_xticklabels(ks)
     ax.set_xlim(-0.4, len(ks) - 0.6)
-    ax.set_ylim(0, 10.5)
+    ax.set_ylim(0, y_max)
     ax.legend(loc="upper left", framealpha=0.92)
 
 
@@ -442,13 +474,16 @@ def plot_figure_3_timing_breakdown(show=False):
       - Figure_3a_step_duration_breakdown.png (Standalone solo stacked bar)
       - Figure_3b_compute_to_comm_ratio.png (Standalone solo Gamma ratio)
     """
-    main_timing = os.path.join(RESULTS_DIR, "04_step_time_breakdown", "timing_decomposition_micro.csv")
-    if os.path.exists(main_timing):
-        timing_files = [main_timing]
-    else:
-        timing_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "04_step_time_breakdown", "timing_decomposition_*.csv")))
-        if not timing_files:
-            timing_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
+    timing_files = []
+    for d in _all_results_dirs():
+        main_timing = os.path.join(d, "04_step_time_breakdown", "timing_decomposition_micro.csv")
+        if os.path.exists(main_timing):
+            timing_files.append(main_timing)
+        else:
+            d_files = sorted(glob.glob(os.path.join(d, "04_step_time_breakdown", "timing_decomposition_*.csv")))
+            if not d_files:
+                d_files = sorted(glob.glob(os.path.join(d, "02_sweep_fixed_microbatch", "summary_*.csv")))
+            timing_files.extend(d_files)
 
     if not timing_files:
         print("  [skip Fig 3] No timing decomposition CSV found")
@@ -474,15 +509,18 @@ def plot_figure_3_timing_breakdown(show=False):
     bwd_col = "backward_ms_mean" if use_mean else "backward_ms"
     ar_col  = "allreduce_ms_mean" if use_mean else "allreduce_ms"
 
-    gpt_df = _dedup_task_rows(df[df["task"].str.contains("GPT-2", na=False)])
-    if gpt_df.empty:
-        gpt_df = _dedup_task_rows(df)
+    focus_df = _dedup_task_rows(df[df["task"].str.contains("GPT-2", na=False)])
+    if focus_df.empty:
+        focus_df = _dedup_task_rows(df)
+    if focus_df.empty:
+        print("  [skip Fig 3] Empty filtered timing DataFrame")
+        return
 
-    ks = [f"K={k}" for k in gpt_df["accum_steps"]]
+    ks = [f"K={k}" for k in focus_df["accum_steps"]]
     x_indices = np.arange(len(ks))
-    fwd = np.array(gpt_df[fwd_col]) / 1000.0
-    bwd = np.array(gpt_df[bwd_col]) / 1000.0
-    ar  = np.array(gpt_df[ar_col])  / 1000.0
+    fwd = np.array(focus_df[fwd_col]) / 1000.0
+    bwd = np.array(focus_df[bwd_col]) / 1000.0
+    ar  = np.array(focus_df[ar_col])  / 1000.0
 
     totals = fwd + bwd + ar
     compute_total = fwd + bwd
@@ -510,7 +548,7 @@ def plot_figure_3_timing_breakdown(show=False):
     save_fig(fig_solo_b, "Figure_3b_compute_to_comm_ratio.png", show)
 
 
-# ── Figure 4: Training Convergence Comparison (Dual-Panel Clean) ──────────────
+# ── Figure 4: Training Convergence Comparison (Multi-Panel Clean) ─────────────
 
 def _render_fig4a_cifar(ax, cifar_files, title_prefix=""):
     for i, f in enumerate(cifar_files):
@@ -544,9 +582,12 @@ def _render_fig4a_cifar(ax, cifar_files, title_prefix=""):
     ax.legend(loc="upper right", framealpha=0.92)
 
 
-def _render_fig4b_gpt2(ax, gpt2_files, title_prefix=""):
-    for i, f in enumerate(gpt2_files):
+def _render_step_loss_curve(ax, files, title, ylabel, title_prefix="", fixed_ylim=None):
+    all_losses = []
+    for i, f in enumerate(files):
         df = pd.read_csv(f)
+        if df.empty or "step" not in df.columns or "loss" not in df.columns:
+            continue
         k_val = df["accum_steps"].iloc[0] if "accum_steps" in df.columns else "?"
         nodes = df["world_size"].iloc[0] if "world_size" in df.columns else "?"
         label = f"{nodes} Nodes (K={k_val})"
@@ -556,6 +597,7 @@ def _render_fig4b_gpt2(ax, gpt2_files, title_prefix=""):
 
         first_step, first_loss = df["step"].iloc[0], df["loss"].iloc[0]
         last_step, last_loss   = df["step"].iloc[-1], df["loss"].iloc[-1]
+        all_losses.extend(df["loss"].tolist())
 
         ax.annotate(f"Start: {first_loss:.2f}", (first_step, first_loss),
                     textcoords="offset points", xytext=(15, 6), fontsize=9, fontweight="bold")
@@ -563,48 +605,76 @@ def _render_fig4b_gpt2(ax, gpt2_files, title_prefix=""):
                     textcoords="offset points", xytext=(-20, 12), fontsize=9, fontweight="bold")
 
     prefix = f"({title_prefix}) " if title_prefix else ""
-    ax.set_title(f"{prefix}GPT-2 Small / WikiText-2 Language Model Loss", fontsize=12, fontweight="bold")
+    ax.set_title(f"{prefix}{title}", fontsize=12, fontweight="bold")
     ax.set_xlabel("Optimizer Step", fontsize=11, fontweight="bold")
-    ax.set_ylabel("Language Model Loss (Cross-Entropy)", fontsize=11, fontweight="bold")
-    ax.set_ylim(7.0, 11.5)
+    ax.set_ylabel(ylabel, fontsize=11, fontweight="bold")
+    if fixed_ylim is not None:
+        ax.set_ylim(*fixed_ylim)
+    elif all_losses:
+        lo, hi = min(all_losses), max(all_losses)
+        pad = max(0.5, (hi - lo) * 0.25)
+        ax.set_ylim(max(0.0, lo - pad * 0.5), hi + pad)
     ax.legend(loc="upper right", framealpha=0.92)
+
+
+def _render_fig4b_gpt2(ax, gpt2_files, title_prefix=""):
+    _render_step_loss_curve(
+        ax, gpt2_files,
+        "GPT-2 Small / WikiText-2 Language Model Loss",
+        "Language Model Loss (Cross-Entropy)",
+        title_prefix=title_prefix,
+        fixed_ylim=(7.0, 11.5),
+    )
+
+
+def _render_fig4c_whisper(ax, whisper_files, title_prefix=""):
+    _render_step_loss_curve(
+        ax, whisper_files,
+        "Whisper-Tiny / SpeechCommands Sequence Loss",
+        "Sequence Loss (Cross-Entropy)",
+        title_prefix=title_prefix,
+    )
 
 
 def plot_figure_4_convergence(show=False):
     """
-    Figure 4: Loss curves verifying numerical convergence across K.
-    Generates:
-      - Figure_4_training_convergence_comparison.png (Combined dual-panel)
-      - Figure_4a_cifar10_convergence.png (Standalone solo)
-      - Figure_4b_gpt2_convergence.png (Standalone solo)
+    Figure 4: Loss curves verifying numerical convergence across available modalities.
+    Generates combined multi-panel Figure_4 plus solo panels (4a/4b/4c) for found CSVs.
     """
-    cifar_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "cifar_*.csv")))
-    gpt2_files  = sorted(glob.glob(os.path.join(RESULTS_DIR, "gpt2_*.csv")))
+    cifar_files   = _glob_results("cifar_*.csv")
+    gpt2_files    = _glob_results("gpt2_*.csv")
+    whisper_files = _glob_results("whisper_*.csv")
 
-    if not cifar_files and not gpt2_files:
+    active = []
+    if cifar_files:
+        active.append((cifar_files, _render_fig4a_cifar, "Figure_4a_cifar10_convergence.png", "ResNet-18 / CIFAR-10 Convergence"))
+    if gpt2_files:
+        active.append((gpt2_files, _render_fig4b_gpt2, "Figure_4b_gpt2_convergence.png", "GPT-2 Small / WikiText-2 Language Model Loss"))
+    if whisper_files:
+        active.append((whisper_files, _render_fig4c_whisper, "Figure_4c_whisper_convergence.png", "Whisper-Tiny / SpeechCommands Sequence Loss"))
+
+    if not active:
         print("  [skip Fig 4] No convergence CSVs found")
         return
 
-    # 1. Combined Dual-Panel Figure
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+    # 1. Combined Multi-Panel Figure
+    fig, axes = plt.subplots(1, len(active), figsize=(7.0 * len(active), 5.5))
+    if len(active) == 1:
+        axes = [axes]
     fig.subplots_adjust(wspace=0.25)
     fig.suptitle("Figure 4: Training Convergence & Loss Stability Across Accumulation Steps",
                  fontsize=14, fontweight="bold", y=1.02)
 
-    _render_fig4a_cifar(axes[0], cifar_files, "a")
-    _render_fig4b_gpt2(axes[1], gpt2_files, "b")
+    for idx, (files, renderer, _, _) in enumerate(active):
+        renderer(axes[idx], files, chr(97 + idx))
     save_fig(fig, "Figure_4_training_convergence_comparison.png", show)
 
     # 2. Standalone Solo Figures
-    fig_solo_a, ax_solo_a = plt.subplots(figsize=(8.0, 5.5))
-    _render_fig4a_cifar(ax_solo_a, cifar_files, "")
-    ax_solo_a.set_title("ResNet-18 / CIFAR-10 Convergence", fontsize=13, fontweight="bold")
-    save_fig(fig_solo_a, "Figure_4a_cifar10_convergence.png", show)
-
-    fig_solo_b, ax_solo_b = plt.subplots(figsize=(8.0, 5.5))
-    _render_fig4b_gpt2(ax_solo_b, gpt2_files, "")
-    ax_solo_b.set_title("GPT-2 Small / WikiText-2 Language Model Loss", fontsize=13, fontweight="bold")
-    save_fig(fig_solo_b, "Figure_4b_gpt2_convergence.png", show)
+    for files, renderer, filename, solo_title in active:
+        fig_solo, ax_solo = plt.subplots(figsize=(8.0, 5.5))
+        renderer(ax_solo, files, "")
+        ax_solo.set_title(solo_title, fontsize=13, fontweight="bold")
+        save_fig(fig_solo, filename, show)
 
 
 # ── Figure 5: Network Bandwidth & Latency Benchmark ───────────────────────────
@@ -648,7 +718,9 @@ def plot_figure_5_bandwidth_sensitivity(show=False):
       - Figure_5a_effective_bandwidth.png (Standalone solo)
       - Figure_5b_collective_latency.png (Standalone solo)
     """
-    net_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "net_test_*.csv")))
+    net_files = _glob_results("net_test_*.csv", include_extra=False)
+    if not net_files:
+        net_files = _glob_results("net_test_*.csv", include_extra=True)
     if not net_files:
         print("  [skip Fig 5] No net_test CSVs found")
         return
@@ -682,7 +754,9 @@ def plot_figure_6_telemetry(show=False):
     Figure 6: 3-panel time-series profile of CPU%, DDR4 RAM, and Network I/O
     from continuous 1 Hz sysmon logs.
     """
-    sysmon_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "sysmon_*.csv")))
+    sysmon_files = _glob_results("sysmon_*.csv", include_extra=False)
+    if not sysmon_files:
+        sysmon_files = _glob_results("sysmon_*.csv", include_extra=True)
     if not sysmon_files:
         print("  [skip Fig 6] No sysmon_*.csv found")
         return
@@ -721,7 +795,7 @@ def plot_figure_6_telemetry(show=False):
                     label="Physical RAM Ceiling (14.88 GB DDR4)")
     axes[1].fill_between(df["elapsed_h"], 0, df["ram_used_gb"], color="#2ca02c", alpha=0.18)
     axes[1].set_ylabel("Host Memory (GB)", fontweight="bold", fontsize=11)
-    axes[1].set_ylim(0, 16.5)
+    axes[1].set_ylim(0, max(16.5, float(df["ram_used_gb"].max()) * 1.15))
     axes[1].legend(loc="upper right", frameon=True, framealpha=0.95, fontsize=9)
 
     # 3. Network Throughput
@@ -733,24 +807,25 @@ def plot_figure_6_telemetry(show=False):
                     label="100 Mbps Fast Ethernet Cap (12.5 MB/s)")
     axes[2].set_ylabel("Network (MB/s)", fontweight="bold", fontsize=11)
     axes[2].set_xlabel("Elapsed Experiment Time (Hours)", fontweight="bold", fontsize=12)
-    axes[2].set_ylim(0, 16.0)
+    axes[2].set_ylim(0, max(16.0, float(df[["net_sent_roll", "net_recv_roll"]].max().max()) * 1.15))
     axes[2].legend(loc="upper right", frameon=True, framealpha=0.95, fontsize=9)
 
-    # Annotate Stages in clear open band (y=72 sits above 60% CPU bars and below upper-right legend)
-    stage_markers = [
-        (1.43, "Stage 4: Microbatch K-Sweep"),
-        (8.86, "Stage 5: Global-Batch K-Sweep"),
-        (12.56, "Stage 5b: Convergence Verification"),
-        (16.06, "Stage 6: Idle Baseline"),
-    ]
-    for x_pos, label in stage_markers:
-        if x_pos <= duration_h:
-            for ax in axes:
-                ax.axvline(x=x_pos, color="#666666", linestyle="-.", alpha=0.6, lw=1)
-            axes[0].text(
-                x_pos + 0.12, 70, label, fontsize=8.8, fontweight="bold",
-                bbox=dict(boxstyle="round,pad=0.28", facecolor="#ffffdd", edgecolor="#999999", alpha=0.92),
-            )
+    # Annotate canonical ResNet+GPT-2 session stages only when plotting that specific 18.4h trace
+    if "20261121_200541" in os.path.abspath(best_sysmon):
+        stage_markers = [
+            (1.43, "Stage 4: Microbatch K-Sweep"),
+            (8.86, "Stage 5: Global-Batch K-Sweep"),
+            (12.56, "Stage 5b: Convergence Verification"),
+            (16.06, "Stage 6: Idle Baseline"),
+        ]
+        for x_pos, label in stage_markers:
+            if x_pos <= duration_h:
+                for ax in axes:
+                    ax.axvline(x=x_pos, color="#666666", linestyle="-.", alpha=0.6, lw=1)
+                axes[0].text(
+                    x_pos + 0.12, 70, label, fontsize=8.8, fontweight="bold",
+                    bbox=dict(boxstyle="round,pad=0.28", facecolor="#ffffdd", edgecolor="#999999", alpha=0.92),
+                )
 
     plt.tight_layout()
     save_fig(fig, "Figure_6_system_telemetry_timeline.png", show)
@@ -762,15 +837,23 @@ def main():
     parser = argparse.ArgumentParser(description="Plot publication figures for CPU cluster research paper")
     parser.add_argument("--results_dir", type=str, default=None,
                         help="Path to results directory or timestamped session directory (defaults to config.RESULTS_DIR)")
+    parser.add_argument("--extra_results_dir", action="append", default=[],
+                        help="Additional session directory to merge for multi-modal comparison (repeatable)")
+    parser.add_argument("--out_dir", type=str, default=None,
+                        help="Optional output directory for generated figures (defaults to <results_dir>/figures)")
+    parser.add_argument("--no_mirror", action="store_true",
+                        help="Do not mirror figures into top-level results/figures/")
     parser.add_argument("--show", action="store_true", help="Display figures interactively on screen")
     args = parser.parse_args()
 
-    configure_paths(args.results_dir)
+    configure_paths(args.results_dir, args.extra_results_dir, args.out_dir, args.no_mirror)
 
     print()
     print("=" * 70)
     print("  CPU CLUSTER LAB — PUBLICATION FIGURE GENERATOR")
     print(f"  Source Directory : {RESULTS_DIR}/")
+    for extra in EXTRA_RESULTS_DIRS:
+        print(f"  Merged Extra Dir : {extra}/")
     print(f"  Target Directory : {FIG_DIR}/")
     print(f"  Archive Snapshot : {RUN_DIR}/")
     print("=" * 70)
@@ -785,10 +868,7 @@ def main():
 
     print()
     print("=" * 70)
-    print("  ✓ All 16 publication figures generated successfully!")
-    print("    • 5 Dual-Panel Combined Comparison Figures (Figures 1-5)")
-    print("    • 10 Standalone Solo Subfigures (Figures 1a-5b)")
-    print("    • 1 Stacked 18.4h Hardware Telemetry Figure (Figure 6)")
+    print(f"  ✓ Generated {len(GENERATED_FIGS)} publication figures successfully!")
     print(f"    Inspect results in: {FIG_DIR}/")
     print("=" * 70)
     print()
