@@ -26,15 +26,26 @@ import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-import seaborn as sns
 import numpy as np
+
+try:
+    import seaborn as sns
+    sns.set_theme(style="whitegrid", palette="muted", font_scale=1.15)
+    COLORS = sns.color_palette("muted")
+except ImportError:
+    try:
+        plt.style.use("seaborn-v0_8-whitegrid")
+    except OSError:
+        plt.style.use("default")
+    COLORS = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3", "#937860"]
+
+# Ensure subscripts render cleanly on both Windows and Linux without missing-glyph warnings
+plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "Liberation Sans", "Arial"]
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
 # ── Style & Configuration ─────────────────────────────────────────────────────
-sns.set_theme(style="whitegrid", palette="muted", font_scale=1.15)
-COLORS      = sns.color_palette("muted")
 RESULTS_DIR = config.RESULTS_DIR
 FIG_DIR     = os.path.join(RESULTS_DIR, "figures")
 RUN_TS      = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -121,6 +132,40 @@ def _render_fig1_axis(ax, sub, base_tput, task, title_prefix, unit, color_idx=0)
     ax.legend(loc="lower right", framealpha=0.92)
 
 
+def _load_micro_sweep_df():
+    """Load the primary fixed-microbatch 2-node sweep without sanity-check overrides."""
+    summary_main = os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_micro.csv")
+    if os.path.exists(summary_main):
+        files = [summary_main]
+    else:
+        files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
+        if not files:
+            files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "*.csv")))
+        if not files:
+            files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_2nodes_*.csv")))
+    if not files:
+        return pd.DataFrame()
+
+    df_all = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
+    if "mode" in df_all.columns:
+        df_all = df_all[df_all["mode"] == "micro"]
+    if "world_size" in df_all.columns and not df_all.empty:
+        df_all = df_all[df_all["world_size"] == df_all["world_size"].max()]
+    return df_all
+
+
+def _dedup_task_rows(sub):
+    """Deduplicate by accum_steps while preferring highest trials_count over quick sanity runs."""
+    sort_cols = ["accum_steps"]
+    if "trials_count" in sub.columns:
+        sort_cols = ["accum_steps", "trials_count"]
+    return (
+        sub.sort_values(sort_cols, kind="mergesort")
+        .drop_duplicates(subset=["accum_steps"], keep="last")
+        .sort_values("accum_steps", kind="mergesort")
+    )
+
+
 def plot_figure_1_throughput_vs_k(show=False):
     """
     Figure 1: Saturation curve of training throughput vs K with error bars.
@@ -133,31 +178,22 @@ def plot_figure_1_throughput_vs_k(show=False):
     if not single_files:
         single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_1nodes_*.csv")))
 
-    files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
-    if not files:
-        files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "*.csv")))
-    if not files:
-        files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_2nodes_*.csv")))
-
-    if not files:
+    df_all = _load_micro_sweep_df()
+    if df_all.empty:
         print("  [skip Fig 1] No benchmark or sweep CSVs found")
         return
 
     df_single = pd.concat([pd.read_csv(f) for f in single_files], ignore_index=True) if single_files else pd.DataFrame()
-    df_all = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
-
-    if "mode" in df_all.columns:
-        df_all = df_all[df_all["mode"] == "micro"]
 
     tasks = df_all["task"].unique() if "task" in df_all.columns else []
     if not len(tasks):
         return
 
     fallback_single_tput = {
-        "ResNet-18": 113.2,
-        "ResNet-18 / CIFAR-10": 113.2,
-        "GPT-2 Small": 359.5,
-        "GPT-2 Small (117M)": 359.5,
+        "ResNet-18": 113.15,
+        "ResNet-18 / CIFAR-10": 113.15,
+        "GPT-2 Small": 358.20,
+        "GPT-2 Small (117M)": 358.20,
     }
 
     # 1. Combined Dual-Panel Figure
@@ -169,15 +205,13 @@ def plot_figure_1_throughput_vs_k(show=False):
                  fontsize=14, fontweight="bold", y=1.02)
 
     for i, (ax, task) in enumerate(zip(axes, tasks)):
-        sub = df_all[df_all["task"] == task].sort_values("accum_steps")
-        if "world_size" in sub.columns:
-            sub = sub[sub["world_size"] == sub["world_size"].max()]
-        sub = sub.drop_duplicates(subset=["accum_steps"], keep="last")
+        sub = _dedup_task_rows(df_all[df_all["task"] == task])
 
-        base_tput = fallback_single_tput.get(task, 113.2)
+        base_tput = fallback_single_tput.get(task, 113.15)
         if not df_single.empty and "task" in df_single.columns:
             sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
             if not sub1.empty:
+                sub1 = _dedup_task_rows(sub1)
                 base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
 
         unit = sub["unit"].iloc[0]
@@ -188,15 +222,13 @@ def plot_figure_1_throughput_vs_k(show=False):
 
     # 2. Standalone Solo Figures
     for i, task in enumerate(tasks):
-        sub = df_all[df_all["task"] == task].sort_values("accum_steps")
-        if "world_size" in sub.columns:
-            sub = sub[sub["world_size"] == sub["world_size"].max()]
-        sub = sub.drop_duplicates(subset=["accum_steps"], keep="last")
+        sub = _dedup_task_rows(df_all[df_all["task"] == task])
 
-        base_tput = fallback_single_tput.get(task, 113.2)
+        base_tput = fallback_single_tput.get(task, 113.15)
         if not df_single.empty and "task" in df_single.columns:
             sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
             if not sub1.empty:
+                sub1 = _dedup_task_rows(sub1)
                 base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
 
         unit = sub["unit"].iloc[0]
@@ -215,22 +247,22 @@ def _render_fig2a_speedup(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx
     ax.axhspan(1.0, 2.15, color="#2CA02C", alpha=0.06, label="_nolegend_")
     ax.axhspan(0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
     ax.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="1-Node Baseline (1.0×)")
-    ax.text(0.04, 0.92, "▲ Distributed Speedup (S₂ > 1.0×)", transform=ax.transAxes,
+    ax.text(0.03, 0.92, "▲ Distributed Speedup ($S_2$ > 1.0×)", transform=ax.transAxes,
             fontsize=9.5, fontweight="bold", color="#1B7837", alpha=0.9)
-    ax.text(0.04, 0.06, "▼ Network Bottleneck Slowdown (S₂ < 1.0×)", transform=ax.transAxes,
-            fontsize=9.5, fontweight="bold", color="#B2182B", alpha=0.85)
+    ax.text(0.02, 0.415, "▼ Bottleneck ($S_2$ < 1.0×)", transform=ax.transAxes,
+            fontsize=9.2, fontweight="bold", color="#B2182B", alpha=0.85)
 
     for i, task in enumerate(tasks):
         base_tput = fallback_single_tput.get(task, 150.0)
         if not df_single.empty and "task" in df_single.columns:
             sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
             if not sub1.empty:
+                sub1 = _dedup_task_rows(sub1)
                 base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
 
-        sub2 = df_cluster[df_cluster["task"] == task].sort_values("accum_steps")
+        sub2 = _dedup_task_rows(df_cluster[df_cluster["task"] == task])
         if sub2.empty:
             continue
-        sub2 = sub2.drop_duplicates(subset=["accum_steps"], keep="last")
 
         ks = list(sub2["accum_steps"])
         x_pos = [k_to_idx[k] for k in ks if k in k_to_idx]
@@ -245,7 +277,7 @@ def _render_fig2a_speedup(ax, df_cluster, df_single, tasks, all_k_vals, k_to_idx
                         xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
 
     prefix = f"({title_prefix}) " if title_prefix else ""
-    ax.set_title(f"{prefix}Cluster Speedup Ratio (S₂)", fontsize=12, fontweight="bold")
+    ax.set_title(f"{prefix}Cluster Speedup Ratio ($S_2$)", fontsize=12, fontweight="bold")
     ax.set_xlabel("Accumulation Steps (K)", fontsize=11, fontweight="bold")
     ax.set_ylabel("Speedup vs. 1-Node Baseline", fontsize=11, fontweight="bold")
     ax.set_xticks(x_ticks)
@@ -264,12 +296,12 @@ def _render_fig2b_efficiency(ax, df_cluster, df_single, tasks, all_k_vals, k_to_
         if not df_single.empty and "task" in df_single.columns:
             sub1 = df_single[(df_single["task"] == task) & (df_single["world_size"] == 1)]
             if not sub1.empty:
+                sub1 = _dedup_task_rows(sub1)
                 base_tput = sub1["throughput_mean"].iloc[-1] if "throughput_mean" in sub1.columns else sub1["throughput"].iloc[-1]
 
-        sub2 = df_cluster[df_cluster["task"] == task].sort_values("accum_steps")
+        sub2 = _dedup_task_rows(df_cluster[df_cluster["task"] == task])
         if sub2.empty:
             continue
-        sub2 = sub2.drop_duplicates(subset=["accum_steps"], keep="last")
 
         ks = list(sub2["accum_steps"])
         x_pos = [k_to_idx[k] for k in ks if k in k_to_idx]
@@ -284,7 +316,7 @@ def _render_fig2b_efficiency(ax, df_cluster, df_single, tasks, all_k_vals, k_to_
                          xytext=(0, 9), ha="center", fontsize=9, fontweight="bold")
 
     prefix = f"({title_prefix}) " if title_prefix else ""
-    ax.set_title(f"{prefix}Weak-Scaling Efficiency (E₂ %)", fontsize=12, fontweight="bold")
+    ax.set_title(f"{prefix}Weak-Scaling Efficiency ($E_2$ %)", fontsize=12, fontweight="bold")
     ax.set_xlabel("Accumulation Steps (K)", fontsize=11, fontweight="bold")
     ax.set_ylabel("Scaling Efficiency (%)", fontsize=11, fontweight="bold")
     ax.set_xticks(x_ticks)
@@ -306,31 +338,22 @@ def plot_figure_2_scaling_efficiency(show=False):
     if not single_files:
         single_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_1nodes_*.csv")))
 
-    sweep_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
-    if not sweep_files:
-        sweep_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "*.csv")))
-    if not sweep_files:
-        sweep_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "benchmark_2nodes_*.csv")))
-
-    if not sweep_files:
+    df_cluster = _load_micro_sweep_df()
+    if df_cluster.empty:
         print("  [skip Fig 2] No data for scaling comparison")
         return
 
     df_single = pd.concat([pd.read_csv(f) for f in single_files], ignore_index=True) if single_files else pd.DataFrame()
-    df_cluster = pd.concat([pd.read_csv(f) for f in sweep_files], ignore_index=True)
-
-    if "mode" in df_cluster.columns:
-        df_cluster = df_cluster[df_cluster["mode"] == "micro"]
 
     tasks = df_cluster["task"].unique() if "task" in df_cluster.columns else []
     if not len(tasks):
         return
 
     fallback_single_tput = {
-        "ResNet-18": 113.2,
-        "ResNet-18 / CIFAR-10": 113.2,
-        "GPT-2 Small": 359.5,
-        "GPT-2 Small (117M)": 359.5,
+        "ResNet-18": 113.15,
+        "ResNet-18 / CIFAR-10": 113.15,
+        "GPT-2 Small": 358.20,
+        "GPT-2 Small (117M)": 358.20,
     }
 
     all_k_vals = sorted(df_cluster["accum_steps"].dropna().unique())
@@ -352,12 +375,12 @@ def plot_figure_2_scaling_efficiency(show=False):
     # 2. Standalone Solo Figures
     fig_solo_a, ax_solo_a = plt.subplots(figsize=(8.0, 5.5))
     _render_fig2a_speedup(ax_solo_a, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, "")
-    ax_solo_a.set_title("Cluster Speedup Ratio (S₂) vs. Single-Node Baseline", fontsize=13, fontweight="bold")
+    ax_solo_a.set_title("Cluster Speedup Ratio ($S_2$) vs. Single-Node Baseline", fontsize=13, fontweight="bold")
     save_fig(fig_solo_a, "Figure_2a_cluster_speedup_ratio.png", show)
 
     fig_solo_b, ax_solo_b = plt.subplots(figsize=(8.0, 5.5))
     _render_fig2b_efficiency(ax_solo_b, df_cluster, df_single, tasks, all_k_vals, k_to_idx, x_ticks, fallback_single_tput, "")
-    ax_solo_b.set_title("Weak-Scaling Efficiency (E₂ %) vs. Accumulation Steps (K)", fontsize=13, fontweight="bold")
+    ax_solo_b.set_title("Weak-Scaling Efficiency ($E_2$ %) vs. Accumulation Steps (K)", fontsize=13, fontweight="bold")
     save_fig(fig_solo_b, "Figure_2b_weak_scaling_efficiency.png", show)
 
 
@@ -388,17 +411,18 @@ def _render_fig3b_gamma(ax, x_indices, ks, gamma_ratio, title_prefix=""):
     ax.axhspan(0.0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
     ax.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="Balanced Threshold (Γ = 1.0)")
 
-    ax.text(0.04, 0.92, "▲ Compute-Dominant Regime (Γ > 1.0)", transform=ax.transAxes,
+    ax.text(0.04, 0.72, "▲ Compute-Dominant Regime (Γ > 1.0)", transform=ax.transAxes,
             fontsize=9.5, fontweight="bold", color="#1B7837")
-    ax.text(0.04, 0.06, "▼ Communication-Bound Regime (Γ < 1.0)", transform=ax.transAxes,
-            fontsize=9.5, fontweight="bold", color="#B2182B")
+    ax.text(0.97, 0.03, "▼ Communication-Bound Regime (Γ < 1.0)", transform=ax.transAxes,
+            fontsize=9.5, fontweight="bold", color="#B2182B", ha="right")
 
     ax.plot(x_indices, gamma_ratio, marker="s", markersize=8, linewidth=2.2,
             color="#55A868", label="Compute-to-Comm Ratio (Γ)")
 
     for xi, g_val in zip(x_indices, gamma_ratio):
+        y_off = -13 if (0.45 <= g_val <= 0.90) else 9
         ax.annotate(f"{g_val:.2f}×", (xi, g_val), textcoords="offset points",
-                    xytext=(0, 9), ha="center", fontsize=9, fontweight="bold", color="#2E6930")
+                    xytext=(0, y_off), ha="center", fontsize=9, fontweight="bold", color="#2E6930")
 
     prefix = f"({title_prefix}) " if title_prefix else ""
     ax.set_title(f"{prefix}Compute-to-Communication Ratio (Γ = T_comp / T_comm)", fontsize=12, fontweight="bold")
@@ -418,15 +442,24 @@ def plot_figure_3_timing_breakdown(show=False):
       - Figure_3a_step_duration_breakdown.png (Standalone solo stacked bar)
       - Figure_3b_compute_to_comm_ratio.png (Standalone solo Gamma ratio)
     """
-    timing_files = glob.glob(os.path.join(RESULTS_DIR, "04_step_time_breakdown", "timing_decomposition_*.csv"))
-    if not timing_files:
-        timing_files = glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv"))
+    main_timing = os.path.join(RESULTS_DIR, "04_step_time_breakdown", "timing_decomposition_micro.csv")
+    if os.path.exists(main_timing):
+        timing_files = [main_timing]
+    else:
+        timing_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "04_step_time_breakdown", "timing_decomposition_*.csv")))
+        if not timing_files:
+            timing_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "02_sweep_fixed_microbatch", "summary_*.csv")))
 
     if not timing_files:
         print("  [skip Fig 3] No timing decomposition CSV found")
         return
 
     df = pd.concat([pd.read_csv(f) for f in timing_files], ignore_index=True)
+    if "mode" in df.columns:
+        df = df[df["mode"] == "micro"]
+    if "world_size" in df.columns and not df.empty:
+        df = df[df["world_size"] == df["world_size"].max()]
+
     required_cols = ["forward_ms", "backward_ms", "allreduce_ms"]
     alt_cols = ["forward_ms_mean", "backward_ms_mean", "allreduce_ms_mean"]
 
@@ -441,9 +474,9 @@ def plot_figure_3_timing_breakdown(show=False):
     bwd_col = "backward_ms_mean" if use_mean else "backward_ms"
     ar_col  = "allreduce_ms_mean" if use_mean else "allreduce_ms"
 
-    gpt_df = df[df["task"].str.contains("GPT-2", na=False)].drop_duplicates(subset=["accum_steps"], keep="last").sort_values("accum_steps")
+    gpt_df = _dedup_task_rows(df[df["task"].str.contains("GPT-2", na=False)])
     if gpt_df.empty:
-        gpt_df = df.drop_duplicates(subset=["accum_steps"], keep="last").sort_values("accum_steps")
+        gpt_df = _dedup_task_rows(df)
 
     ks = [f"K={k}" for k in gpt_df["accum_steps"]]
     x_indices = np.arange(len(ks))
@@ -642,6 +675,87 @@ def plot_figure_5_bandwidth_sensitivity(show=False):
     save_fig(fig_solo_b, "Figure_5b_collective_latency.png", show)
 
 
+# ── Figure 6: Continuous System Telemetry Timeline ────────────────────────────
+
+def plot_figure_6_telemetry(show=False):
+    """
+    Figure 6: 3-panel time-series profile of CPU%, DDR4 RAM, and Network I/O
+    from continuous 1 Hz sysmon logs.
+    """
+    sysmon_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "sysmon_*.csv")))
+    if not sysmon_files:
+        print("  [skip Fig 6] No sysmon_*.csv found")
+        return
+
+    best_sysmon = max(sysmon_files, key=lambda p: os.path.getsize(p))
+    df = pd.read_csv(best_sysmon)
+    if df.empty or "elapsed_s" not in df.columns:
+        print("  [skip Fig 6] Invalid sysmon CSV format")
+        return
+
+    df["elapsed_h"] = df["elapsed_s"] / 3600.0
+    df["cpu_roll"] = df["cpu_pct"].rolling(window=30, min_periods=1).mean()
+    df["net_sent_roll"] = df["net_sent_mbs"].rolling(window=10, min_periods=1).mean()
+    df["net_recv_roll"] = df["net_recv_mbs"].rolling(window=10, min_periods=1).mean()
+
+    duration_h = df["elapsed_h"].max()
+    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+
+    # 1. CPU Usage
+    axes[0].plot(df["elapsed_h"], df["cpu_roll"], color="#1f77b4", lw=1.2,
+                 label="CPU Utilization (30s Rolling Avg)")
+    axes[0].axhline(y=100, color="crimson", linestyle="--", alpha=0.45,
+                    label="100% Logical Core Ceiling")
+    axes[0].set_ylabel("CPU Usage (%)", fontweight="bold", fontsize=11)
+    axes[0].set_ylim(0, 108)
+    axes[0].legend(loc="upper right", frameon=True, framealpha=0.95, fontsize=9)
+    axes[0].set_title(
+        f"Figure 6: Real-Time Hardware Telemetry Profile ({duration_h:.1f}-Hour Continuous 1 Hz Trace)",
+        fontsize=13, fontweight="bold", pad=12,
+    )
+
+    # 2. RAM Usage
+    axes[1].plot(df["elapsed_h"], df["ram_used_gb"], color="#2ca02c", lw=1.4,
+                 label="Host RAM Used (GB)")
+    axes[1].axhline(y=14.88, color="crimson", linestyle="--", lw=1.5,
+                    label="Physical RAM Ceiling (14.88 GB DDR4)")
+    axes[1].fill_between(df["elapsed_h"], 0, df["ram_used_gb"], color="#2ca02c", alpha=0.18)
+    axes[1].set_ylabel("Host Memory (GB)", fontweight="bold", fontsize=11)
+    axes[1].set_ylim(0, 16.5)
+    axes[1].legend(loc="upper right", frameon=True, framealpha=0.95, fontsize=9)
+
+    # 3. Network Throughput
+    axes[2].plot(df["elapsed_h"], df["net_sent_roll"], color="#ff7f0e", lw=1.0, alpha=0.85,
+                 label="Net Egress (Sent MB/s)")
+    axes[2].plot(df["elapsed_h"], df["net_recv_roll"], color="#9467bd", lw=1.0, alpha=0.75,
+                 label="Net Ingress (Recv MB/s)")
+    axes[2].axhline(y=12.5, color="black", linestyle=":", lw=1.5,
+                    label="100 Mbps Fast Ethernet Cap (12.5 MB/s)")
+    axes[2].set_ylabel("Network (MB/s)", fontweight="bold", fontsize=11)
+    axes[2].set_xlabel("Elapsed Experiment Time (Hours)", fontweight="bold", fontsize=12)
+    axes[2].set_ylim(0, 16.0)
+    axes[2].legend(loc="upper right", frameon=True, framealpha=0.95, fontsize=9)
+
+    # Annotate Stages in clear open band (y=72 sits above 60% CPU bars and below upper-right legend)
+    stage_markers = [
+        (1.43, "Stage 4: Microbatch K-Sweep"),
+        (8.86, "Stage 5: Global-Batch K-Sweep"),
+        (12.56, "Stage 5b: Convergence Verification"),
+        (16.06, "Stage 6: Idle Baseline"),
+    ]
+    for x_pos, label in stage_markers:
+        if x_pos <= duration_h:
+            for ax in axes:
+                ax.axvline(x=x_pos, color="#666666", linestyle="-.", alpha=0.6, lw=1)
+            axes[0].text(
+                x_pos + 0.12, 70, label, fontsize=8.8, fontweight="bold",
+                bbox=dict(boxstyle="round,pad=0.28", facecolor="#ffffdd", edgecolor="#999999", alpha=0.92),
+            )
+
+    plt.tight_layout()
+    save_fig(fig, "Figure_6_system_telemetry_timeline.png", show)
+
+
 # ── Main Entrypoint ───────────────────────────────────────────────────────────
 
 def main():
@@ -667,12 +781,14 @@ def main():
     plot_figure_3_timing_breakdown(args.show)
     plot_figure_4_convergence(args.show)
     plot_figure_5_bandwidth_sensitivity(args.show)
+    plot_figure_6_telemetry(args.show)
 
     print()
     print("=" * 70)
-    print("  ✓ All 15 publication figures generated successfully!")
+    print("  ✓ All 16 publication figures generated successfully!")
     print("    • 5 Dual-Panel Combined Comparison Figures (Figures 1-5)")
     print("    • 10 Standalone Solo Subfigures (Figures 1a-5b)")
+    print("    • 1 Stacked 18.4h Hardware Telemetry Figure (Figure 6)")
     print(f"    Inspect results in: {FIG_DIR}/")
     print("=" * 70)
     print()

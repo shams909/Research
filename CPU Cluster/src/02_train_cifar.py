@@ -137,23 +137,27 @@ def train_epoch(model, loader, sampler, optimizer, criterion, rank, world_size, 
     for batch_idx, (inputs, targets) in enumerate(loader):
         b_start = time.perf_counter()
 
+        # Scale gradients by actual microbatches in this accumulation group (handles incomplete final group)
+        rem = num_batches % accum_steps
+        cur_accum = rem if (rem > 0 and batch_idx >= num_batches - rem) else accum_steps
+
         # Only sync gradients across network on the final accumulation step
         is_sync_step = ((batch_idx + 1) % accum_steps == 0) or ((batch_idx + 1) == num_batches)
 
         if not is_sync_step and world_size > 1:
             with model.no_sync():
                 outputs = model(inputs)
-                loss = criterion(outputs, targets) / accum_steps
+                loss = criterion(outputs, targets) / cur_accum
                 loss.backward()
         else:
             outputs = model(inputs)
-            loss = criterion(outputs, targets) / accum_steps
+            loss = criterion(outputs, targets) / cur_accum
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
 
         b_time = time.perf_counter() - b_start
-        total_loss    += loss.item() * accum_steps * inputs.size(0)
+        total_loss    += loss.item() * cur_accum * inputs.size(0)
         total_samples += inputs.size(0)
 
         # Print live streaming progress every 25 batches (or first/last batch) on rank 0
@@ -162,7 +166,7 @@ def train_epoch(model, loader, sampler, optimizer, criterion, rank, world_size, 
             b_tput = (inputs.size(0) * world_size) / max(b_time, 1e-4)
             pct = 100.0 * (batch_idx + 1) / num_batches
             print(f"  [Epoch {epoch:>2}/{total_epochs} | Batch {batch_idx+1:>3}/{num_batches} ({pct:>4.1f}%)] "
-                  f"Loss: {loss.item() * accum_steps:.4f} (avg: {current_loss:.4f}) | "
+                  f"Loss: {loss.item() * cur_accum:.4f} (avg: {current_loss:.4f}) | "
                   f"{b_tput:>5.1f} imgs/s", flush=True)
 
     epoch_time  = time.time() - start

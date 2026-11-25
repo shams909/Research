@@ -40,9 +40,9 @@
 This investigation addresses a fundamental challenge in systems for artificial intelligence: **Can underutilized, commodity desktop personal computers connected over low-cost legacy networking (100 Mbps Fast Ethernet) be harnessed for distributed data-parallel (DDP) deep learning training?**
 
 Modern distributed deep learning frameworks (PyTorch DDP, DeepSpeed, Megatron-LM) are architected under the implicit assumption of high-speed interconnects (InfiniBand 200–400 Gbps, NVLink 900 GB/s, or Thunderbolt 5 120 Gbps). When deployed naively on commodity academic desktop computers over standard 100 Mbps Fast Ethernet ($12.5\text{ MB/s}$ physical line cap), distributed training suffers catastrophic **negative scaling**:
-* **ResNet-18 (11.2M parameters):** Collapses to **$15.57\text{ images/sec}$** ($0.14\times$ speedup vs. 1 node, **$7.1\%$ scaling efficiency**).
-* **GPT-2 Small (124M parameters):** Collapses to **$86.47\text{ tokens/sec}$** ($0.24\times$ speedup vs. 1 node, **$12.2\%$ scaling efficiency**).
-* Over **$94.7\%$** of total wall-clock training time is spent completely idle, stalled on blocking TCP socket buffers during the backward collective `AllReduce` synchronization barrier.
+* **ResNet-18 (11.2M parameters):** Collapses to **$15.57\text{ images/sec}$** ($0.14\times$ speedup vs. 1 node, **$6.9\%$ scaling efficiency**).
+* **GPT-2 Small (124M parameters):** Collapses to **$86.47\text{ tokens/sec}$** ($0.24\times$ speedup vs. 1 node, **$12.1\%$ scaling efficiency**).
+* Over **$94.1\%$** of total wall-clock training step time ($44.61\text{ s}$ out of $47.38\text{ s}$) is absorbed by the synchronizing backward-and-AllReduce stage (of which $\sim 41.5\text{ s}$ is pure blocking TCP socket communication on the 100 Mbps switch).
 
 To solve this hardware bottleneck without purchasing expensive switches or specialized accelerators, we implemented and rigorously profiled **algorithmic communication amortization via Gradient Accumulation ($K$)** with communication decoupling (`model.no_sync()`). By accumulating local gradients in CPU host memory across $K$ microsteps and dispatching the collective `AllReduce` only once every $K$ steps, the communication frequency is slashed by a factor of $K$.
 
@@ -52,8 +52,8 @@ To solve this hardware bottleneck without purchasing expensive switches or speci
    * **ResNet-18 surpasses single-node speed at $K = 16$** ($125.50\text{ img/s}$ vs. $113.15\text{ img/s}$, achieving $1.11\times$ speedup).
 2. **Peak Cluster Scaling:**
    * **ResNet-18 throughput scales from $15.57 \to 181.07\text{ images/sec}$** (**$11.63\times$ speedup** over naive DDP, reaching **$1.60\times$ cluster speedup** and **$80.0\%$ weak scaling efficiency** at $K=64$).
-   * **GPT-2 Small throughput scales from $86.47 \to 643.47\text{ tokens/sec}$** (**$7.44\times$ speedup** over naive DDP, reaching **$1.79\times$ cluster speedup** and **$89.5\%$ weak scaling efficiency** at $K=64$).
-3. **Bottleneck Inversion:** The compute-to-communication ratio $\Gamma = T_{\text{comp}} / T_{\text{comm}}$ inverts from **$0.056$** ($94.7\%$ network stall, $5.3\%$ compute) at $K=1$ to **$8.93$** (**$89.9\%$ active compute**, $10.1\%$ network stall) at $K=64$.
+   * **GPT-2 Small throughput scales from $86.47 \to 643.47\text{ tokens/sec}$** (**$7.44\times$ speedup** over naive DDP, reaching **$1.80\times$ cluster speedup** and **$89.8\%$ weak scaling efficiency** at $K=64$).
+3. **Bottleneck Inversion:** The compute-to-communication ratio $\Gamma = T_{\text{comp}} / T_{\text{comm}}$ inverts from **$0.056$** ($94.1\%$ sync stage, $5.3\%$ forward compute) at $K=1$ to **$8.922$** (**$89.9\%$ active compute**, $10.1\%$ network stall) at $K=64$.
 4. **Convergence Stability:** Empirical training verified healthy, stable optimization across epochs: CIFAR-10 accuracy advanced to **$58.8\%$** in 2 epochs; GPT-2 language model loss dropped steadily from **$10.97 \to 7.58$** (Perplexity: $58,153 \to 1,968$) over 15 optimizer updates with zero loss spikes or numerical divergence.
 
 ---
@@ -164,18 +164,18 @@ To ensure academic transparency and measurement rigor, the experimental campaign
 Under naive Distributed Data Parallelism ($K=1$), an `AllReduce` gradient collective is dispatched after **every single mini-batch forward-backward pass**:
 
 ```
-NAIVE STEP TIMELINE (K = 1, GPT-2 Small): Total = 47.37s
+NAIVE STEP TIMELINE (K = 1, GPT-2 Small): Total = 47.38s (+ 0.27s Optimizer)
 +------------------+-------------------------------------------------------+
-| Local Compute    | Blocking Network AllReduce Collective Barrier         |
-| 2.49s (5.3%)     | 44.61s (94.7%) [100 Mbps Network Saturated @ 94 Mbps]  |
+| Forward Compute  | Synchronizing Backward + Ring AllReduce Barrier       |
+| 2.49s (5.3%)     | 44.61s (94.2%) [~41.5s Wire Sync @ 94.7 Mbps iperf3]  |
 +------------------+-------------------------------------------------------+
 ```
 
 ### The Mechanism of Catastrophic Negative Scaling:
-1. **Compute Phase:** Node 01 and Node 02 compute forward activations and backward autograd gradients locally within DDR4 memory. This completes in **$2.49\text{ seconds}$**.
-2. **Network Phase:** Both nodes reach the PyTorch DDP synchronization barrier and initiate a Ring-AllReduce collective. Because 497 MB of tensors must traverse a 100 Mbps physical cable, the network interface is pegged at $94.7\text{ Mbps}$ for **$44.61\text{ seconds}$**, while CPUs sit virtually idle ($< 2\%$ utilization).
+1. **Compute Phase:** Forward pass completes in **$2.49\text{ seconds}$**, followed by local autograd backward gradients (~$2.6\text{--}3.0\text{ seconds}$).
+2. **Network Phase:** Because $K=1$ has no prior `no_sync()` microsteps to isolate backward time, the stopwatch groups backward-plus-AllReduce into **$44.61\text{ seconds}$** (dominated by $\sim 41.5\text{ seconds}$ transferring 497.8 MB across a 100 Mbps physical cable while CPUs sit virtually idle).
 3. **The Penalty:** A single standalone PC processes the same microbatch in **$5.78\text{ seconds}$** without any network barrier. The 2-node cluster requires **$47.38\text{ seconds}$**, yielding a speedup of:
-   $$S_N = \frac{T_{\text{cluster}}}{T_{\text{single}}} = \frac{86.47\text{ tok/s}}{358.20\text{ tok/s}} = \mathbf{0.24\times} \quad (\text{Efficiency } E_N = 12.2\%)$$
+   $$S_N = \frac{T_{\text{cluster}}}{T_{\text{single}}} = \frac{86.47\text{ tok/s}}{358.20\text{ tok/s}} = \mathbf{0.24\times} \quad (\text{Efficiency } E_N = 12.1\%)$$
 Adding a second computer made the system **$4.14\times$ slower** than a single machine!
 
 ---
@@ -250,7 +250,7 @@ To dissect distributed step execution without introducing profiling distortion:
 4. **Primary Throughput Metrics are End-to-End Wall-Clock Measurements:**
    * Global cluster throughput $P_{\text{cluster}}$ is computed directly from total unmanipulated wall-clock stopwatch intervals:
      $$P_{\text{image}} = \frac{K \times B_{\text{local}} \times W}{T_{\text{wall}}}, \quad P_{\text{token}} = \frac{K \times B_{\text{local}} \times S \times W}{T_{\text{wall}}}$$
-   * Because throughput and speedups are derived strictly from total elapsed wall-clock time, reported cluster speedups ($11.63\times$ and $7.44\times$) and peak efficiencies ($80.0\%$ and $89.5\%$) are direct, unmanipulated physical observations immune to internal timing decomposition nuances.
+   * Because throughput and speedups are derived strictly from total elapsed wall-clock time, reported cluster speedups ($11.63\times$ and $7.44\times$) and peak efficiencies ($80.0\%$ and $89.8\%$) are direct, unmanipulated physical observations immune to internal timing decomposition nuances.
 
 ---
 
@@ -274,7 +274,7 @@ Over the course of the research and the 13-hour continuous benchmarking campaign
   ```python
   b_per_node = max(1, min(config.GPT2_BATCH_SIZE, 8 // (world_size * k)))
   ```
-  Guaranteed local memory footprint never exceeds $\sim 2.5\text{ GB}$, leaving over $12\text{ GB}$ headroom.
+  Guaranteed total Node 01 host memory footprint stayed bounded below $13.18\text{ GB}$ peak (retaining $>1.7\text{ GB}$ physical headroom and $0\text{ MB}$ swap throughout the 18.4-hour trace).
 
 ### Bug 3: The PyTorch DDP `no_sync()` Scope Anomaly (The Silent Network Flood Trap)
 * **Symptom:** During an overnight 18-hour run, GPT-2 step time increased linearly with $K$ ($K=1 \to 46\text{s}$, $K=2 \to 93\text{s}$, $K=16 \to 744\text{s}$), with throughput frozen at $88\text{ tok/s}$. Telemetry showed 94 Mbps network traffic on *every microbatch*.
@@ -328,7 +328,7 @@ Over the course of the research and the 13-hour continuous benchmarking campaign
 
 ### Bug 10: Git Repository Bloat & Remote Node Merge Collisions
 * **Symptom:** Committing the raw `results/` folder (25.4 MB of CSVs and sysmon traces) threatened to cause merge conflicts on Node 01 and Node 02 during `git pull`.
-* **Fix:** Untracked `results/` from Git cache (`git rm -r --cached`), added `results/` and `logs/` to `.gitignore`, and placed the 15 publication figures in a dedicated, clean `figures/` directory.
+* **Fix:** Untracked `results/` from Git cache (`git rm -r --cached`), added `results/` and `logs/` to `.gitignore`, and placed the 16 publication figures in a dedicated, clean `figures/` directory.
 
 ---
 
@@ -341,7 +341,7 @@ Below is the definitive, unified empirical dataset collected during the 13-hour 
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
 | **ResNet-18 (CV)** | **1 Node** | $K=1$ | 32 imgs | 32 imgs | 0.2789 s | **114.75 imgs/s** | 1.00× | 100.0% | Local Memory Only |
 | **ResNet-18 (CV)** | **1 Node** | $K=4$ | 32 imgs | 128 imgs | 1.1316 s | **113.15 imgs/s** | 1.00× | 100.0% | Local Memory Only |
-| ResNet-18 (CV) | 2 Nodes | $K=1$ | 32 imgs | 64 imgs | 4.1159 s | **15.57 imgs/s** | **0.14×** | **7.1%** | Severe Bottleneck (97.6% Sync) |
+| ResNet-18 (CV) | 2 Nodes | $K=1$ | 32 imgs | 64 imgs | 4.1159 s | **15.57 imgs/s** | **0.14×** | **6.9%** | Severe Bottleneck (97.6% Sync) |
 | ResNet-18 (CV) | 2 Nodes | $K=2$ | 32 imgs | 128 imgs | 4.4093 s | **29.03 imgs/s** | **0.26×** | **12.8%** | Amortizing Communication |
 | ResNet-18 (CV) | 2 Nodes | $K=4$ | 32 imgs | 256 imgs | 4.8855 s | **52.40 imgs/s** | **0.46×** | **23.2%** | Communication Amortizing |
 | ResNet-18 (CV) | 2 Nodes | $K=8$ | 32 imgs | 512 imgs | 5.9358 s | **86.23 imgs/s** | **0.76×** | **38.1%** | Approaching Single-Node Parity |
@@ -350,13 +350,13 @@ Below is the definitive, unified empirical dataset collected during the 13-hour 
 | ResNet-18 (CV) | **2 Nodes** | **$K=64$** | 32 imgs | 4096 imgs | 22.6256 s | **181.07 imgs/s** | **1.60×** | **80.0%** | **PEAK VISION SCALING** |
 | **GPT-2 Small (LLM)**| **1 Node** | $K=1$ | 4 seqs | 2048 toks | 5.7823 s | **354.20 tok/s** | 1.00× | 100.0% | Local Memory Only |
 | **GPT-2 Small (LLM)**| **1 Node** | $K=4$ | 4 seqs | 8192 toks | 22.8693 s | **358.20 tok/s** | 1.00× | 100.0% | Local Memory Only |
-| GPT-2 Small (LLM)| 2 Nodes | $K=1$ | 4 seqs | 4096 toks | 47.3763 s | **86.47 tok/s** | **0.24×** | **12.2%** | Severe Bottleneck (94.2% Sync) |
+| GPT-2 Small (LLM)| 2 Nodes | $K=1$ | 4 seqs | 4096 toks | 47.3763 s | **86.47 tok/s** | **0.24×** | **12.1%** | Severe Bottleneck (94.2% Sync) |
 | GPT-2 Small (LLM)| 2 Nodes | $K=2$ | 4 seqs | 8192 toks | 52.0341 s | **157.43 tok/s** | **0.44×** | **22.0%** | Amortizing Communication |
 | GPT-2 Small (LLM)| 2 Nodes | $K=4$ | 4 seqs | 16384 toks| 62.7887 s | **260.93 tok/s** | **0.73×** | **36.4%** | Approaching Single-Node Parity |
 | GPT-2 Small (LLM)| **2 Nodes** | **$K=8$** | 4 seqs | 32768 toks| 85.1597 s | **384.80 tok/s** | **1.07×** | **53.7%** | **CROSSOVER POINT ($> 1.0\times$)** |
 | GPT-2 Small (LLM)| 2 Nodes | $K=16$ | 4 seqs | 65536 toks| 130.8961 s| **500.70 tok/s** | **1.40×** | **69.9%** | Strong Scaling Domain |
 | GPT-2 Small (LLM)| 2 Nodes | $K=32$ | 4 seqs | 131072 toks| 222.9335 s| **587.93 tok/s** | **1.64×** | **82.1%** | Highly Amortized |
-| GPT-2 Small (LLM)| **2 Nodes** | **$K=64$** | 4 seqs | 262144 toks| 407.3786 s| **643.47 tok/s** | **1.79×** | **89.5%** | **PEAK LLM SCALING** |
+| GPT-2 Small (LLM)| **2 Nodes** | **$K=64$** | 4 seqs | 262144 toks| 407.3786 s| **643.47 tok/s** | **1.80×** | **89.8%** | **PEAK LLM SCALING** |
 
 ---
 
@@ -380,13 +380,13 @@ Measured per-step execution components across all accumulation configurations:
 | **GPT-2 Small** | $32$ | 85,031.2 ms| 96,398.9 ms| 181,430.1 ms| 41,217.2 ms| 278.2 ms | **4.402** | 81.4% | 18.5% |
 | **GPT-2 Small** | **$64$**| 171,377.6 ms| 194,683.6 ms| 366,061.2 ms| 41,030.6 ms| 277.7 ms | **8.922** | **89.9%** | **10.1%** |
 
-*\*Note: At $K=1$, PyTorch DDP overlaps backward autograd calculation directly into the collective communication barrier, reporting local backward as 0.0 ms while rolling latency into the `allreduce_ms` measurement.*
+*\*Note: At $K=1$, there are no prior `no_sync()` microsteps to isolate local backward compute time, so `src/04_benchmark.py` assigns the entire `loss.backward()` + `dist.barrier()` synchronization interval directly into `allreduce_ms` (`4,018.8 ms` for ResNet-18, `44,611.6 ms` for GPT-2) and reports `backward_ms` as `0.0 ms`. Subtracting a single microstep's backward time from $K \ge 2$ (`~180 ms` ResNet, `~2.6–3.0 s` GPT-2) confirms pure AllReduce duration stays constant at `~3.8 s` and `~41.0–41.5 s` across all $K$.*
 
 ---
 
-## 9. Detailed Visual Systems Analysis: The 15 Publication Figures
+## 9. Detailed Visual Systems Analysis: The 16 Publication Figures
 
-All 15 figures have been compiled at **200 DPI vector-raster quality** with clean typography, explicit value labels, and high-contrast color palettes. They are organized below as 5 dual-panel combined figures and 10 standalone solo subfigures.
+All 16 figures have been compiled at **200 DPI vector-raster quality** with clean typography, explicit value labels, and high-contrast color palettes. They are organized below as 5 dual-panel combined figures, 10 standalone solo subfigures, and 1 stacked 18.4-hour telemetry profile (Figure 6).
 
 ---
 
@@ -422,7 +422,7 @@ Contrasts speedup ratio $S_N = T_{\text{cluster}} / T_{\text{single}}$ (Subfigur
 
 **Key Observations:**
 * **Crossover Points:** The speedup curve crosses the $1.0\times$ horizontal threshold at **$K=8$ for GPT-2** ($1.07\times$) and **$K=16$ for ResNet-18** ($1.11\times$).
-* **Peak Efficiency:** At $K=64$, GPT-2 reaches **$89.5\%$ weak scaling efficiency** ($1.79\times$ speedup on 2 nodes), while ResNet-18 reaches **$80.0\%$ efficiency** ($1.60\times$ speedup).
+* **Peak Efficiency:** At $K=64$, GPT-2 reaches **$89.8\%$ weak scaling efficiency** ($1.80\times$ speedup on 2 nodes), while ResNet-18 reaches **$80.0\%$ efficiency** ($1.60\times$ speedup).
 * **Workload Disparity:** GPT-2 achieves higher scaling efficiency than ResNet-18 because transformer matrix multiplications have higher arithmetic intensity than 2D convolutions, providing more local compute time to amortize communication.
 
 ---
@@ -440,8 +440,8 @@ Deconstructs step duration into local forward compute, local backward compute, a
 
 **Key Observations:**
 * **AllReduce Invariance:** Across all $K$, network transfer duration stays virtually flat ($\sim 41\text{s}$ for GPT-2, $\sim 3.8\text{s}$ for ResNet-18) because the gradient tensor size is constant.
-* **Bottleneck Inversion:** Network sync overhead plummets from **$95\%$** of step duration at $K=1$ down to **$10\%$** at $K=64$.
-* The ratio $\Gamma$ expands from $0.056$ (communication-bound) to **$8.93$ (compute-bound)**, demonstrating complete inversion of the systems bottleneck.
+* **Bottleneck Inversion:** Network sync overhead plummets from **$94.1\%$** of step duration at $K=1$ down to **$10.1\%$** at $K=64$.
+* The ratio $\Gamma$ expands from $0.056$ (communication-bound) to **$8.922$ (compute-bound)**, demonstrating complete inversion of the systems bottleneck.
 
 ---
 
@@ -487,7 +487,7 @@ To rigorously verify host resource behavior, detect potential memory leaks, and 
 ![Figure 6: Real-Time Hardware Telemetry Profile](figures/Figure_6_system_telemetry_timeline.png)
 
 **Key Telemetry Observations:**
-* **CPU Utilization (%):** Reflects the exact duty cycle transitions between phases. During naive DDP and low-$K$ steps, CPU utilization sits in deep idle valleys ($< 2\%$), mathematically matching the $94.7\%$ network stall. During high-$K$ accumulation steps ($K \ge 16$), CPU duty cycle remains consistently elevated, reflecting compute-bound forward/backward execution.
+* **CPU Utilization (%):** Reflects the exact duty cycle transitions between phases. During naive DDP and low-$K$ steps, CPU utilization sits in deep idle valleys ($< 2\%$), matching the $>94\%$ network synchronization stall. During high-$K$ accumulation steps ($K \ge 16$), CPU duty cycle remains consistently elevated, reflecting compute-bound forward/backward execution.
 * **Host RAM Allocation & Stability:** Memory utilization remained strictly bounded between $1.96\text{ GB}$ (idle OS/runtime baseline) and a peak of $13.18\text{ GB}$ during high-$K$ accumulation groups. At all times, the system retained $>1.7\text{ GB}$ of free physical DDR4 RAM, and swap usage remained strictly **$0\text{ MB}$** throughout the 18.4 hours. This empirically refutes any possibility of hidden disk thrashing or paging latency contaminating the benchmark results.
 * **Physical Network Wire Saturation:** Network egress and ingress burst rates repeatedly reach $11.8\text{--}12.2\text{ MB/s}$ during synchronization barriers, confirming that the Gloo TCP backend operated at the physical line rate limit of the 100 Mbps Fast Ethernet switch ($12.5\text{ MB/s}$ line cap).
 
@@ -496,7 +496,7 @@ To rigorously verify host resource behavior, detect potential memory leaks, and 
 ## 10. Academic Conclusion & Practical Implementation Guidelines
 
 ### 10.1 Primary Systems Conclusions
-1. **Commodity Hardware Viability:** Bare-metal desktop PCs connected via standard 100 Mbps Fast Ethernet can successfully train distributed deep learning models and achieve up to **$89.5\%$ weak scaling efficiency** ($1.79\times$ speedup on 2 nodes).
+1. **Commodity Hardware Viability:** Bare-metal desktop PCs connected via standard 100 Mbps Fast Ethernet can successfully train distributed deep learning models and achieve up to **$89.8\%$ weak scaling efficiency** ($1.80\times$ speedup on 2 nodes).
 2. **Algorithmic Compensation for Hardware Limits:** When physical interconnect bandwidth is constrained, algorithmic amortization via gradient accumulation is mathematically required to invert the compute-to-communication bottleneck.
 3. **Model Architecture Sensitivity:** Autoregressive language models (GPT-2) achieve superior distributed scaling compared to convolutional vision models (ResNet-18) due to higher arithmetic intensity ($O(N)$ vs. $O(N^2)$ FLOP-to-byte ratio).
 
