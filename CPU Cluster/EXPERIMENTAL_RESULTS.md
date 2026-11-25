@@ -28,7 +28,11 @@
    * 6.5 Stopwatch Timing Decomposition & Measurement Methodology
 7. [The 10 Engineering Bugs, Failures & Architectural Fixes](#7-the-10-engineering-bugs-failures--architectural-fixes)
 8. [Comprehensive 13-Hour Empirical Results Matrix](#8-comprehensive-13-hour-empirical-results-matrix)
-9. [Detailed Visual Systems Analysis: The Publication Figures](#9-detailed-visual-systems-analysis-the-15-publication-figures)
+   * Table 2: Fixed-Microbatch Sweep ($\mu \pm \sigma$ Across Independent Repetitions)
+   * Table 3: Step-Time Stopwatch Decomposition & Ratio ($\Gamma$)
+   * Table 4: Stage 5 Fixed-Global-Batch Ablation Matrix
+   * 8.1 Methodological Scope, Validation & Experimental Boundaries
+9. [Detailed Visual Systems Analysis: The 16 Publication Figures](#9-detailed-visual-systems-analysis-the-16-publication-figures)
    * Figures 1–5: Core Scaling, Decompositions, Convergence & Bandwidth
    * Figure 6: Real-Time Hardware Telemetry Timeline (18.4-Hour 1 Hz Trace)
 10. [Academic Conclusion & Practical Implementation Guidelines](#10-academic-conclusion--practical-implementation-guidelines)
@@ -54,7 +58,7 @@ To solve this hardware bottleneck without purchasing expensive switches or speci
    * **ResNet-18 throughput scales from $15.57 \to 181.07\text{ images/sec}$** (**$11.63\times$ speedup** over naive DDP, reaching **$1.60\times$ cluster speedup** and **$80.0\%$ weak scaling efficiency** at $K=64$).
    * **GPT-2 Small throughput scales from $86.47 \to 643.47\text{ tokens/sec}$** (**$7.44\times$ speedup** over naive DDP, reaching **$1.80\times$ cluster speedup** and **$89.8\%$ weak scaling efficiency** at $K=64$).
 3. **Bottleneck Inversion:** The compute-to-communication ratio $\Gamma = T_{\text{comp}} / T_{\text{comm}}$ inverts from **$0.056$** ($94.1\%$ sync stage, $5.3\%$ forward compute) at $K=1$ to **$8.922$** (**$89.9\%$ active compute**, $10.1\%$ network stall) at $K=64$.
-4. **Convergence Stability:** Empirical training verified healthy, stable optimization across epochs: CIFAR-10 accuracy advanced to **$58.8\%$** in 2 epochs; GPT-2 language model loss dropped steadily from **$10.97 \to 7.58$** (Perplexity: $58,153 \to 1,968$) over 15 optimizer updates with zero loss spikes or numerical divergence.
+4. **Convergence Sanity Verification:** Short-horizon real-dataset training verified stable optimization under gradient accumulation ($K=4$) without loss spikes or divergence: CIFAR-10 accuracy reached **$58.8\%$** in 2 epochs ($1.71 \to 1.27$ loss), and GPT-2 on WikiText-2 decreased monotonically from **$10.97 \to 7.58$** (Perplexity: $58,153 \to 1,968$) over 15 optimizer updates.
 
 ---
 
@@ -152,10 +156,10 @@ To ensure academic transparency and measurement rigor, the experimental campaign
    * **Scientific Purpose:** Standard practice in high-performance computing (HPC) systems research. Eliminates disk NVMe read latency, OS page cache contention, Python GIL serialization, and dataloader worker overhead, isolating pure CPU forward compute, autograd backward graph evaluation, and physical network `AllReduce` socket transfer.
    * **Execution Scope:** Governs all multi-trial throughput sweeps across $K \in \{1, 2, 4, 8, 16, 32, 64\}$.
 
-2. **Track 2: Real-World Dataset Convergence Verification (Experiment 5 — Figure 4):**
-   * **Vision Task:** End-to-end distributed training of ResNet-18 on authentic **CIFAR-10** (60,000 $32 \times 32$ color images across 10 classes; 50,000 train, 10,000 test) across 2 full epochs with real PyTorch `DistributedSampler` pipelines.
-   * **Language Task:** Autoregressive distributed training of GPT-2 Small on the authentic **WikiText-2** language modeling corpus ($4,708$ tokenized sequence chunks of 512 tokens) over 15 optimizer updates.
-   * **Scientific Purpose:** Confirms that algorithmic gradient accumulation ($K$) across distributed CPU nodes maintains numerical stability, avoids loss divergence, and produces valid weight updates on real-world training distributions.
+2. **Track 2: Real-World Dataset Convergence Sanity Verification (Experiment 5 — Figure 4):**
+   * **Vision Task:** End-to-end distributed training of ResNet-18 on authentic **CIFAR-10** (60,000 $32 \times 32$ color images across 10 classes; 50,000 train, 10,000 test) across 2 full epochs ($K=4$) with real PyTorch `DistributedSampler` pipelines.
+   * **Language Task:** Autoregressive distributed training of GPT-2 Small on the authentic **WikiText-2** language modeling corpus ($4,708$ tokenized sequence chunks of 512 tokens) over 15 optimizer updates ($K=4$).
+   * **Scientific Scope:** Serves as an empirical optimization sanity test — confirming that periodic `no_sync()` gradient accumulation updates weights cleanly without gradient staleness or loss divergence on real-world distributions. Full-schedule accuracy/perplexity equivalence sweeps across multiple $K$ values with held-out validation splits remain outside the systems scope of this benchmark campaign.
 
 ---
 
@@ -247,10 +251,13 @@ To dissect distributed step execution without introducing profiling distortion:
 1. **Microsteps $1 \dots K-1$:** Executed inside `with model.no_sync():`. Gradients accumulate locally in DDR4 RAM with zero collective communication calls.
 2. **Microstep $K$ (Synchronization Step):** Executed outside the `no_sync` scope. PyTorch DDP initiates ring `AllReduce` gradient collective synchronization.
 3. **Synchronization Drain & Stopwatch Interval:** Following the synchronizing backward pass, an explicit `dist.barrier()` is called to ensure all pending TCP socket buffers on interface `enp2s0` have completely drained before parameter optimization (`optimizer.step()`).
-4. **Primary Throughput Metrics are End-to-End Wall-Clock Measurements:**
-   * Global cluster throughput $P_{\text{cluster}}$ is computed directly from total unmanipulated wall-clock stopwatch intervals:
+4. **Stopwatch Timing Qualification & Independent Network Corroboration:**
+   * Because PyTorch DDP overlaps collective bucket communication with backward execution during the final synchronizing step, estimating exposed `AllReduce` duration by subtracting the mean duration of earlier `no_sync()` backward passes is an indirect decomposition approximation (and at $K=1$, backward compute + communication are grouped together into `allreduce_ms`).
+   * Crucially, standalone collective microbenchmarking (`src/00_net_test.py` in Stage 2 — `net_test_2nodes_20261121_212533.csv`) **independently measures** pure 500 MB `AllReduce` latency at **$45.96\text{ s}$ ($10.88\text{ MB/s}$)**, directly corroborating GPT-2 Small's `~41.0–44.6 s` synchronization cost for its $497.8\text{ MB}$ gradient payload.
+5. **Primary Throughput Metrics are End-to-End Wall-Clock Measurements:**
+   * Global cluster throughput $P_{\text{cluster}}$ is computed directly from total unmanipulated wall-clock step intervals (`step_time_mean_s`):
      $$P_{\text{image}} = \frac{K \times B_{\text{local}} \times W}{T_{\text{wall}}}, \quad P_{\text{token}} = \frac{K \times B_{\text{local}} \times S \times W}{T_{\text{wall}}}$$
-   * Because throughput and speedups are derived strictly from total elapsed wall-clock time, reported cluster speedups ($11.63\times$ and $7.44\times$) and peak efficiencies ($80.0\%$ and $89.8\%$) are direct, unmanipulated physical observations immune to internal timing decomposition nuances.
+   * Because all headline speedups ($11.63\times$, $7.44\times$, $1.60\times$, $1.80\times$) and efficiencies ($80.0\%$, $89.8\%$) are derived strictly from end-to-end wall-clock execution time, they remain invariant and unaffected by internal step-time decomposition estimates.
 
 ---
 
@@ -336,27 +343,29 @@ Over the course of the research and the 13-hour continuous benchmarking campaign
 
 Below is the definitive, unified empirical dataset collected during the 13-hour continuous benchmarking campaign (`session_20261121_200541_1core`).
 
-### Table 2: Complete Fixed-Microbatch Throughput & Scaling Matrix
-| Model Architecture | World Size ($N$) | Accumulation Steps ($K$) | Local Microbatch ($B_{\text{local}}$) | Global Batch Size | Measured Step Time ($T_{\text{step}}$) | Cluster Throughput | Speedup vs 1-Node ($S_N$) | Weak Scaling Efficiency ($E_N$) | Network Sync Status |
+### Table 2: Complete Fixed-Microbatch Throughput & Scaling Matrix ($\mu \pm \sigma$)
+Mean and standard deviation computed across independent benchmark repetitions (2 trials for 1-node reference; 3 trials per configuration for 2-node cluster):
+
+| Model Architecture | World Size ($N$) | Accumulation Steps ($K$) | Local Microbatch ($B_{\text{local}}$) | Global Batch Size | Step Time ($T_{\text{step}}$) | Throughput ($\mu \pm \sigma$) | Speedup vs 1-Node ($S_N$) | Weak Scaling Efficiency ($E_N$) | Network Sync Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **ResNet-18 (CV)** | **1 Node** | $K=1$ | 32 imgs | 32 imgs | 0.2789 s | **114.75 imgs/s** | 1.00× | 100.0% | Local Memory Only |
-| **ResNet-18 (CV)** | **1 Node** | $K=4$ | 32 imgs | 128 imgs | 1.1316 s | **113.15 imgs/s** | 1.00× | 100.0% | Local Memory Only |
-| ResNet-18 (CV) | 2 Nodes | $K=1$ | 32 imgs | 64 imgs | 4.1159 s | **15.57 imgs/s** | **0.14×** | **6.9%** | Severe Bottleneck (97.6% Sync) |
-| ResNet-18 (CV) | 2 Nodes | $K=2$ | 32 imgs | 128 imgs | 4.4093 s | **29.03 imgs/s** | **0.26×** | **12.8%** | Amortizing Communication |
-| ResNet-18 (CV) | 2 Nodes | $K=4$ | 32 imgs | 256 imgs | 4.8855 s | **52.40 imgs/s** | **0.46×** | **23.2%** | Communication Amortizing |
-| ResNet-18 (CV) | 2 Nodes | $K=8$ | 32 imgs | 512 imgs | 5.9358 s | **86.23 imgs/s** | **0.76×** | **38.1%** | Approaching Single-Node Parity |
-| ResNet-18 (CV) | **2 Nodes** | **$K=16$** | 32 imgs | 1024 imgs | 8.1615 s | **125.50 imgs/s** | **1.11×** | **55.5%** | **CROSSOVER POINT ($> 1.0\times$)** |
-| ResNet-18 (CV) | 2 Nodes | $K=32$ | 32 imgs | 2048 imgs | 12.9835 s | **157.73 imgs/s** | **1.39×** | **69.7%** | Strong Scaling Domain |
-| ResNet-18 (CV) | **2 Nodes** | **$K=64$** | 32 imgs | 4096 imgs | 22.6256 s | **181.07 imgs/s** | **1.60×** | **80.0%** | **PEAK VISION SCALING** |
-| **GPT-2 Small (LLM)**| **1 Node** | $K=1$ | 4 seqs | 2048 toks | 5.7823 s | **354.20 tok/s** | 1.00× | 100.0% | Local Memory Only |
-| **GPT-2 Small (LLM)**| **1 Node** | $K=4$ | 4 seqs | 8192 toks | 22.8693 s | **358.20 tok/s** | 1.00× | 100.0% | Local Memory Only |
-| GPT-2 Small (LLM)| 2 Nodes | $K=1$ | 4 seqs | 4096 toks | 47.3763 s | **86.47 tok/s** | **0.24×** | **12.1%** | Severe Bottleneck (94.2% Sync) |
-| GPT-2 Small (LLM)| 2 Nodes | $K=2$ | 4 seqs | 8192 toks | 52.0341 s | **157.43 tok/s** | **0.44×** | **22.0%** | Amortizing Communication |
-| GPT-2 Small (LLM)| 2 Nodes | $K=4$ | 4 seqs | 16384 toks| 62.7887 s | **260.93 tok/s** | **0.73×** | **36.4%** | Approaching Single-Node Parity |
-| GPT-2 Small (LLM)| **2 Nodes** | **$K=8$** | 4 seqs | 32768 toks| 85.1597 s | **384.80 tok/s** | **1.07×** | **53.7%** | **CROSSOVER POINT ($> 1.0\times$)** |
-| GPT-2 Small (LLM)| 2 Nodes | $K=16$ | 4 seqs | 65536 toks| 130.8961 s| **500.70 tok/s** | **1.40×** | **69.9%** | Strong Scaling Domain |
-| GPT-2 Small (LLM)| 2 Nodes | $K=32$ | 4 seqs | 131072 toks| 222.9335 s| **587.93 tok/s** | **1.64×** | **82.1%** | Highly Amortized |
-| GPT-2 Small (LLM)| **2 Nodes** | **$K=64$** | 4 seqs | 262144 toks| 407.3786 s| **643.47 tok/s** | **1.80×** | **89.8%** | **PEAK LLM SCALING** |
+| **ResNet-18 (CV)** | **1 Node** | $K=1$ | 32 imgs | 32 imgs | 0.2789 s | **114.75 ± 0.78 imgs/s** | 1.00× | 100.0% | Local Memory Only |
+| **ResNet-18 (CV)** | **1 Node** | $K=4$ | 32 imgs | 128 imgs | 1.1316 s | **113.15 ± 0.07 imgs/s** | 1.00× | 100.0% | Local Memory Only (Ref) |
+| ResNet-18 (CV) | 2 Nodes | $K=1$ | 32 imgs | 64 imgs | 4.1159 s | **15.57 ± 0.29 imgs/s** | **0.14×** | **6.9%** | Severe Bottleneck (97.6% Sync) |
+| ResNet-18 (CV) | 2 Nodes | $K=2$ | 32 imgs | 128 imgs | 4.4093 s | **29.03 ± 0.12 imgs/s** | **0.26×** | **12.8%** | Amortizing Communication |
+| ResNet-18 (CV) | 2 Nodes | $K=4$ | 32 imgs | 256 imgs | 4.8855 s | **52.40 ± 0.87 imgs/s** | **0.46×** | **23.2%** | Communication Amortizing |
+| ResNet-18 (CV) | 2 Nodes | $K=8$ | 32 imgs | 512 imgs | 5.9358 s | **86.23 ± 0.06 imgs/s** | **0.76×** | **38.1%** | Approaching Single-Node Parity |
+| ResNet-18 (CV) | **2 Nodes** | **$K=16$** | 32 imgs | 1024 imgs | 8.1615 s | **125.50 ± 1.05 imgs/s** | **1.11×** | **55.5%** | **CROSSOVER POINT ($> 1.0\times$)** |
+| ResNet-18 (CV) | 2 Nodes | $K=32$ | 32 imgs | 2048 imgs | 12.9835 s | **157.73 ± 0.78 imgs/s** | **1.39×** | **69.7%** | Strong Scaling Domain |
+| ResNet-18 (CV) | **2 Nodes** | **$K=64$** | 32 imgs | 4096 imgs | 22.6256 s | **181.07 ± 0.90 imgs/s** | **1.60×** | **80.0%** | **PEAK VISION SCALING** |
+| **GPT-2 Small (LLM)**| **1 Node** | $K=1$ | 4 seqs | 2048 toks | 5.7823 s | **354.20 ± 2.26 tok/s** | 1.00× | 100.0% | Local Memory Only |
+| **GPT-2 Small (LLM)**| **1 Node** | $K=4$ | 4 seqs | 8192 toks | 22.8693 s | **358.20 ± 1.27 tok/s** | 1.00× | 100.0% | Local Memory Only (Ref) |
+| GPT-2 Small (LLM)| 2 Nodes | $K=1$ | 4 seqs | 4096 toks | 47.3763 s | **86.47 ± 1.27 tok/s** | **0.24×** | **12.1%** | Severe Bottleneck (94.2% Sync) |
+| GPT-2 Small (LLM)| 2 Nodes | $K=2$ | 4 seqs | 8192 toks | 52.0341 s | **157.43 ± 0.49 tok/s** | **0.44×** | **22.0%** | Amortizing Communication |
+| GPT-2 Small (LLM)| 2 Nodes | $K=4$ | 4 seqs | 16384 toks| 62.7887 s | **260.93 ± 0.38 tok/s** | **0.73×** | **36.4%** | Approaching Single-Node Parity |
+| GPT-2 Small (LLM)| **2 Nodes** | **$K=8$** | 4 seqs | 32768 toks| 85.1597 s | **384.80 ± 0.17 tok/s** | **1.07×** | **53.7%** | **CROSSOVER POINT ($> 1.0\times$)** |
+| GPT-2 Small (LLM)| 2 Nodes | $K=16$ | 4 seqs | 65536 toks| 130.8961 s| **500.70 ± 1.76 tok/s** | **1.40×** | **69.9%** | Strong Scaling Domain |
+| GPT-2 Small (LLM)| 2 Nodes | $K=32$ | 4 seqs | 131072 toks| 222.9335 s| **587.93 ± 1.17 tok/s** | **1.64×** | **82.1%** | Highly Amortized |
+| GPT-2 Small (LLM)| **2 Nodes** | **$K=64$** | 4 seqs | 262144 toks| 407.3786 s| **643.47 ± 0.50 tok/s** | **1.80×** | **89.8%** | **PEAK LLM SCALING** |
 
 ---
 
@@ -381,6 +390,35 @@ Measured per-step execution components across all accumulation configurations:
 | **GPT-2 Small** | **$64$**| 171,377.6 ms| 194,683.6 ms| 366,061.2 ms| 41,030.6 ms| 277.7 ms | **8.922** | **89.9%** | **10.1%** |
 
 *\*Note: At $K=1$, there are no prior `no_sync()` microsteps to isolate local backward compute time, so `src/04_benchmark.py` assigns the entire `loss.backward()` + `dist.barrier()` synchronization interval directly into `allreduce_ms` (`4,018.8 ms` for ResNet-18, `44,611.6 ms` for GPT-2) and reports `backward_ms` as `0.0 ms`. Subtracting a single microstep's backward time from $K \ge 2$ (`~180 ms` ResNet, `~2.6–3.0 s` GPT-2) confirms pure AllReduce duration stays constant at `~3.8 s` and `~41.0–41.5 s` across all $K$.*
+
+---
+
+### Table 4: Stage 5 Fixed-Global-Batch Ablation Matrix (`benchmark_2nodes_20261122_045738.csv`)
+Executed continuously for **3 hours 41 minutes** (3 independent trials per configuration) to isolate whether $K$-accumulation yields throughput gains when the global batch size is held constant by shrinking $B_{\text{local}} = \max(1, B_{\text{global}} / (2K))$:
+
+| Model Architecture | $K$ | Local Microbatch ($B_{\text{local}}$) | Global Batch | Step Time ($T_{\text{step}}$) | Throughput ($\mu \pm \sigma$) | AllReduce Sync | Empirical Observation |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **ResNet-18** | $1$ | 32 imgs | **64 imgs** | 4.0281 s | **15.90 ± 0.00 imgs/s** | 3,929.4 ms | Full 32-img SIMD microbatch |
+| **ResNet-18** | $2$ | 16 imgs | **64 imgs** | 4.1136 s | **15.57 ± 0.06 imgs/s** | 3,839.7 ms | Compute split; same sync cost |
+| **ResNet-18** | $4$ | 8 imgs | **64 imgs** | 4.1909 s | **15.30 ± 0.00 imgs/s** | 3,873.5 ms | Constant global batch = no speedup |
+| **ResNet-18** | $8$ | 4 imgs | **64 imgs** | 4.2876 s | **14.90 ± 0.00 imgs/s** | 3,899.6 ms | Minor kernel efficiency loss |
+| **ResNet-18** | $16$ | 2 imgs | **64 imgs** | 4.4670 s | **14.33 ± 0.06 imgs/s** | 3,941.6 ms | Overhead exceeds microbatch gain |
+| **ResNet-18** | $32$ | 1 img | **64 imgs** | 4.5863 s | **13.93 ± 0.23 imgs/s** | 3,961.9 ms | Minimum $B_{\text{local}}=1$ floor reached |
+| **ResNet-18** | $64$ | 1 img* | **128 imgs** | 5.3472 s | **23.93 ± 0.06 imgs/s** | 3,943.4 ms | Clamped at $B_{\text{local}}=1$; batch doubles |
+| **GPT-2 Small** | $1$ | 4 seqs | **4,096 toks** | 46.7530 s | **87.63 ± 0.06 tok/s** | 43,984.4 ms | Baseline $B_{\text{local}}=4$ |
+| **GPT-2 Small** | $2$ | 2 seqs | **4,096 toks** | 47.7080 s | **85.87 ± 0.06 tok/s** | 42,459.1 ms | Same global tokens = no speedup |
+| **GPT-2 Small** | $4$ | 1 seq | **4,096 toks** | 48.3801 s | **84.67 ± 0.15 tok/s** | 42,904.4 ms | Minimum $B_{\text{local}}=1$ floor reached |
+| **GPT-2 Small** | $8$ | 1 seq* | **8,192 toks** | 53.6750 s | **152.60 ± 0.10 tok/s** | 42,919.1 ms | Clamped at $B_{\text{local}}=1$; batch grows |
+| **GPT-2 Small** | $16$ | 1 seq* | **16,384 toks** | 64.7145 s | **253.17 ± 0.59 tok/s** | 42,847.3 ms | Amortization begins as batch grows |
+| **GPT-2 Small** | $32$ | 1 seq* | **32,768 toks** | 87.3313 s | **375.23 ± 1.00 tok/s** | 42,828.3 ms | Beats 1-Node Ref ($358.2\text{ tok/s}$) |
+| **GPT-2 Small** | $64$ | 1 seq* | **65,536 toks** | 132.8698 s | **493.20 ± 0.66 tok/s** | 42,827.0 ms | $5.63\times$ over $K=1$ ($B_{\text{global}}=65\text{k}$) |
+
+*\*Critical Systems Insight from Stage 5:* Holding global batch constant (`64` images across $K=1..32$; `4,096` tokens across $K=1..4$) does **not** accelerate throughput (`15.90 → 13.93 img/s` and `87.63 → 84.67 tok/s`) because each update still pays a full `3.9 s` or `42.9 s` `AllReduce` barrier over the same processed samples (while shrinking local microbatches slightly degrades CPU vector efficiency). Amortization achieves scaling **specifically in the weak-scaling/large-batch regime** ($B_{\text{global}} = 2 \cdot K \cdot B_{\text{local}}$) shown in Table 2, where compute work per communication barrier grows proportionally with $K$.
+
+### 8.1 Methodological Scope, Validation & Experimental Boundaries
+1. **End-to-End Throughput vs. Timing Decomposition:** Primary scaling metrics (Tables 2 & 4) rely purely on total wall-clock step time across 3 independent repetitions ($\text{CV} < 2\%$), while Table 3's internal phase split is qualified in Section 6.5 and independently corroborated by Stage 2's raw collective measurement (`45.96 s` for `500 MB`).
+2. **Scope of Convergence Tests:** Stage 5b (2 epochs CIFAR-10, 15 updates GPT-2) proves gradient stability and optimization descent under $K=4$ `no_sync()`, rather than claiming final accuracy equivalence across $K=1 \dots 64$ after multi-day full training.
+3. **CPU Thread Control:** All timings in this campaign isolate single-thread deterministic compute (`torch.set_num_threads(1)`). Multi-threaded intra-node execution shrinks $T_{\text{comp}}$ while wire transfer $T_{\text{comm}}$ remains fixed — mathematically increasing (rather than reducing) the accumulation factor $K$ needed for positive speedup.
 
 ---
 
