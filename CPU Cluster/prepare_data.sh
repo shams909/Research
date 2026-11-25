@@ -39,11 +39,22 @@ EOF
 
 # ── GPT-2 tokenizer ─────────────────────────────────────────
 echo ""
-echo "[+] Caching GPT-2 tokenizer..."
+echo "[3/4] Caching GPT-2 tokenizer..."
 python3 - <<'EOF'
 from transformers import GPT2Tokenizer
 GPT2Tokenizer.from_pretrained("gpt2")
 print("  GPT-2 tokenizer ready ✓")
+EOF
+
+# ── Speech Commands & Whisper-Tiny tokenizer (for Voice) ────
+echo ""
+echo "[4/4] Downloading Speech Commands + Whisper tokenizer (~2.3 GB)..."
+python3 - <<'EOF'
+import torchaudio
+from transformers import WhisperTokenizer
+WhisperTokenizer.from_pretrained("openai/whisper-tiny")
+torchaudio.datasets.SPEECHCOMMANDS(root="data", download=True)
+print("  SpeechCommands + Whisper tokenizer ready ✓")
 EOF
 
 echo ""

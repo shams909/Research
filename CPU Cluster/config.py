@@ -42,4 +42,6 @@ DEFAULT_EPOCHS     = 5          # Epochs for CIFAR-10 demo
 DEFAULT_LR         = 0.01       # Learning rate (SGD for ResNet, AdamW for GPT-2)
 GPT2_SEQ_LEN       = 512        # Token sequence length for GPT-2 training
 GPT2_BATCH_SIZE    = 4          # Per-node GPT-2 batch (larger model = smaller batch)
+WHISPER_BATCH_SIZE = 4          # Per-node Whisper-Tiny audio clip batch
+WHISPER_DEC_LEN    = 32         # Target decoder token sequence length for Whisper
 GRADIENT_ACCUM_STEPS = 4        # Amortize communication over slow 100 Mbps Ethernet

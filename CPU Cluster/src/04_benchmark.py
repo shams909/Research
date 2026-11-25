@@ -290,6 +290,135 @@ def benchmark_gpt2(rank, world_size, batch_size=4, seq_len=512, accum_steps=1, b
     }
 
 
+# ── Whisper-Tiny Benchmark Engine (Voice / Speech) ────────────────────────────
+
+def build_whisper_tiny():
+    """Creates stock Whisper-Tiny (~37.8M params) with offline config."""
+    from transformers import WhisperForConditionalGeneration, WhisperConfig
+
+    cfg = WhisperConfig(
+        vocab_size=51865,
+        num_mel_bins=80,
+        encoder_layers=4,
+        encoder_attention_heads=6,
+        decoder_layers=4,
+        decoder_attention_heads=6,
+        encoder_ffn_dim=1536,
+        decoder_ffn_dim=1536,
+        d_model=384,
+        max_source_positions=1500,
+        max_target_positions=448,
+        decoder_start_token_id=50258,
+        pad_token_id=50257,
+        bos_token_id=50257,
+        eos_token_id=50257,
+        suppress_tokens=[],
+        begin_suppress_tokens=[],
+    )
+    return WhisperForConditionalGeneration(cfg)
+
+
+def benchmark_whisper(rank, world_size, batch_size=4, dec_len=32, accum_steps=1, bench_steps=8, warmup_steps=2, trial_id=1):
+    """
+    Measures Whisper-Tiny audio clip throughput and decomposes step time into:
+    Forward compute, Backward compute, AllReduce sync, and Optimizer update.
+    """
+    model = DDP(build_whisper_tiny())
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+
+    model.train()
+    step_times = []
+    forward_times = []
+    backward_times = []
+    allreduce_times = []
+    optimizer_times = []
+
+    total_steps = bench_steps + warmup_steps
+    total_clips = batch_size * accum_steps * world_size
+
+    for step in range(total_steps):
+        t0 = time.perf_counter()
+        optimizer.zero_grad()
+
+        fwd_step = 0.0
+        bwd_step = 0.0
+        ar_step  = 0.0
+
+        for micro in range(accum_steps):
+            input_features = torch.randn(batch_size, 80, 3000)
+            labels = torch.randint(0, 50256, (batch_size, dec_len))
+
+            if micro < accum_steps - 1 and world_size > 1:
+                with model.no_sync():
+                    tf0 = time.perf_counter()
+                    out = model(input_features=input_features, labels=labels)
+                    loss = out.loss / accum_steps
+                    fwd_step += (time.perf_counter() - tf0)
+
+                    tb0 = time.perf_counter()
+                    loss.backward()
+                    bwd_step += (time.perf_counter() - tb0)
+            else:
+                tf0 = time.perf_counter()
+                out = model(input_features=input_features, labels=labels)
+                loss = out.loss / accum_steps
+                fwd_step += (time.perf_counter() - tf0)
+
+                ts0 = time.perf_counter()
+                loss.backward()
+                if world_size > 1:
+                    dist.barrier()
+                sync_elapsed = time.perf_counter() - ts0
+
+                if accum_steps > 1 and bwd_step > 0:
+                    avg_local_bwd = bwd_step / (accum_steps - 1)
+                    bwd_step += avg_local_bwd
+                    ar_step = max(sync_elapsed - avg_local_bwd, 0.0)
+                else:
+                    ar_step = sync_elapsed
+
+        to0 = time.perf_counter()
+        optimizer.step()
+        opt_step = time.perf_counter() - to0
+
+        elapsed = time.perf_counter() - t0
+
+        if step >= warmup_steps:
+            step_times.append(elapsed)
+            forward_times.append(fwd_step)
+            backward_times.append(bwd_step)
+            allreduce_times.append(ar_step)
+            optimizer_times.append(opt_step)
+
+        if rank == 0:
+            step_tput = total_clips / max(elapsed, 1e-4)
+            tag = "warmup" if step < warmup_steps else f"bench #{trial_id}"
+            print(f"        [{tag:>8} {step+1:>2}/{total_steps}] Step: {elapsed:>6.2f}s | "
+                  f"Fwd: {fwd_step*1000:>5.1f}ms | Bwd: {bwd_step*1000:>5.1f}ms | "
+                  f"Sync: {ar_step*1000:>6.1f}ms | Speed: {step_tput:>5.2f} clip/s", flush=True)
+
+    avg_step_s    = statistics.mean(step_times) if step_times else 0.0
+    clips_per_sec = total_clips / max(avg_step_s, 1e-4)
+
+    return {
+        "model"             : "Whisper-Tiny",
+        "task"              : "Whisper-Tiny (Speech)",
+        "accum_steps"       : accum_steps,
+        "batch_per_node"    : batch_size,
+        "effective_node_b"  : batch_size * accum_steps,
+        "global_batch"      : total_clips,
+        "trial_id"          : trial_id,
+        "avg_step_time_s"   : round(avg_step_s, 4),
+        "throughput"        : round(clips_per_sec, 2),
+        "unit"              : "clips/sec",
+        "world_size"        : world_size,
+        "forward_ms"        : round(statistics.mean(forward_times) * 1000, 2),
+        "backward_ms"       : round(statistics.mean(backward_times) * 1000, 2),
+        "allreduce_ms"      : round(statistics.mean(allreduce_times) * 1000, 2),
+        "optimizer_ms"      : round(statistics.mean(optimizer_times) * 1000, 2),
+    }
+
+
 # ── Aggregate Statistics Across Trials ────────────────────────────────────────
 
 def aggregate_trials(trials_list):
@@ -445,9 +574,11 @@ def run_experiment_suite(rank, world_size, mode, k_list, num_trials, bench_steps
     all_summaries   = []
 
     models_to_test = []
-    if model_filter in ["all", "resnet"]:
+    if model_filter in ["all", "tri", "resnet"]:
         models_to_test.append("resnet")
-    if model_filter in ["all", "gpt2"]:
+    if model_filter in ["tri", "whisper"]:
+        models_to_test.append("whisper")
+    if model_filter in ["all", "tri", "gpt2"]:
         models_to_test.append("gpt2")
 
     for model_name in models_to_test:
@@ -513,6 +644,33 @@ def run_experiment_suite(rank, world_size, mode, k_list, num_trials, bench_steps
                     trial_results.append(r)
                     all_raw_results.append(r)
 
+            elif model_name == "whisper":
+                whisper_bs = getattr(config, "WHISPER_BATCH_SIZE", 4)
+                whisper_dec_len = getattr(config, "WHISPER_DEC_LEN", 32)
+                if mode == "global":
+                    b_per_node = max(1, min(whisper_bs, 8 // (world_size * k)))
+                else:
+                    b_per_node = whisper_bs
+
+                if rank == 0:
+                    print(f"\n>>> [Whisper-Tiny | {mode.upper()}] Benchmarking K={k} (microbatch={b_per_node}, global={b_per_node * k * world_size} clips)...", flush=True)
+
+                for trial in range(1, num_trials + 1):
+                    if world_size > 1:
+                        dist.barrier()
+                    r = benchmark_whisper(
+                        rank, world_size,
+                        batch_size=b_per_node,
+                        dec_len=whisper_dec_len,
+                        accum_steps=k,
+                        bench_steps=bench_steps,
+                        warmup_steps=warmup_steps,
+                        trial_id=trial
+                    )
+                    r["mode"] = mode
+                    trial_results.append(r)
+                    all_raw_results.append(r)
+
             if rank == 0 and trial_results:
                 summary = aggregate_trials(trial_results)
                 summary["mode"] = mode
@@ -533,8 +691,8 @@ def main():
     parser = argparse.ArgumentParser(description="CPU Cluster Lab Benchmark & Communication Profiling")
     parser.add_argument("--mode", type=str, default="single", choices=["single", "micro", "global", "both"],
                         help="Benchmark mode: 'single' (standard run), 'micro' (fixed microbatch K-sweep), 'global' (fixed global batch K-sweep), 'both'")
-    parser.add_argument("--model", type=str, default="all", choices=["all", "resnet", "gpt2"],
-                        help="Workload filter: 'all', 'resnet', or 'gpt2'")
+    parser.add_argument("--model", type=str, default="all", choices=["all", "tri", "resnet", "gpt2", "whisper"],
+                        help="Workload filter: 'all' (resnet+gpt2), 'tri' (all 3), 'resnet', 'gpt2', or 'whisper'")
     parser.add_argument("--k", type=int, default=None,
                         help="Accumulation steps for single mode (default: config.GRADIENT_ACCUM_STEPS)")
     parser.add_argument("--k_list", type=str, default="1,2,4,8,16",
