@@ -287,7 +287,7 @@ def plot_figure_1_throughput_vs_k(show=False):
 
 # ── Figure 2: Single-Node vs. Distributed Scaling (Speedup & Crossover) ────────
 
-def _pick_multi_curve_offset(plotted, i, pt_idx, y_val, close_gap):
+def _pick_multi_curve_offset(plotted, i, pt_idx, y_val, close_gap, min_floor=0.0):
     """Place non-overlapping point annotations across 1, 2, or 3 stacked scaling curves."""
     if len(plotted) <= 1:
         return (0, 9), "center"
@@ -300,6 +300,8 @@ def _pick_multi_curve_offset(plotted, i, pt_idx, y_val, close_gap):
     if rank_pos == len(col_vals) - 1:
         return (0, 9), "center"
     if rank_pos == 0:
+        if min_floor > 0 and y_val < min_floor:
+            return (10, -4), "left"
         return (0, -14), "center"
     gap_below = y_val - col_vals[0][0]
     return ((10, -11), "left") if gap_below < close_gap else ((0, -13), "center")
@@ -440,7 +442,7 @@ def plot_figure_2_scaling_efficiency(show=False):
 
 # ── Figure 3: Computation vs. Communication Breakdown (Dual-Panel) ────────────
 
-def _render_fig3a_breakdown(ax, x_indices, ks, fwd, bwd, ar, totals, title_prefix=""):
+def _render_fig3a_breakdown(ax, x_indices, ks, fwd, bwd, ar, totals, title_prefix="", task_label=""):
     width = 0.55
     ax.bar(x_indices, fwd, width, label="Forward Compute (Local CPU)", color="#4C72B0")
     ax.bar(x_indices, bwd, width, bottom=fwd, label="Backward Compute (Local CPU)", color="#55A868")
@@ -448,54 +450,89 @@ def _render_fig3a_breakdown(ax, x_indices, ks, fwd, bwd, ar, totals, title_prefi
 
     for i, tot in enumerate(totals):
         ax.annotate(f"{tot:.1f}s", (i, tot), textcoords="offset points",
-                    xytext=(0, 6), ha="center", fontsize=9, fontweight="bold")
+                    xytext=(0, 5), ha="center", fontsize=8.5, fontweight="bold")
 
     prefix = f"({title_prefix}) " if title_prefix else ""
-    ax.set_title(f"{prefix}Step Duration Breakdown (Wall-Clock Seconds)", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Step Duration (seconds)", fontsize=11, fontweight="bold")
-    ax.set_xlabel("Gradient Accumulation Configuration", fontsize=11, fontweight="bold")
+    base_title = f"{task_label} Step Breakdown" if task_label else "Step Duration Breakdown (Wall-Clock Seconds)"
+    ax.set_title(f"{prefix}{base_title}", fontsize=11.5, fontweight="bold")
+    ax.set_ylabel("Step Duration (seconds)", fontsize=10.5, fontweight="bold")
+    ax.set_xlabel("Accumulation Steps (K)", fontsize=10.5, fontweight="bold")
     ax.set_xticks(x_indices)
-    ax.set_xticklabels(ks)
-    ax.set_ylim(0, max(totals) * 1.22)
-    ax.legend(loc="upper left", framealpha=0.92)
+    ax.set_xticklabels(ks, fontsize=9)
+    ax.set_ylim(0, max(totals) * 1.24)
+    ax.legend(loc="upper left", framealpha=0.92, fontsize=8.5)
 
 
-def _render_fig3b_gamma(ax, x_indices, ks, gamma_ratio, title_prefix=""):
-    y_max = max(10.5, float(np.max(gamma_ratio)) * 1.15) if len(gamma_ratio) else 10.5
+def _render_fig3b_gamma(ax, task_series, title_prefix=""):
+    all_gammas = np.concatenate([s["gamma"] for s in task_series]) if task_series else np.array([1.0])
+    y_max = max(10.5, float(np.max(all_gammas)) * 1.15) if len(all_gammas) else 10.5
     ax.axhspan(1.0, y_max, color="#2CA02C", alpha=0.06, label="_nolegend_")
     ax.axhspan(0.0, 1.0, color="#D95F02", alpha=0.04, label="_nolegend_")
-    ax.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="Balanced Threshold (Γ = 1.0)")
+    ax.axhline(1.0, color="crimson", linestyle="--", linewidth=1.8, label="Parity Threshold (Γ = 1.0)")
 
-    ax.text(0.04, 0.72, "▲ Compute-Dominant Regime (Γ > 1.0)", transform=ax.transAxes,
+    ax.text(0.03, 0.70, "▲ Compute-Dominant Regime (Γ > 1.0)", transform=ax.transAxes,
             fontsize=9.5, fontweight="bold", color="#1B7837")
-    ax.text(0.97, 0.03, "▼ Communication-Bound Regime (Γ < 1.0)", transform=ax.transAxes,
+    ax.text(0.98, 0.03, "▼ Communication-Bound Regime (Γ < 1.0)", transform=ax.transAxes,
             fontsize=9.5, fontweight="bold", color="#B2182B", ha="right")
 
-    ax.plot(x_indices, gamma_ratio, marker="s", markersize=8, linewidth=2.2,
-            color="#55A868", label="Compute-to-Comm Ratio (Γ)")
+    all_ks = sorted({k for s in task_series for k in s["k_vals"]})
+    k_to_idx = {k: idx for idx, k in enumerate(all_ks)}
+    x_ticks = np.arange(len(all_ks))
 
-    for xi, g_val in zip(x_indices, gamma_ratio):
-        y_off = -13 if (0.45 <= g_val <= 0.90) else 9
-        ax.annotate(f"{g_val:.2f}×", (xi, g_val), textcoords="offset points",
-                    xytext=(0, y_off), ha="center", fontsize=9, fontweight="bold", color="#2E6930")
+    # Reuse multi-curve non-overlapping helper across all plotted models
+    plotted = []
+    for i, s in enumerate(task_series):
+        x_pos = [k_to_idx[k] for k in s["k_vals"]]
+        plotted.append((i, s["task"], x_pos, s["gamma"]))
+
+    markers = ["s", "o", "^"]
+    for i, task, x_pos, gamma_ratio in plotted:
+        label_txt = "Compute-to-Comm Ratio (Γ)" if len(plotted) == 1 else f"{task} (Γ)"
+        ax.plot(x_pos, gamma_ratio, marker=markers[i % len(markers)], markersize=7.5, linewidth=2.2,
+                color=COLORS[i % len(COLORS)], label=label_txt)
+
+        for pt_idx, (xp, g_val) in enumerate(zip(x_pos, gamma_ratio)):
+            if len(plotted) == 1:
+                xyoff, ha = ((0, -13) if (0.45 <= g_val <= 0.85) else (0, 9)), "center"
+            else:
+                col_vals = sorted(
+                    (float(p_vals[pt_idx]), p_i)
+                    for p_i, _, _, p_vals in plotted
+                    if pt_idx < len(p_vals)
+                )
+                rank_pos = [p_i for _, p_i in col_vals].index(i)
+                if g_val < 0.65:
+                    # Keep labels inside plot above x-axis when Γ values sit near 0
+                    if rank_pos == len(col_vals) - 1:
+                        xyoff, ha = (0, 10), "center"
+                    elif rank_pos == 0:
+                        xyoff, ha = ((10, 0), "left") if pt_idx == 0 else ((10, -7), "left")
+                    else:
+                        xyoff, ha = ((28, 8), "left") if pt_idx == 0 else ((10, 2), "left")
+                else:
+                    xyoff, ha = _pick_multi_curve_offset(plotted, i, pt_idx, g_val, close_gap=0.45)
+                    if 0.85 <= g_val <= 1.0 and xyoff[1] < 0:
+                        xyoff, ha = (10, -4), "left"
+            ax.annotate(f"{g_val:.2f}×", (xp, g_val), textcoords="offset points",
+                        xytext=xyoff, ha=ha, fontsize=8.4, fontweight="bold")
 
     prefix = f"({title_prefix}) " if title_prefix else ""
     ax.set_title(f"{prefix}Compute-to-Communication Ratio (Γ = T_comp / T_comm)", fontsize=12, fontweight="bold")
     ax.set_ylabel("Compute-to-Communication Ratio (Γ)", fontsize=11, fontweight="bold")
     ax.set_xlabel("Gradient Accumulation Configuration", fontsize=11, fontweight="bold")
-    ax.set_xticks(x_indices)
-    ax.set_xticklabels(ks)
-    ax.set_xlim(-0.4, len(ks) - 0.6)
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels([f"K={k}" for k in all_ks])
+    ax.set_xlim(-0.4, len(all_ks) - 0.6)
     ax.set_ylim(0, y_max)
-    ax.legend(loc="upper left", framealpha=0.92)
+    ax.legend(loc="upper left", framealpha=0.92, fontsize=9)
 
 
 def plot_figure_3_timing_breakdown(show=False):
     """
-    Figure 3: Dual-Panel Systems Decomposition:
-      - Figure_3_compute_vs_communication_breakdown.png (Combined dual-panel)
-      - Figure_3a_step_duration_breakdown.png (Standalone solo stacked bar)
-      - Figure_3b_compute_to_comm_ratio.png (Standalone solo Gamma ratio)
+    Figure 3: Multi-model Systems Decomposition & Ratio (Γ):
+      - Figure_3_compute_vs_communication_breakdown.png (Combined multi-panel + tri-modal Γ)
+      - Figure_3a_step_duration_breakdown.png (Step duration stacked breakdown per model)
+      - Figure_3b_compute_to_comm_ratio.png (Compute-to-comm Γ ratio comparison)
     """
     timing_files = []
     for d in _all_results_dirs():
@@ -532,41 +569,72 @@ def plot_figure_3_timing_breakdown(show=False):
     bwd_col = "backward_ms_mean" if use_mean else "backward_ms"
     ar_col  = "allreduce_ms_mean" if use_mean else "allreduce_ms"
 
-    focus_df = _dedup_task_rows(df[df["task"].str.contains("GPT-2", na=False)])
-    if focus_df.empty:
-        focus_df = _dedup_task_rows(df)
-    if focus_df.empty:
+    tasks = list(df["task"].dropna().unique()) if "task" in df.columns else ["Cluster"]
+    task_series = []
+    for t in tasks:
+        sub = _dedup_task_rows(df[df["task"] == t] if "task" in df.columns else df)
+        if sub.empty:
+            continue
+        k_vals = [int(k) for k in sub["accum_steps"]]
+        fwd = np.array(sub[fwd_col]) / 1000.0
+        bwd = np.array(sub[bwd_col]) / 1000.0
+        ar  = np.array(sub[ar_col])  / 1000.0
+        totals = fwd + bwd + ar
+        gamma_ratio = (fwd + bwd) / np.maximum(ar, 1e-4)
+        task_series.append({
+            "task": t,
+            "k_vals": k_vals,
+            "ks": [f"K={k}" for k in k_vals],
+            "x_indices": np.arange(len(k_vals)),
+            "fwd": fwd,
+            "bwd": bwd,
+            "ar": ar,
+            "totals": totals,
+            "gamma": gamma_ratio,
+        })
+
+    if not task_series:
         print("  [skip Fig 3] Empty filtered timing DataFrame")
         return
 
-    ks = [f"K={k}" for k in focus_df["accum_steps"]]
-    x_indices = np.arange(len(ks))
-    fwd = np.array(focus_df[fwd_col]) / 1000.0
-    bwd = np.array(focus_df[bwd_col]) / 1000.0
-    ar  = np.array(focus_df[ar_col])  / 1000.0
+    # 1. Combined Figure (1x2 if single model; 2-row GridSpec comparing all models if >=2)
+    n_models = len(task_series)
+    if n_models == 1:
+        s0 = task_series[0]
+        fig, axes = plt.subplots(1, 2, figsize=(15, 5.5))
+        fig.subplots_adjust(wspace=0.25)
+        fig.suptitle("Figure 3: Step Time Breakdown & Compute-to-Communication Bottleneck Inversion",
+                     fontsize=14, fontweight="bold", y=1.02)
+        _render_fig3a_breakdown(axes[0], s0["x_indices"], s0["ks"], s0["fwd"], s0["bwd"], s0["ar"], s0["totals"], "a", s0["task"])
+        _render_fig3b_gamma(axes[1], task_series, "b")
+        save_fig(fig, "Figure_3_compute_vs_communication_breakdown.png", show)
+    else:
+        fig = plt.figure(figsize=(6.2 * n_models, 10.2))
+        gs = fig.add_gridspec(2, n_models, height_ratios=[1.0, 1.05], hspace=0.38, wspace=0.24)
+        fig.suptitle("Figure 3: Tri-Modal Step Time Breakdown & Compute-to-Communication Bottleneck Inversion",
+                     fontsize=15, fontweight="bold", y=0.98)
+        for idx, s in enumerate(task_series):
+            ax_bar = fig.add_subplot(gs[0, idx])
+            _render_fig3a_breakdown(ax_bar, s["x_indices"], s["ks"], s["fwd"], s["bwd"], s["ar"], s["totals"],
+                                    chr(97 + idx), s["task"])
+        ax_gamma = fig.add_subplot(gs[1, :])
+        _render_fig3b_gamma(ax_gamma, task_series, chr(97 + n_models))
+        save_fig(fig, "Figure_3_compute_vs_communication_breakdown.png", show)
 
-    totals = fwd + bwd + ar
-    compute_total = fwd + bwd
-    gamma_ratio = compute_total / np.maximum(ar, 1e-4)
-
-    # 1. Combined Dual-Panel Figure
-    fig, axes = plt.subplots(1, 2, figsize=(15, 5.5))
-    fig.subplots_adjust(wspace=0.25)
-    fig.suptitle("Figure 3: Step Time Breakdown & Compute-to-Communication Bottleneck Inversion",
-                 fontsize=14, fontweight="bold", y=1.02)
-
-    _render_fig3a_breakdown(axes[0], x_indices, ks, fwd, bwd, ar, totals, "a")
-    _render_fig3b_gamma(axes[1], x_indices, ks, gamma_ratio, "b")
-    save_fig(fig, "Figure_3_compute_vs_communication_breakdown.png", show)
-
-    # 2. Standalone Solo Figures
-    fig_solo_a, ax_solo_a = plt.subplots(figsize=(8.5, 5.5))
-    _render_fig3a_breakdown(ax_solo_a, x_indices, ks, fwd, bwd, ar, totals, "")
-    ax_solo_a.set_title("Step Time Breakdown — Local Compute vs. AllReduce Wait", fontsize=13, fontweight="bold")
+    # 2. Standalone Solo Figure 3a (Side-by-side step duration breakdown across available models)
+    fig_solo_a, axes_a = plt.subplots(1, n_models, figsize=(6.2 * n_models if n_models > 1 else 8.5, 5.5))
+    if n_models == 1:
+        axes_a = [axes_a]
+    fig_solo_a.subplots_adjust(wspace=0.26)
+    fig_solo_a.suptitle("Step Time Breakdown — Local Compute vs. AllReduce Wait", fontsize=13.5, fontweight="bold", y=1.02)
+    for idx, (ax_a, s) in enumerate(zip(axes_a, task_series)):
+        _render_fig3a_breakdown(ax_a, s["x_indices"], s["ks"], s["fwd"], s["bwd"], s["ar"], s["totals"],
+                                chr(97 + idx) if n_models > 1 else "", s["task"] if n_models > 1 else "")
     save_fig(fig_solo_a, "Figure_3a_step_duration_breakdown.png", show)
 
-    fig_solo_b, ax_solo_b = plt.subplots(figsize=(8.5, 5.5))
-    _render_fig3b_gamma(ax_solo_b, x_indices, ks, gamma_ratio, "")
+    # 3. Standalone Solo Figure 3b (All models' Γ curves on one plot)
+    fig_solo_b, ax_solo_b = plt.subplots(figsize=(8.8, 5.5))
+    _render_fig3b_gamma(ax_solo_b, task_series, "")
     ax_solo_b.set_title("Compute-to-Communication Ratio (Γ) vs. Accumulation Steps (K)", fontsize=13, fontweight="bold")
     save_fig(fig_solo_b, "Figure_3b_compute_to_comm_ratio.png", show)
 
@@ -772,22 +840,10 @@ def plot_figure_5_bandwidth_sensitivity(show=False):
 
 # ── Figure 6: Continuous System Telemetry Timeline ────────────────────────────
 
-def plot_figure_6_telemetry(show=False):
-    """
-    Figure 6: 3-panel time-series profile of CPU%, DDR4 RAM, and Network I/O
-    from continuous 1 Hz sysmon logs.
-    """
-    sysmon_files = _glob_results("sysmon_*.csv", include_extra=False)
-    if not sysmon_files:
-        sysmon_files = _glob_results("sysmon_*.csv", include_extra=True)
-    if not sysmon_files:
-        print("  [skip Fig 6] No sysmon_*.csv found")
-        return
-
-    best_sysmon = max(sysmon_files, key=lambda p: os.path.getsize(p))
-    df = pd.read_csv(best_sysmon)
+def _render_single_telemetry(sysmon_path, out_filename, title_label="Figure 6", show=False):
+    df = pd.read_csv(sysmon_path)
     if df.empty or "elapsed_s" not in df.columns:
-        print("  [skip Fig 6] Invalid sysmon CSV format")
+        print(f"  [skip {out_filename}] Invalid sysmon CSV format")
         return
 
     df["elapsed_h"] = df["elapsed_s"] / 3600.0
@@ -798,7 +854,6 @@ def plot_figure_6_telemetry(show=False):
     duration_h = df["elapsed_h"].max()
     fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
 
-    # 1. CPU Usage
     axes[0].plot(df["elapsed_h"], df["cpu_roll"], color="#1f77b4", lw=1.2,
                  label="CPU Utilization (30s Rolling Avg)")
     axes[0].axhline(y=100, color="crimson", linestyle="--", alpha=0.45,
@@ -807,11 +862,10 @@ def plot_figure_6_telemetry(show=False):
     axes[0].set_ylim(0, 108)
     axes[0].legend(loc="upper right", frameon=True, framealpha=0.95, fontsize=9)
     axes[0].set_title(
-        f"Figure 6: Real-Time Hardware Telemetry Profile ({duration_h:.1f}-Hour Continuous 1 Hz Trace)",
+        f"{title_label}: Real-Time Hardware Telemetry Profile ({duration_h:.1f}-Hour Continuous 1 Hz Trace)",
         fontsize=13, fontweight="bold", pad=12,
     )
 
-    # 2. RAM Usage
     axes[1].plot(df["elapsed_h"], df["ram_used_gb"], color="#2ca02c", lw=1.4,
                  label="Host RAM Used (GB)")
     axes[1].axhline(y=14.88, color="crimson", linestyle="--", lw=1.5,
@@ -821,7 +875,6 @@ def plot_figure_6_telemetry(show=False):
     axes[1].set_ylim(0, max(16.5, float(df["ram_used_gb"].max()) * 1.15))
     axes[1].legend(loc="upper right", frameon=True, framealpha=0.95, fontsize=9)
 
-    # 3. Network Throughput
     axes[2].plot(df["elapsed_h"], df["net_sent_roll"], color="#ff7f0e", lw=1.0, alpha=0.85,
                  label="Net Egress (Sent MB/s)")
     axes[2].plot(df["elapsed_h"], df["net_recv_roll"], color="#9467bd", lw=1.0, alpha=0.75,
@@ -833,8 +886,7 @@ def plot_figure_6_telemetry(show=False):
     axes[2].set_ylim(0, max(16.0, float(df[["net_sent_roll", "net_recv_roll"]].max().max()) * 1.15))
     axes[2].legend(loc="upper right", frameon=True, framealpha=0.95, fontsize=9)
 
-    # Annotate canonical ResNet+GPT-2 session stages only when plotting that specific 18.4h trace
-    if "20261121_200541" in os.path.abspath(best_sysmon):
+    if "20261121_200541" in os.path.abspath(sysmon_path):
         stage_markers = [
             (1.43, "Stage 4: Microbatch K-Sweep"),
             (8.86, "Stage 5: Global-Batch K-Sweep"),
@@ -851,7 +903,34 @@ def plot_figure_6_telemetry(show=False):
                 )
 
     plt.tight_layout()
-    save_fig(fig, "Figure_6_system_telemetry_timeline.png", show)
+    save_fig(fig, out_filename, show)
+
+
+def plot_figure_6_telemetry(show=False):
+    """
+    Figure 6: 3-panel time-series profile of CPU%, DDR4 RAM, and Network I/O
+    from continuous 1 Hz sysmon logs (plus Figure 6b for merged extra sessions).
+    """
+    sysmon_files = _glob_results("sysmon_*.csv", include_extra=False)
+    if not sysmon_files:
+        sysmon_files = _glob_results("sysmon_*.csv", include_extra=True)
+    if not sysmon_files:
+        print("  [skip Fig 6] No sysmon_*.csv found")
+        return
+
+    best_primary = max(sysmon_files, key=lambda p: os.path.getsize(p))
+    _render_single_telemetry(best_primary, "Figure_6_system_telemetry_timeline.png", "Figure 6", show=show)
+
+    for idx, extra_dir in enumerate(EXTRA_RESULTS_DIRS):
+        if not extra_dir or os.path.abspath(extra_dir) == os.path.abspath(RESULTS_DIR):
+            continue
+        extra_sys = sorted(glob.glob(os.path.join(extra_dir, "sysmon_*.csv")))
+        if not extra_sys:
+            continue
+        best_extra = max(extra_sys, key=lambda p: os.path.getsize(p))
+        slug = "voice" if "voice" in os.path.basename(os.path.normpath(extra_dir)).lower() else f"extra{idx+1}"
+        out_name = f"Figure_6{chr(98 + idx)}_{slug}_telemetry_timeline.png"
+        _render_single_telemetry(best_extra, out_name, f"Figure 6{chr(98 + idx)} (Voice Campaign)", show=show)
 
 
 # ── Main Entrypoint ───────────────────────────────────────────────────────────

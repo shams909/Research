@@ -33,9 +33,9 @@
    * Table 3: Step-Time Stopwatch Decomposition & Ratio ($\Gamma$)
    * Table 4: Stage 5 Fixed-Global-Batch Ablation Matrix
    * 8.1 Methodological Scope, Validation & Experimental Boundaries
-9. [Detailed Visual Systems Analysis: The 18 Publication Figures](#9-detailed-visual-systems-analysis-the-18-publication-figures)
-   * Figures 1–5: Core Scaling, Decompositions, Convergence & Bandwidth
-   * Figure 6: Real-Time Hardware Telemetry Profile (18.4-Hour & 3.6-Hour 1 Hz Traces)
+9. [Detailed Visual Systems Analysis: The 19 Publication Figures](#9-detailed-visual-systems-analysis-the-19-publication-figures)
+   * Figures 1–5: Core Tri-Modal Scaling, Breakdowns, Convergence & Bandwidth
+   * Figures 6 & 6b: Real-Time Hardware Telemetry Profiles (18.4-Hour & 3.6-Hour 1 Hz Traces)
 10. [Academic Conclusion & Practical Implementation Guidelines](#10-academic-conclusion--practical-implementation-guidelines)
 
 ---
@@ -458,9 +458,9 @@ Executed continuously for **3 hours 41 minutes** (ResNet-18 + GPT-2) and **59.5 
 
 ---
 
-## 9. Detailed Visual Systems Analysis: The 18 Publication Figures
+## 9. Detailed Visual Systems Analysis: The 19 Publication Figures
 
-All 18 figures have been compiled at **200 DPI vector-raster quality** with non-overlapping label placement across all three curves. They are organized below as 6 primary figures (including tri-modal panels for Figures 1 & 4), 12 standalone solo subfigures (`1a–5b`), and stacked hardware telemetry (Figure 6).
+All 19 figures have been compiled at **200 DPI vector-raster quality** with non-overlapping label placement across all three curves. They are organized below as 7 primary figures (including tri-modal Figures 1, 3, and 4 plus dual telemetry Traces 6 & 6b) and 12 standalone solo subfigures (`1a–5b`).
 
 ---
 
@@ -500,9 +500,9 @@ Contrasts speedup ratio $S_N = T_{\text{cluster}} / T_{\text{single}}$ (Subfigur
 
 ---
 
-### Figure 3: Step-Time Decomposition & Compute-to-Communication Ratio ($\Gamma$)
+### Figure 3: Tri-Modal Step-Time Decomposition & Compute-to-Communication Ratio ($\Gamma$)
 
-Deconstructs step duration into local forward compute, local backward compute, and collective AllReduce network wait (Subfigure a), alongside the compute-to-communication ratio $\Gamma = T_{\text{comp}} / T_{\text{comm}}$ (Subfigure b).
+Shows **what actually happens inside a single optimizer step** for ResNet-18 (a), GPT-2 Small (b), and Whisper-Tiny (c), alongside the Compute-to-Communication ratio $\Gamma = T_{\text{comp}} / T_{\text{comm}}$ (d). Notice how the **red AllReduce bar stays flat** ($\sim 3.8\text{s}$ on ResNet-18, $\sim 41.2\text{s}$ on GPT-2 Small, $\sim 12.2\text{s}$ on Whisper-Tiny) regardless of $K$, while useful local CPU compute (blue + green) scales linearly with $K$:
 
 ![Figure 3: Step Time Breakdown and Compute-to-Comm Ratio](figures/Figure_3_compute_vs_communication_breakdown.png)
 
@@ -513,7 +513,7 @@ Deconstructs step duration into local forward compute, local backward compute, a
 
 **Key Observations:**
 * **AllReduce Invariance:** Across all $K$, network transfer duration stays virtually flat ($\sim 41\text{s}$ GPT-2, $\sim 12.2\text{–}12.4\text{s}$ Whisper-Tiny, $\sim 3.8\text{s}$ ResNet-18) because gradient tensor payload per sync is invariant.
-* **Bottleneck Inversion:** Network sync overhead plummets from **$94.1\%$** down to **$10.1\%$** on GPT-2 ($\Gamma: 0.056 \to 8.922$) and from **$96.2\%$** down to **$11.5\%$** on Whisper-Tiny ($\Gamma: 0.033 \to 7.706$).
+* **Bottleneck Inversion Across All 3 Modalities:** Network sync overhead drops from **$94.1\% \to 10.1\%$** on GPT-2 ($\Gamma: 0.056 \to 8.922$), **$96.2\% \to 11.5\%$** on Whisper-Tiny ($\Gamma: 0.033 \to 7.706$), and **$97.7\% \to 17.5\%$** on ResNet-18 ($\Gamma: 0.022 \to 4.711$).
 
 ---
 
@@ -552,11 +552,15 @@ Evaluates physical AllReduce scaling across tensor payloads from $0.1\text{ MB}$
 
 ---
 
-### Figure 6: Real-Time Hardware Telemetry Profile (18.4-Hour & 3.6-Hour 1 Hz Traces)
+### Figures 6 & 6b: Real-Time Hardware Telemetry Profiles (18.4-Hour Vision/LLM & 3.6-Hour Voice Traces)
 
-To rigorously verify host resource behavior, detect potential memory leaks, and prove the absence of hidden OS page swapping, continuous hardware telemetry was collected at $1.0\text{ Hz}$ across both experimental campaigns ($66,180$ continuous seconds in `session_20261121_200541_1core` shown below, plus $12,879$ samples in `session_20261125_224612_voice`):
+To rigorously verify host resource behavior, detect potential memory leaks, and prove the absence of hidden OS page swapping across **both** experimental campaigns, continuous hardware telemetry was collected at $1.0\text{ Hz}$ on Node 01 (`66,180` samples in `session_20261121_200541_1core` and `12,879` samples in `session_20261125_224612_voice`):
 
+#### Figure 6: Vision + LLM Campaign (18.4-Hour 1 Hz Trace)
 ![Figure 6: Real-Time Hardware Telemetry Profile](figures/Figure_6_system_telemetry_timeline.png)
+
+#### Figure 6b: Voice (Whisper-Tiny) Campaign (3.6-Hour 1 Hz Trace)
+![Figure 6b: Voice Real-Time Hardware Telemetry Profile](figures/Figure_6b_voice_telemetry_timeline.png)
 
 **Key Telemetry Observations:**
 * **CPU Utilization (%):** Reflects exact duty-cycle transitions between communication stalls and compute bursts (peaking at `62.3%` in the 18.4h Vision/LLM campaign and `61.5%` in the 3.58h Voice campaign across 20 logical threads, confirming 12-physical-core utilization).

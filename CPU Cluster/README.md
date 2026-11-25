@@ -4,8 +4,8 @@
 > **Working Paper Title**: *"Communication Amortization in Distributed CPU Training over Fast Ethernet: An Empirical Study"*  
 > **Comparative Baseline**: *"Towards Large-Scale Training on Apple Silicon"* (2025)  
 > **Master Report**: See [EXPERIMENTAL_RESULTS.md](EXPERIMENTAL_RESULTS.md) for full A-to-Z empirical data, tri-modal benchmark tables, and systems profiling.  
-> **Publication Figures**: 18 high-resolution publication figures available in [figures/](figures/).  
-> **Interactive Dashboard**: Open [dashboard.html](dashboard.html) in a browser for interactive exploration of all 18 figures.
+> **Publication Figures**: 19 high-resolution publication figures available in [figures/](figures/).  
+> **Interactive Dashboard**: Open [dashboard.html](dashboard.html) in a browser for interactive exploration of all 19 figures.
 
 ---
 
