@@ -91,7 +91,7 @@ Lab Cluster/
 | `02_train_cifar.py` | Trains ResNet-18 on CIFAR-10 across all nodes | After smoke test passes | ✅ **Training demo** |
 | `03_train_gpt2.py` | Trains GPT-2 Small (124M params) on WikiText-2 across all nodes | After CIFAR demo | ✅ **LLM demo** |
 | `04_benchmark.py` | Tri-modal throughput & step-time profiler (`--model all/tri/whisper`) | For research data | ✅ **Paper figures** |
-| `05_plot_results.py` | Generates combined & solo PNGs (`--extra_results_dir` merges modalities) | After benchmarks | ✅ **18 Figures** |
+| `05_plot_results.py` | Generates combined & solo PNGs (`--extra_results_dir` merges modalities) | After benchmarks | ✅ **19 Figures** |
 | `07_train_whisper.py` | Trains Whisper-Tiny (37.8M params) on SpeechCommands across all nodes | Voice modality | ✅ **Voice demo** |
 | `run_voice_experiment.sh` | One-tap end-to-end Voice pipeline + auto-plotting (Stages 0–6) | Overnight Voice run | ✅ **Tri-modal suite** |
 
